@@ -50,3 +50,9 @@ examples/sadf/mp4dec/mp4dec.py
 
 # Stray runtime capture, not source
 examples/sy/mulaccwrap/socket
+
+# Failed/discontinued experiments -- confirmed not worth carrying forward
+/examples/sadf/dstarlite/
+/examples/sadf/sadf_tutorialMN-hide/
+/examples/sdf/mp3decoder/
+/examples/sdf/vadMN/
