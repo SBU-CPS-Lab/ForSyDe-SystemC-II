@@ -23,6 +23,7 @@
  */
 
 #include <algorithm>
+#include <filesystem>
 #include "rapidxml_print.hpp"
 
 #include "abssemantics.hpp"
@@ -52,6 +53,13 @@ public:
     //! The constructor takes the gneration path
     XMLExport(std::string path) : path(path)
     {
+        // The output path is a per-example convention (each example's
+        // top.hpp names its own "gen/"), not something the build system
+        // creates, and a fresh checkout has no such directory since it
+        // holds only generated output.
+        if (!path.empty())
+            std::filesystem::create_directories(path);
+
         // Allocate global names
         const_name = (char*)"name";
         const_leaf_process = (char*)"leaf_process";
