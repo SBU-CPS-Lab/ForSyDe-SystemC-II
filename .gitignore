@@ -51,6 +51,10 @@ examples/sadf/mp4dec/mp4dec.py
 # Stray runtime capture, not source
 examples/sy/mulaccwrap/socket
 
+# Build/run output from the golden-file harness (tests/run_examples.sh)
+examples/mi/cruisecontrol/software/controller
+examples/sdf/toysdf_file/output.txt
+
 # Failed/discontinued experiments -- confirmed not worth carrying forward
 /examples/sadf/dstarlite/
 /examples/sadf/sadf_tutorialMN-hide/

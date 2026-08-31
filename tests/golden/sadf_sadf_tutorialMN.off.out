@@ -1,0 +1,12 @@
+
+        SystemC 3.0.2-Accellera --- Nov  5 2025 12:44:46
+        Copyright (c) 1996-2025 by all Contributors,
+        ALL RIGHTS RESERVED
+kernel1 = 1
+kernel2 = 0
+kernel1 = 12
+kernel2 = 12
+kernel1 = 1
+kernel2 = 0
+kernel1 = 27
+kernel2 = 56

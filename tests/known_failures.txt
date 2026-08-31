@@ -1,0 +1,68 @@
+# Known-failing "path config" pairs for tests/run_examples.sh, one per
+# line, path relative to the repo root, config is "on" or "off".
+#
+# Each entry below was individually diagnosed (not just observed) when
+# this file was seeded -- see the reason on each line. None of these are
+# fixed here; they are Phase-1 (or, where noted, Phase-2) work.
+
+# --- Infinite-run examples: sc_start() with no stop time and no code
+# path that ever halts the simulation. Not a hang in the SystemC sense
+# and not stdin-blocked (checked); the model is simply unbounded as
+# written. Needs an explicit stop condition or a duration argument.
+ct/cttutorial on
+ct/cttutorial off
+mi/ir_uwb_radar on
+mi/ir_uwb_radar off
+
+# --- D15: ct_wrappers.hpp -> fmi2.h -> XmlParserCApi.h. The header is
+# present but the parser implementation it declares is not linked, so
+# this fails at link time with undefined references (getValueReference,
+# getScalarVariable, ...), not at compile time. Scheduled for step 0.6.
+# The "off" configuration does not hit this: this harness produces the
+# "off" build by overriding CFLAGS wholesale, which also strips this
+# example's -DFORSYDE_COSIMULATION_WRAPPERS, so it silently takes the
+# non-wrapper code path instead of also failing. That is a limitation
+# of this interim harness, not evidence the "off" build is exercising
+# the wrapper path safely.
+mi/cruisecontrol on
+
+# --- Invalid macroblock grid: fsr=176, fsc=44, bs=8 in globals.hpp --
+# 44 is not divisible by 8, so the frame is not a whole number of
+# macroblocks. In the non-introspective build this aborts outright
+# (SIGABRT). In the introspective build it does not crash, but two
+# consecutive runs of the identical binary produce different output --
+# confirmed directly, not inferred -- consistent with the same invalid
+# grid causing an out-of-bounds or uninitialized-memory read that
+# happens not to trip an assertion here. Neither configuration's output
+# can be pinned to a golden file until this is fixed. A fix (frame size
+# expressed in terms of nmb, corrected to 64x64) already exists on the
+# wip/mp4dec-scenarios branch.
+sadf/mp4dec on
+sadf/mp4dec off
+
+# --- DEFINE_TYPE_NAME / DEFINE_TYPE used directly in example code
+# (types.hpp is only included under FORSYDE_INTROSPECTION, so these
+# macros are undefined in the "off" build and the calls parse as
+# malformed declarations: "expected identifier before string constant").
+# Same defect class as the library's own D2/D3 header-hygiene issues,
+# just found in example code instead of src/forsyde.
+sdf/vad off
+sy/equalizer off
+
+# --- zipN/unzipN called with a constructor signature
+# (name, vector<uint>&) that no longer matches ForSyDe::SDF::zipN's
+# actual constructor. API drift between this example and the current
+# library, in both configurations -- not introspection-related.
+sdf/vtoysdf on
+sdf/vtoysdf off
+
+# --- abst_ext<std::function<...>> has no operator<<, so
+# prettyprint.hpp's generic printer can't be instantiated for it. Fails
+# identically in both configurations.
+sy/adaptivecodec on
+sy/adaptivecodec off
+
+# --- Out-of-bounds std::vector<std::complex<double>> access
+# (operator[] assertion failure) somewhere in the audio pipeline.
+# Genuine bug in the example, reproducible, not a build-system issue.
+sy/equalizer on
