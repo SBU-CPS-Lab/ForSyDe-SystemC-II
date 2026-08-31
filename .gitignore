@@ -1,0 +1,52 @@
+# Build artifacts (the example Makefiles under examples/*/ produce these;
+# the Makefiles themselves are tracked, everything they emit is not)
+*.o
+*.d
+*.P
+run.x
+gen/
+
+# Simulation / introspection run output
+*.dat
+*.tab
+*.output.*
+*.dot
+*.xml
+*.conf
+*.vcd
+*.pdf
+*.png
+*.zip
+sink_data.txt
+
+# Editor
+/.vscode/
+
+# Reference papers pulled in locally for review -- copyrighted, not ours to
+# distribute from this repository
+/resources/
+
+# Architecture-review working notes, not project content
+/prompt.txt
+
+# Discontinued tryout, superseded by the Phase-2/3 functional surface work
+src/forsyde/combinators.hpp
+
+# Unfinished alternate mp4dec implementations (C++ variant 3, and the
+# Haskell/Python reference models) -- not yet integrated
+examples/sadf/mp4dec/mp4dec3.hpp
+examples/sadf/mp4dec/top3.hpp
+examples/sadf/mp4dec/globals3.hpp
+examples/sadf/mp4dec/kernels3.hpp
+examples/sadf/mp4dec/detectors3.hpp
+examples/sadf/mp4dec/mp4dec-haskell.hpp
+examples/sadf/mp4dec/mp4dec-haskell2.hpp
+examples/sadf/mp4dec/mp4dec-python.hpp
+examples/sadf/mp4dec/mp4dec.hs
+examples/sadf/mp4dec/mp4dec.py
+
+# Not yet integrated
+/examples/sadf/ForSyDe-systemC-SmartHome/
+
+# Stray runtime capture, not source
+examples/sy/mulaccwrap/socket
