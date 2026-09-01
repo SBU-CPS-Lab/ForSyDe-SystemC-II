@@ -99,8 +99,31 @@ for dir in "${DIRS[@]}"; do
             continue
         fi
 
-        run_out=$( cd "$dir" && timeout "$TIMEOUT" ./run.x 2>&1 )
+        # Plain `$(timeout ... ./run.x 2>&1)` is not safe: bash's command
+        # substitution waits for its read end to see EOF, which needs
+        # every process holding the write end open to close it -- not
+        # just the timed-out process. A wrapper example that leaks a
+        # child subprocess (confirmed here: mi/cruisecontrol's gdbwrap
+        # spawns `gdb --interpreter=mi` and never kills it once attaching
+        # fails) leaves that child holding the pipe open, and the whole
+        # harness hangs long after `timeout` has already killed run.x --
+        # the 30s budget below never even comes into it. A plain file
+        # has no such holder-count semantics, so route through one
+        # instead and `wait` on the backgrounded job's own pid, which
+        # bash resolves independently of anything still holding the fd.
+        run_tmp=$(mktemp)
+        ( cd "$dir" && timeout "$TIMEOUT" ./run.x ) > "$run_tmp" 2>&1 < /dev/null &
+        wait $!
         run_rc=$?
+        run_out=$(cat "$run_tmp")
+        rm -f "$run_tmp"
+        # Whatever leaked process caused the hang this fixes is still
+        # leaked -- the file redirect stops it from blocking the harness,
+        # it doesn't stop it from existing. Sweep the one leak diagnosed
+        # so far (gdbwrap's child) rather than leaving it to accumulate
+        # across a 33-example run; a real per-example process-group kill
+        # is Phase-1b's job when the wrapper itself is rebuilt.
+        pkill -9 -f 'gdb --interpreter=mi' >/dev/null 2>&1
 
         if [ $run_rc -ne 0 ]; then
             if is_known_failure "$key"; then
