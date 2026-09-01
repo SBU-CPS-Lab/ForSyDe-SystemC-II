@@ -130,6 +130,7 @@ for dir in "${DIRS[@]}"; do
                 known=$((known+1))
             else
                 echo "FAIL  $key (build) -- NEW"
+                echo "$build_log" | sed 's/^/      /'
                 new_failures+=("$key (build)")
                 new_fail=$((new_fail+1))
             fi
