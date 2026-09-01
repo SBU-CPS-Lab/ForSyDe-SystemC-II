@@ -110,6 +110,13 @@ mapfile -t DIRS < <(git ls-files -- 'examples/*/Makefile' 'examples/*/*/Makefile
 # went unnoticed for years. See tests/multi_tu/README.md.
 DIRS+=("tests/multi_tu")
 
+# tests/instantiate is the same idea for a different blind spot: a class
+# template nothing names is never really compiled, so every process
+# constructor no example happens to use is unverified source text.
+# UT::zipsN was exactly that and had two defects to show for it. See
+# tests/instantiate/README.md.
+DIRS+=("tests/instantiate")
+
 echo "CXXSTD=$CXXSTD $( [ $SEED = 1 ] && echo '(seed mode)' || echo '(check mode)' )"
 
 # One job per directory. Everything this prints goes to the job's own
