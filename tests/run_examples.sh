@@ -83,6 +83,26 @@ for dir in "${DIRS[@]}"; do
         continue
     fi
 
+    # mi/cruisecontrol's Makefile links -lmigdb and libxml2
+    # unconditionally (EXTRA_LIBS is not tied to which macros CFLAGS
+    # actually carries), so *neither* config can link without both
+    # present -- confirmed directly: core's CI job, which correctly has
+    # neither installed, failed "off" (the config that never touches
+    # gdbwrap or the FMI wrapper at all) with "collect2: error: ld
+    # returned 1 exit status" on exactly this. Skip the whole directory
+    # rather than let that surface as a spurious core regression; the
+    # optional-gdb and optional-fmi CI jobs install both and exercise it
+    # properly. Making EXTRA_LIBS conditional on the macros actually
+    # requested is real work worth doing, not a one-line fix here --
+    # natural fit for the Phase 1b wrapper rework.
+    if [ "$name" = "mi/cruisecontrol" ] \
+       && { ! echo 'int main(){}' | g++ -x c++ - -lmigdb -o /dev/null 2>/dev/null \
+            || ! pkg-config --exists libxml-2.0 2>/dev/null; }; then
+        echo "SKIP  $name (libmigdb and/or libxml2 not installed -- required to link either config)"
+        skip=$((skip+1))
+        continue
+    fi
+
     for cfg in on off; do
         key="$name $cfg"
         golden="$GOLDEN_DIR/${name//\//_}.$cfg.out"
