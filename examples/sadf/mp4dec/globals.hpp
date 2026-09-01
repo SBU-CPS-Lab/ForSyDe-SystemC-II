@@ -22,14 +22,29 @@ using namespace ForSyDe;
 using namespace std;
 
 // The size of the frame
-constexpr size_t fsr = 176;
-constexpr size_t fsc = 44;
+//
+// These were 176x44 with bs=8. 44 is not a multiple of 8, so the frame
+// was not a whole number of macroblocks and nmb below truncated: the
+// model then indexed past the end of the frame. The non-introspective
+// build aborted outright; the introspective one did not crash but gave
+// different output on two consecutive runs of the same binary, which is
+// the signature of reading uninitialised memory rather than of any
+// modelling nondeterminism. 64x64 is a whole 8x8 macroblock grid in
+// both dimensions.
+constexpr size_t fsr = 64;
+constexpr size_t fsc = 64;
 
 // The size of the macroblock
 constexpr size_t bs = 8;
 
 // Number of macro blocks in a frame
 constexpr size_t nmb = fsr*fsc / (bs*bs);
+
+// The division above silently truncates, which is how the frame size
+// and the macroblock size were allowed to disagree in the first place.
+static_assert(fsr % bs == 0 && fsc % bs == 0,
+    "the frame size must be a whole number of macroblocks in both "
+    "dimensions, or nmb truncates and the model indexes past the frame");
 
 // A matrix is a vector of vectors
 template <typename T, size_t M, size_t N>
