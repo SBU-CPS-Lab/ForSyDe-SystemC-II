@@ -56,3 +56,22 @@ mi/ir_uwb_radar off
 # non-wrapper code path instead. That is a limitation of this interim
 # harness, not evidence the "off" build exercises the wrapper safely.
 mi/cruisecontrol on
+
+# --- sdf/mp3decoder builds and decodes correctly, but only in the
+# introspective configuration, for a harness reason rather than a model
+# one. This example's Makefile sets -DFORSYDE alongside
+# -DFORSYDE_INTROSPECTION, and -DFORSYDE is what selects its ForSyDe
+# integration code path over the standalone-decoder one (see the #ifdef
+# FORSYDE blocks in readBitstreamAndExtractFrames.cpp and
+# mergeChanules.cpp). This harness produces the "off" configuration by
+# overriding CFLAGS wholesale, which strips *every* macro the example's
+# own Makefile adds, not introspection alone -- so the "off" build loses
+# -DFORSYDE too and fails on mon_debug_info.
+#
+# That wholesale override is deliberate and worth keeping: it is also
+# what stops mi/cruisecontrol's "off" build from requiring libmigdb and
+# libxml2 in the core CI job. The same limitation is described at more
+# length on the mi/cruisecontrol entry above. Fixing it properly means
+# per-example control over which macros the "off" pass removes, which
+# belongs with a real build system rather than this interim harness.
+sdf/mp3decoder off

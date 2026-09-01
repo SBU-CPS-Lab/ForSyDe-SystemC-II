@@ -62,5 +62,6 @@ fmuTmp*/
 # Failed/discontinued experiments -- confirmed not worth carrying forward
 /examples/sadf/dstarlite/
 /examples/sadf/sadf_tutorialMN-hide/
-/examples/sdf/mp3decoder/
-/examples/sdf/vadMN/
+
+# Decoded PCM written by examples/sdf/mp3decoder next to itself
+output.raw
