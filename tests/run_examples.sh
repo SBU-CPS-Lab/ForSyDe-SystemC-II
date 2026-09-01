@@ -58,6 +58,30 @@ is_known_failure() {
     grep -qxF "$1" "$KNOWN_FAILURES" 2>/dev/null
 }
 
+# How many example directories to build concurrently. This suite is
+# almost entirely compilation: one example takes ~4.4s to compile and
+# ~0.01s to run, because forsyde.hpp is a deep header-only template
+# library that every model recompiles from scratch. 68 builds
+# single-threaded is ~5 minutes of one core while the rest of the
+# machine idles.
+#
+# The unit of parallelism is the *directory*, not the build: the "on"
+# and "off" configurations of one example share a build directory (the
+# per-example Makefiles all emit main.o/run.x next to the source, and
+# the harness does `make clean` between them), so running them
+# concurrently would have them clobbering each other's object files and
+# binaries. Directories are independent of each other -- including for
+# the output files some examples write next to themselves (gen/,
+# output.txt, fmuTmpXXXXXX/) -- so one job per directory is both the
+# largest safe grain and enough to saturate a typical machine.
+#
+# Output stays byte-identical to a serial run: each job writes its lines
+# to its own file and the parent prints them in DIRS order once all jobs
+# are done, rather than letting them interleave as they finish. Counters
+# are likewise tallied from those files, since a background job cannot
+# increment a variable in the parent shell.
+JOBS="${JOBS:-$(nproc 2>/dev/null || echo 4)}"
+
 pass=0 fail=0 known=0 skip=0 new_fail=0
 new_failures=()
 
@@ -88,7 +112,12 @@ DIRS+=("tests/multi_tu")
 
 echo "CXXSTD=$CXXSTD $( [ $SEED = 1 ] && echo '(seed mode)' || echo '(check mode)' )"
 
-for dir in "${DIRS[@]}"; do
+# One job per directory. Everything this prints goes to the job's own
+# log file; counters go to its tally file, because a background job
+# cannot increment a variable in the parent shell.
+run_dir() {
+    local dir="$1"
+    local tally="$2"
     name="${dir#examples/}"
 
     # An example whose Makefile hardcodes a toolchain that is not
@@ -98,8 +127,8 @@ for dir in "${DIRS[@]}"; do
     if grep -q '^CC[[:space:]]*=[[:space:]]*mpic++' "$dir/Makefile" 2>/dev/null \
        && ! command -v mpic++ >/dev/null 2>&1; then
         echo "SKIP  $name (mpic++ not installed)"
-        skip=$((skip+1))
-        continue
+        echo "SKIP" >> "$tally"
+        return
     fi
 
     # mi/cruisecontrol's Makefile links -lmigdb and libxml2
@@ -118,8 +147,8 @@ for dir in "${DIRS[@]}"; do
        && { ! echo 'int main(){}' | g++ -x c++ - -lmigdb -o /dev/null 2>/dev/null \
             || ! pkg-config --exists libxml-2.0 2>/dev/null; }; then
         echo "SKIP  $name (libmigdb and/or libxml2 not installed -- required to link either config)"
-        skip=$((skip+1))
-        continue
+        echo "SKIP" >> "$tally"
+        return
     fi
 
     for cfg in on off; do
@@ -147,7 +176,7 @@ for dir in "${DIRS[@]}"; do
         if [ "$name" = "mi/cruisecontrol" ] && [ "$cfg" = on ] \
            && [ -n "${FORSYDE_SKIP_GDB:-}" ]; then
             echo "SKIP  $key (FORSYDE_SKIP_GDB set -- gdbwrap cannot get a controlling terminal here)"
-            skip=$((skip+1))
+            echo "SKIP" >> "$tally"
             continue
         fi
 
@@ -166,31 +195,44 @@ for dir in "${DIRS[@]}"; do
         if [ $build_rc -ne 0 ] || [ ! -x "$dir/run.x" ]; then
             if is_known_failure "$key"; then
                 echo "FAIL  $key (known: build)"
-                known=$((known+1))
+                echo "KNOWN" >> "$tally"
             else
                 echo "FAIL  $key (build) -- NEW"
                 echo "$build_log" | sed 's/^/      /'
-                new_failures+=("$key (build)")
-                new_fail=$((new_fail+1))
+                echo "NEWFAIL $key (build)" >> "$tally"
             fi
             continue
         fi
 
-        # Plain `$(timeout ... ./run.x 2>&1)` is not safe: bash's command
-        # substitution waits for its read end to see EOF, which needs
-        # every process holding the write end open to close it -- not
-        # just the timed-out process. A wrapper example that leaks a
-        # child subprocess (confirmed here: mi/cruisecontrol's gdbwrap
-        # spawns `gdb --interpreter=mi` and never kills it once attaching
-        # fails) leaves that child holding the pipe open, and the whole
-        # harness hangs long after `timeout` has already killed run.x --
-        # the 30s budget below never even comes into it. A plain file
-        # has no such holder-count semantics, so route through one
-        # instead and `wait` on the backgrounded job's own pid, which
-        # bash resolves independently of anything still holding the fd.
+        # Capture through a plain file, never `$(timeout ... ./run.x)`:
+        # bash's command substitution waits for its read end to see EOF,
+        # which needs every process holding the write end open to close
+        # it -- not just the timed-out process. A wrapper example that
+        # leaks a child subprocess (confirmed here: mi/cruisecontrol's
+        # gdbwrap spawns `gdb --interpreter=mi` and never kills it once
+        # attaching fails) leaves that child holding the pipe open, and
+        # the whole harness hangs long after `timeout` has already killed
+        # run.x -- the 30s budget below never even comes into it. A file
+        # has no such holder-count semantics.
+        #
+        # Run it in the foreground: backgrounding and waiting on the pid
+        # is unnecessary once the pipe is gone, since the wait is bounded
+        # by `timeout` either way (bash waits for the subshell, the
+        # subshell for `timeout`, and neither waits on a leaked
+        # grandchild).
+        #
+        # The trailing `exit $?` is not redundant. Without it the
+        # subshell is itself terminated by the signal that killed run.x,
+        # and bash announces that on stderr -- "line 154: 501164
+        # Aborted ..." -- embedding a pid that differs on every run. Two
+        # examples here exit on SIGABRT, so that put two
+        # nondeterministic lines into every log, which is precisely what
+        # you do not want when diffing one run against another. Exiting
+        # explicitly makes the subshell terminate *normally* with status
+        # 128+signal, which bash reports nothing about, and which
+        # $? below reads identically.
         run_tmp=$(mktemp)
-        ( cd "$dir" && timeout "$TIMEOUT" ./run.x ) > "$run_tmp" 2>&1 < /dev/null &
-        wait $!
+        ( cd "$dir" && timeout "$TIMEOUT" ./run.x; exit $? ) > "$run_tmp" 2>&1 < /dev/null
         run_rc=$?
         # SystemC prints its own copyright banner unconditionally on
         # first sc_start(), and one line of it embeds the exact build
@@ -213,11 +255,10 @@ for dir in "${DIRS[@]}"; do
         if [ $run_rc -ne 0 ]; then
             if is_known_failure "$key"; then
                 echo "FAIL  $key (known: run, exit $run_rc)"
-                known=$((known+1))
+                echo "KNOWN" >> "$tally"
             else
                 echo "FAIL  $key (run, exit $run_rc) -- NEW"
-                new_failures+=("$key (run, exit $run_rc)")
-                new_fail=$((new_fail+1))
+                echo "NEWFAIL $key (run, exit $run_rc)" >> "$tally"
             fi
             continue
         fi
@@ -233,11 +274,11 @@ for dir in "${DIRS[@]}"; do
                 # failures are never golden-tracked, regardless of what
                 # this one run's exit code was.
                 echo "SEED  $key (known -- not golden-tracked)"
-                known=$((known+1))
+                echo "KNOWN" >> "$tally"
             else
                 printf '%s' "$run_out" > "$golden"
                 echo "SEED  $key"
-                pass=$((pass+1))
+                echo "PASS" >> "$tally"
             fi
             continue
         fi
@@ -245,30 +286,59 @@ for dir in "${DIRS[@]}"; do
         if [ ! -f "$golden" ]; then
             if is_known_failure "$key"; then
                 echo "FAIL  $key (known: no golden)"
-                known=$((known+1))
+                echo "KNOWN" >> "$tally"
             else
                 echo "FAIL  $key (no golden -- run with --seed) -- NEW"
-                new_failures+=("$key (no golden)")
-                new_fail=$((new_fail+1))
+                echo "NEWFAIL $key (no golden)" >> "$tally"
             fi
             continue
         fi
 
         if [ "$run_out" = "$(cat "$golden")" ]; then
             echo "PASS  $key"
-            pass=$((pass+1))
+            echo "PASS" >> "$tally"
         else
             if is_known_failure "$key"; then
                 echo "FAIL  $key (known: golden mismatch)"
-                known=$((known+1))
+                echo "KNOWN" >> "$tally"
             else
                 echo "FAIL  $key (output differs from golden) -- NEW"
-                new_failures+=("$key (golden mismatch)")
-                new_fail=$((new_fail+1))
+                echo "NEWFAIL $key (golden mismatch)" >> "$tally"
             fi
         fi
     done
+}
+
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+
+job_idx=0
+for dir in "${DIRS[@]}"; do
+    job_idx=$((job_idx+1))
+    slot="$(printf '%04d' "$job_idx")"
+    # Bounded concurrency: block until a slot frees up. `wait -n` needs
+    # bash 4.3+; fall back to waiting for all outstanding jobs if it is
+    # unavailable, which is slower but still correct.
+    while [ "$(jobs -rp | wc -l)" -ge "$JOBS" ]; do
+        wait -n 2>/dev/null || wait
+    done
+    run_dir "$dir" "$WORK/$slot.tally" > "$WORK/$slot.log" 2>&1 &
 done
+wait
+
+# Print every job's output in DIRS order (the %04d prefix makes the glob
+# sort match it), so a parallel run reads exactly like a serial one.
+for f in "$WORK"/*.log; do [ -f "$f" ] && cat "$f"; done
+
+while IFS= read -r tline; do
+    case "$tline" in
+        PASS)     pass=$((pass+1)) ;;
+        KNOWN)    known=$((known+1)) ;;
+        SKIP)     skip=$((skip+1)) ;;
+        NEWFAIL\ *) new_fail=$((new_fail+1)); new_failures+=("${tline#NEWFAIL }") ;;
+    esac
+done < <(cat "$WORK"/*.tally 2>/dev/null)
+
 
 echo
 echo "pass=$pass known-fail=$known skip=$skip new-fail=$new_fail"
