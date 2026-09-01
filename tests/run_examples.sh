@@ -12,17 +12,23 @@
 #
 # What this does NOT do yet: this drives the existing per-example
 # Makefiles, which is the only build system that exists at the moment.
-# The two configurations are produced by overriding CFLAGS wholesale on
+# The "off" configuration is produced by overriding CFLAGS wholesale on
 # the `make` command line (GNU make: a command-line assignment to a
 # variable suppresses every in-makefile assignment to it, `+=` included)
 # rather than by a real per-macro switch, because FORSYDE_INTROSPECTION
 # is not independently toggleable from the two examples that also bake
-# FORSYDE_COSIMULATION_WRAPPERS / FORSYDE_PARALLEL_SIM into the same
-# CFLAGS += line. For those two examples specifically, the "off" pass
-# also strips the wrapper/MPI macro, not introspection alone -- that is
-# a real limitation of today's build system, not of this script, and it
-# is the reason Phase 0 is splitting the coarse macros into independent
-# CMake options.
+# FORSYDE_WITH_GDB / FORSYDE_WITH_FMI / FORSYDE_WITH_MPI into the same
+# CFLAGS += line (see the per-example Makefiles). For those examples
+# specifically, the "off" pass also strips whichever of those macros
+# that example's Makefile sets, not introspection alone -- a real
+# limitation of today's Make-only build system, not of this script.
+#
+# CXXSTD (env var, default c++17) selects the -std passed to both
+# configurations, and is what the CI workflow uses to run this same
+# script once per {c++17, c++20} row. It does not require a separate
+# golden set: nothing in this tree is C++20-specific yet, so the two
+# rows are expected to reproduce byte-identical output, and a mismatch
+# would itself be the finding.
 
 set -u
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -30,11 +36,12 @@ ROOT="$(pwd)"
 GOLDEN_DIR="$ROOT/tests/golden"
 KNOWN_FAILURES="$ROOT/tests/known_failures.txt"
 TIMEOUT=30
+CXXSTD="${CXXSTD:-c++17}"
 
 SEED=0
 if [ "${1:-}" = "--seed" ]; then SEED=1; fi
 
-BASE_CFLAGS="-Wall -Wno-deprecated -Wno-return-type -Wno-char-subscripts -pthread -g -O0 -std=c++17"
+BASE_CFLAGS="-Wall -Wno-deprecated -Wno-return-type -Wno-char-subscripts -pthread -g -O0 -std=$CXXSTD"
 
 is_known_failure() {
     # $1 = "path config", e.g. "examples/sy/adaptivecodec on"
@@ -60,6 +67,8 @@ mapfile -t DIRS < <(git ls-files -- 'examples/*/Makefile' 'examples/*/*/Makefile
     | xargs -n1 dirname | sort -u \
     | while read -r d; do grep -q 'Makefile\.defs' "$d/Makefile" && echo "$d"; done)
 
+echo "CXXSTD=$CXXSTD $( [ $SEED = 1 ] && echo '(seed mode)' || echo '(check mode)' )"
+
 for dir in "${DIRS[@]}"; do
     name="${dir#examples/}"
 
@@ -78,10 +87,38 @@ for dir in "${DIRS[@]}"; do
         key="$name $cfg"
         golden="$GOLDEN_DIR/${name//\//_}.$cfg.out"
 
+        # mi/cruisecontrol's "on" config spawns a real
+        # `gdb --interpreter=mi` inside a real `xterm`. In a sandboxed
+        # environment where GDB cannot set a controlling terminal
+        # ("Operation not permitted"), that gdb session hangs
+        # indefinitely rather than erroring out -- and unlike the gdb
+        # subprocess itself, the xterm window it hung inside was never
+        # covered by this script's subprocess sweep, so it survives as a
+        # real, visible, un-closeable window on whoever's screen this
+        # runs on. Confirmed directly: three such windows accumulated
+        # here across three routine harness runs. Skip this one config
+        # outright when FORSYDE_SKIP_GDB is set, rather than registering
+        # it as a known-fail that still actually runs -- and still opens
+        # a window -- every time. Set this permanently in the
+        # environment on any machine where a GDB session cannot get a
+        # real controlling terminal, which a desktop dev sandbox and a
+        # locked-down CI runner both are, and a normal unrestricted
+        # machine is not. The "off" config is unaffected -- it never
+        # touches gdbwrap -- so only "on" is skipped, not the directory.
+        if [ "$name" = "mi/cruisecontrol" ] && [ "$cfg" = on ] \
+           && [ -n "${FORSYDE_SKIP_GDB:-}" ]; then
+            echo "SKIP  $key (FORSYDE_SKIP_GDB set -- gdbwrap cannot get a controlling terminal here)"
+            skip=$((skip+1))
+            continue
+        fi
+
         ( cd "$dir" && make clean >/dev/null 2>&1 )
 
         if [ "$cfg" = on ]; then
-            build_log=$( cd "$dir" && make 2>&1 )
+            # OPT carries "-std=c++17" in Makefile.defs; override it the
+            # same way CFLAGS is overridden below, rather than leaving
+            # this row silently pinned to c++17 regardless of CXXSTD.
+            build_log=$( cd "$dir" && make OPT="-O0 -std=$CXXSTD" 2>&1 )
         else
             build_log=$( cd "$dir" && make CFLAGS="$BASE_CFLAGS" 2>&1 )
         fi
@@ -115,7 +152,15 @@ for dir in "${DIRS[@]}"; do
         ( cd "$dir" && timeout "$TIMEOUT" ./run.x ) > "$run_tmp" 2>&1 < /dev/null &
         wait $!
         run_rc=$?
-        run_out=$(cat "$run_tmp")
+        # SystemC prints its own copyright banner unconditionally on
+        # first sc_start(), and one line of it embeds the exact build
+        # timestamp of whichever libsystemc.so is linked -- confirmed by
+        # building SystemC 3.0.2 from source and diffing its output
+        # against this apt package's: identical simulation output,
+        # different banner date. Every CI row builds SystemC from
+        # source, so that line would never match a golden seeded here
+        # without this. Nothing else in the banner varies.
+        run_out=$(sed -E 's/^([[:space:]]*SystemC .*-Accellera --- ).*$/\1<build-date-elided>/' "$run_tmp")
         rm -f "$run_tmp"
         # Whatever leaked process caused the hang this fixes is still
         # leaked -- the file redirect stops it from blocking the harness,
@@ -138,9 +183,22 @@ for dir in "${DIRS[@]}"; do
         fi
 
         if [ $SEED -eq 1 ]; then
-            printf '%s' "$run_out" > "$golden"
-            echo "SEED  $key"
-            pass=$((pass+1))
+            if is_known_failure "$key"; then
+                # A registered failure that happens to exit 0 on this
+                # particular seeding run is not evidence it's fixed --
+                # sadf/mp4dec on is registered specifically *because* its
+                # output is non-deterministic even though it often exits
+                # 0, and seeding a golden from one lucky run would just
+                # make the next ordinary run "regress" against it. Known
+                # failures are never golden-tracked, regardless of what
+                # this one run's exit code was.
+                echo "SEED  $key (known -- not golden-tracked)"
+                known=$((known+1))
+            else
+                printf '%s' "$run_out" > "$golden"
+                echo "SEED  $key"
+                pass=$((pass+1))
+            fi
             continue
         fi
 
