@@ -17,11 +17,20 @@
 
 #include <forsyde.hpp>
 #include "averager.hpp"
+#include <array>
 #include <vector>
 #include <tuple>
 
-std::vector<uint> itoks = {3,2};
-std::vector<uint> otoks = {2,2};
+// SDF::zipN / SDF::unzipN take std::array<size_t, N>, where N is the
+// number of zipped signals, so that the rate list cannot disagree in
+// length with the port list. This example still passed the
+// std::vector<uint> that an older signature accepted, which is why it
+// stopped compiling: the token counts are part of the process's type
+// now, not a runtime-sized argument. constexpr also keeps these out of
+// the ODR trouble a mutable namespace-scope definition in a header
+// would cause in a multi-file model.
+constexpr std::array<size_t,2> itoks = {3,2};
+constexpr std::array<size_t,2> otoks = {2,2};
 
 using namespace ForSyDe;
 using namespace std;
