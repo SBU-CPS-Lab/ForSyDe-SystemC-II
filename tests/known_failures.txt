@@ -90,11 +90,13 @@ sy/equalizer off
 sdf/vtoysdf on
 sdf/vtoysdf off
 
-# --- abst_ext<std::function<...>> has no operator<<, so
-# prettyprint.hpp's generic printer can't be instantiated for it. Fails
-# identically in both configurations.
-sy/adaptivecodec on
-sy/adaptivecodec off
+# --- sy/adaptivecodec was registered here for D4 (abst_ext<T> required T
+# to be streamable, which std::function is not, so the one example built
+# on function adaptivity did not compile in either configuration). Fixed
+# in Phase 1a: abst_ext's operator<< now degrades to a placeholder for a
+# non-streamable T instead of failing to instantiate. Both configurations
+# build, run, and are golden-tracked; the entries are gone rather than
+# commented out, which is the point of this file.
 
 # --- Out-of-bounds std::vector<std::complex<double>> access
 # (operator[] assertion failure) somewhere in the audio pipeline.

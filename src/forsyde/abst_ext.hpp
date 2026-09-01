@@ -18,10 +18,43 @@
  * \brief Implements the Absent-extended values
  */
 
+#include <ostream>
+#include <type_traits>
+#include <utility>
+
 namespace ForSyDe
 {
 
 using namespace sc_core;
+
+namespace detail
+{
+
+//! Detects whether `os << val` is well-formed for a given type.
+template <typename T, typename = void>
+struct is_ostreamable : std::false_type {};
+
+template <typename T>
+struct is_ostreamable<T,
+    std::void_t<decltype(std::declval<std::ostream&>() << std::declval<const T&>())>>
+    : std::true_type {};
+
+//! Streams a value if its type supports it, and a placeholder otherwise.
+/*! This has to be a function *template* rather than a plain function or a
+ * branch inlined into the caller: `if constexpr` only discards the
+ * untaken branch inside a template, and the caller below is a friend
+ * function defined in a class template, which is not itself a template.
+ */
+template <typename T>
+inline std::ostream& stream_or_placeholder(std::ostream& os, const T& val)
+{
+    if constexpr (is_ostreamable<T>::value)
+        return os << val;
+    else
+        return os << "<unprintable>";
+}
+
+}
 
 //! Absent-extended data types
 /*! This template class extends a type T to its absent-extended version.
@@ -97,10 +130,21 @@ public:
     }
     
     //! Overload the streaming operator to enable SystemC communiation
+    /*! The present value is streamed through detail::stream_or_placeholder
+     * rather than directly. This operator cannot simply be dropped for a
+     * non-streamable T: sc_fifo<T>::print() is a virtual member, so it is
+     * instantiated for every sc_fifo<abst_ext<T>> whether or not anything
+     * ever calls it, and it does `os << m_buf[i]`. Removing this overload
+     * would move the error into sc_fifo rather than eliminate it. So the
+     * operator stays unconditionally available and degrades to a
+     * placeholder instead, which is what lets abst_ext carry types with no
+     * sensible textual form -- std::function above all, i.e. every
+     * adaptive process that sends a function down a signal.
+     */
     friend std::ostream& operator<< (std::ostream& os, const abst_ext &abst_ext)
     {
         if (abst_ext.is_present())
-            os << abst_ext.unsafe_from_abst_ext();
+            detail::stream_or_placeholder(os, abst_ext.unsafe_from_abst_ext());
         else
             os << "_";
         return os;
