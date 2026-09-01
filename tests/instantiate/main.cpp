@@ -57,6 +57,20 @@ SC_MODULE(all)
         inst<UT::zipsN <int,char,bool>>     ("ut_zipsN", std::array<size_t,3>{1,1,1});
         inst<UT::unzip <int,char>>          ("ut_unzip");
         inst<UT::unzipN<int,char,bool>>     ("ut_unzipN");
+
+        // ---- SADF -----------------------------------------------------
+        // The scenario tables differ in shape per arity: a pair of
+        // scalars, an array plus a scalar, then two arrays.
+        inst<SADF::kernel<int,int,int>>
+            ("sadf_kernel", [](std::vector<int>&,const int&,const std::vector<int>&){},
+             std::map<int,std::tuple<size_t,size_t>>{{0,{1,1}}});
+        inst<SADF::kernel2<int,int,int,int>>
+            ("sadf_kernel2", [](std::vector<int>&,const int&,const std::vector<int>&,const std::vector<int>&){},
+             std::map<int,std::tuple<std::array<size_t,2>,size_t>>{{0,{{1,1},1}}});
+        inst<SADF::kernelMN<std::tuple<int,int>,int,std::tuple<int,int,int>>>
+            ("sadf_kernelMN", [](std::tuple<std::vector<int>,std::vector<int>>&,const int&,
+                                 const std::tuple<std::vector<int>,std::vector<int>,std::vector<int>>&){},
+             std::map<int,std::tuple<std::array<size_t,3>,std::array<size_t,2>>>{{0,{{1,1,1},{1,1}}}});
     }
 };
 

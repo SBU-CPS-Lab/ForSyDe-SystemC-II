@@ -120,16 +120,150 @@ inline const typename Table::mapped_type& scenario_entry(
 
 using namespace sc_core;
 
+namespace detail
+{
+
+//! Shared implementation of the SADF kernel family
+/*! kernel, kernel2 and kernelMN all do the same five things per firing:
+ * read a scenario from the control port, look that scenario up in the
+ * kernel's scenario table to get this firing's consumption and
+ * production rates, resize a vector per port to match, read that many
+ * tokens from each input port, apply the user function, and write the
+ * produced tokens out. The control port, the scenario table, the lookup
+ * and the loop live here; what varies -- port count, port names, the
+ * shape the rates are stored in, and the spelling of the user function
+ * -- stays in the derived classes.
+ *
+ * \a Table is the scenario table type, and the scenario type \a TC is
+ * read off it as Table::key_type. \a Derived supplies:
+ *   - \c in_ports() and \c out_ports(), as in every other core here;
+ *   - \c resize_vectors(), which reads its own rate representation out
+ *     of scenario_rates() and calls resize_from() -- the arity variants
+ *     store the input rates as a scalar or a std::array and the output
+ *     rate as a scalar, while kernelMN stores both as arrays, so this is
+ *     the one thing the core cannot do generically;
+ *   - \c exec(), the call to the user function.
+ *
+ * \a ClearsAfterFiring is the one behavioural difference between the
+ * existing classes: kernel and kernel2 empty their token vectors after
+ * writing, kernelMN does not. Since prep() resizes them again next
+ * firing, this is only observable through a user function that leaves
+ * some of its output vector unwritten -- which would see zeroes under
+ * kernel and last firing's values under kernelMN. That is an
+ * inconsistency rather than a designed distinction, but it is a
+ * behavioural one, so it is preserved verbatim and marked here rather
+ * than quietly unified.
+ */
+template <typename Derived, typename OVals, typename IVals, typename Table,
+          bool ClearsAfterFiring>
+class kernel_core : public SADF_process
+{
+public:
+    typedef typename Table::key_type TC;    ///< the scenario type
+
+    SADF_in<TC> cport1;     ///< port for the control channel
+
+protected:
+    OVals ovals;    ///< output tokens, one vector per output port
+    IVals ivals;    ///< input tokens, one vector per input port
+    TC cval1;       ///< the scenario read from cport1 this firing
+
+    //! The table of the kernel's scenarios, passed to the process constructor
+    Table scenario_table;
+
+    kernel_core(const sc_module_name& _name,    ///< process name
+                const Table& scenario_table     ///< the kernel scenario table
+                ) : SADF_process(_name), cport1("cport1"), cval1(),
+                    scenario_table(scenario_table)
+    {
+#ifdef FORSYDE_INTROSPECTION
+        std::string func_name = std::string(basename());
+        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
+        arg_vec.push_back(std::make_tuple("_func",func_name+std::string("_func")));
+        std::stringstream ss;
+        ss << scenario_table;
+        arg_vec.push_back(std::make_tuple("scenario_table",ss.str()));
+#endif
+    }
+
+    //! This firing's rates, or a raised error if the scenario is unknown (D8)
+    const typename Table::mapped_type& scenario_rates()
+    {
+        return scenario_entry(scenario_table, cval1, name(),
+                                      "kernel scenario table");
+    }
+
+    //! Size every token vector to this firing's rates
+    template <typename InRates, typename OutRates>
+    void resize_from(const InRates& in_rates, const OutRates& out_rates)
+    {
+        SDF::detail::resize_all(ivals, in_rates);
+        SDF::detail::resize_all(ovals, out_rates);
+    }
+
+private:
+    Derived& self() {return static_cast<Derived&>(*this);}
+
+    //Implementing the abstract semantics
+
+    // cval1 used to be a heap-allocated TC* in all three classes,
+    // new'd here and deleted in clean(); it is a plain member now.
+    void init() {}
+
+    void clean() {}
+
+    void prep()
+    {
+        // Read the control port, which is connected to the detector that
+        // determines this firing's scenario for the kernel
+        cval1 = cport1.read();
+        self().resize_vectors();
+        SDF::detail::read_all(self().in_ports(), ivals);
+    }
+
+    void prod()
+    {
+        SDF::detail::write_all(self().out_ports(), ovals);
+        if constexpr (ClearsAfterFiring)
+        {
+            std::apply([](auto&... val){(val.clear(), ...);}, ovals);
+            std::apply([](auto&... val){(val.clear(), ...);}, ivals);
+        }
+    }
+
+#ifdef FORSYDE_INTROSPECTION
+    void bindInfo()
+    {
+        // The control port is the kernel's first input, ahead of the
+        // data inputs -- which is the order the XML lists them in.
+        SDF::detail::bind_all(boundInChans,
+                              std::tuple_cat(std::tie(cport1), self().in_ports()));
+        SDF::detail::bind_all(boundOutChans, self().out_ports());
+    }
+#endif
+};
+
+}
+
 //! Process constructor for a kernel process (actor) with one input and one output
 /*! This class is used to build kernel processes with one input
  * and one output. The class is parameterized for input and output
  * data-types.
  */
 template <typename T0, typename TC, typename T1>
-class kernel : public SADF_process
+class kernel : public detail::kernel_core<kernel<T0,TC,T1>,
+                                          std::tuple<std::vector<T0>>,
+                                          std::tuple<std::vector<T1>>,
+                                          std::map<TC,std::tuple<size_t,size_t>>,
+                                          true>
 {
+    typedef detail::kernel_core<kernel<T0,TC,T1>,
+                                std::tuple<std::vector<T0>>,
+                                std::tuple<std::vector<T1>>,
+                                std::map<TC,std::tuple<size_t,size_t>>,
+                                true> base;
+    friend base;
 public:
-    SADF_in<TC>  cport1;       ///< port for the control channel
     SADF_in<T1>  iport1;       ///< port for the input channel
     SADF_out<T0> oport1;       ///< port for the output channel
 
@@ -138,7 +272,7 @@ public:
      * a tuple of the input consumtion and output production rates.
      */
     typedef std::map<TC,std::tuple<size_t,size_t>> scenario_table_type;
-    
+
     //! Type of the function to be passed to the process constructor
     typedef std::function<void(
                                 std::vector<T0>&,
@@ -153,88 +287,32 @@ public:
     kernel(sc_module_name _name,            ///< process name
          const functype& _func,             ///< function to be passed
          const scenario_table_type& scenario_table///< the kernel scenario table
-         ) : SADF_process(_name), cport1("cport1"), iport1("iport1"), oport1("oport1"),
-            _func(_func), scenario_table(scenario_table)
-    {
-#ifdef FORSYDE_INTROSPECTION
-        std::string func_name = std::string(basename());
-        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        arg_vec.push_back(std::make_tuple("_func",func_name+std::string("_func")));
-        std::stringstream ss;
-        ss << scenario_table;
-        arg_vec.push_back(std::make_tuple("scenario_table",ss.str()));
-#endif
-    }
-    
+         ) : base(_name,scenario_table), iport1("iport1"), oport1("oport1"),
+            _func(_func) {}
+
     //! Specifying from which process constructor is the module built
     std::string forsyde_kind() const {return "SADF::kernel";}
 
-private:    
-    // Control, input, and output variables
-    std::vector<T0> o1vals;
-    std::vector<T1> i1vals;
-    TC* cval1;
-    
+private:
     //! The function passed to the process constructor
     functype _func;
 
-    //! The table of kernel's scenarios to be passed to the process constructor
-    scenario_table_type scenario_table;
-    
-    //Implementing the abstract semantics
-    void init()
-    {
-        cval1 = new TC;
-    }
-    
-    void prep()
-    {
-        // Read the control port which is connected to the detector to determine the scenario for the kernel
-        *cval1 = cport1.read();
-        
-        // Set the consumption and production rates from the kernel's scenario table
-        // (consumption rate, production rate)
-        const auto& scen_rates = detail::scenario_entry(scenario_table, *cval1, name(), "kernel scenario table");
-        auto cons_rate = std::get<0>(scen_rates);
-        auto prod_rate = std::get<1>(scen_rates);
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
 
-        // Resizing the input and output vectors according to the consumption and production rates
-        i1vals.resize(cons_rate);
-        o1vals.resize(prod_rate);
-
-        // Reading the input port
-        for (auto it=i1vals.begin();it!=i1vals.end();it++)
-            *it = iport1.read();
+    // (consumption rate, production rate), both scalars for this arity
+    void resize_vectors()
+    {
+        const auto& scen_rates = this->scenario_rates();
+        this->resize_from(std::array<size_t,1>{std::get<0>(scen_rates)},
+                          std::array<size_t,1>{std::get<1>(scen_rates)});
     }
-    
+
     void exec()
     {
         // Call the user-imlpemented kernel function with input and output vectors and the control value
-        _func(o1vals, *cval1, i1vals);
+        _func(std::get<0>(this->ovals), this->cval1, std::get<0>(this->ivals));
     }
-    
-    void prod()
-    {
-        write_vec_multiport(oport1, o1vals);
-        o1vals.clear();
-        i1vals.clear();
-    }
-    
-    void clean()
-    {
-        delete cval1;
-    }
-    
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(2);     // only one input port
-        boundInChans[0].port = &cport1;
-        boundInChans[1].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-    }
-#endif
 };
 
 //! Process constructor for a kernel process (actor) with two inputs and one output
@@ -243,10 +321,19 @@ private:
  * data-types.
  */
 template <typename T0, typename TC, typename T1, typename T2>
-class kernel2 : public SADF_process
+class kernel2 : public detail::kernel_core<kernel2<T0,TC,T1,T2>,
+                                           std::tuple<std::vector<T0>>,
+                                           std::tuple<std::vector<T1>,std::vector<T2>>,
+                                           std::map<TC,std::tuple<std::array<size_t,2>,size_t>>,
+                                           true>
 {
+    typedef detail::kernel_core<kernel2<T0,TC,T1,T2>,
+                                std::tuple<std::vector<T0>>,
+                                std::tuple<std::vector<T1>,std::vector<T2>>,
+                                std::map<TC,std::tuple<std::array<size_t,2>,size_t>>,
+                                true> base;
+    friend base;
 public:
-    SADF_in<TC>  cport1;       ///< port for the control channel
     SADF_in<T1>  iport1;       ///< port for the input channel 1
     SADF_in<T2>  iport2;       ///< port for the input channel 2
     SADF_out<T0> oport1;       ///< port for the output channel
@@ -256,7 +343,7 @@ public:
      * a tuple of the input consumtion and output production rates.
      */
     typedef std::map<TC,std::tuple<std::array<size_t,2>,size_t>> scenario_table_type;
-    
+
     //! Type of the function to be passed to the process constructor
     typedef std::function<void(
                                 std::vector<T0>&,
@@ -272,95 +359,33 @@ public:
     kernel2(sc_module_name _name,           ///< process name
          const functype& _func,             ///< function to be passed
          const scenario_table_type& scenario_table///< the kernel scenario table
-         ) : SADF_process(_name), cport1("cport1"), iport1("iport1"), iport2("iport2"),
-            oport1("oport1"), _func(_func), scenario_table(scenario_table)
-    {
-#ifdef FORSYDE_INTROSPECTION
-        std::string func_name = std::string(basename());
-        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        arg_vec.push_back(std::make_tuple("_func",func_name+std::string("_func")));
-        std::stringstream ss;
-        ss << scenario_table;
-        arg_vec.push_back(std::make_tuple("scenario_table",ss.str()));
-#endif
-    }
-    
+         ) : base(_name,scenario_table), iport1("iport1"), iport2("iport2"),
+            oport1("oport1"), _func(_func) {}
+
     //! Specifying from which process constructor is the module built
     std::string forsyde_kind() const {return "SADF::kernel2";}
 
-private:    
-    // Control, input, and output variables
-    std::vector<T0> o1vals;
-    std::vector<T1> i1vals;
-    std::vector<T2> i2vals;
-    TC* cval1;
-    
+private:
     //! The function passed to the process constructor
     functype _func;
 
-    //! The table of kernel's scenarios to be passed to the process constructor
-    scenario_table_type scenario_table;
-    
-    //Implementing the abstract semantics
-    void init()
-    {
-        cval1 = new TC;
-    }
-    
-    void prep()
-    {
-        // Read the control port which is connected to the detector to determine the scenario for the kernel
-        *cval1 = cport1.read();
-        
-        // Set the consumption and production rates from the kernel's scenario table
-        // (consumption rate, production rate)
-        const auto& scen_rates = detail::scenario_entry(scenario_table, *cval1, name(), "kernel scenario table");
-        auto cons_rate1 = std::get<0>(scen_rates)[0];
-        auto cons_rate2 = std::get<0>(scen_rates)[1];
-        auto prod_rate = std::get<1>(scen_rates);
+    auto in_ports()  {return std::tie(iport1,iport2);}
+    auto out_ports() {return std::tie(oport1);}
 
-        // Resizing the input and output vectors according to the consumption and production rates
-        i1vals.resize(cons_rate1);
-        i2vals.resize(cons_rate2);
-        o1vals.resize(prod_rate);
-
-        // Reading the input ports
-        for (auto it=i1vals.begin();it!=i1vals.end();it++)
-            *it = iport1.read();
-        for (auto it=i2vals.begin();it!=i2vals.end();it++)
-            *it = iport2.read();
+    // (consumption rates as a 2-array, production rate as a scalar)
+    void resize_vectors()
+    {
+        const auto& scen_rates = this->scenario_rates();
+        this->resize_from(std::get<0>(scen_rates),
+                          std::array<size_t,1>{std::get<1>(scen_rates)});
     }
-    
+
     void exec()
     {
         // Call the user-imlpemented kernel function with input and output vectors and the control value
-        _func(o1vals, *cval1, i1vals, i2vals);
+        _func(std::get<0>(this->ovals), this->cval1,
+              std::get<0>(this->ivals), std::get<1>(this->ivals));
     }
-    
-    void prod()
-    {
-        write_vec_multiport(oport1, o1vals);
-        o1vals.clear();
-        i1vals.clear();
-        i2vals.clear();
-    }
-    
-    void clean()
-    {
-        delete cval1;
-    }
-    
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(3);     // only one input port
-        boundInChans[0].port = &cport1;
-        boundInChans[1].port = &iport1;
-        boundInChans[2].port = &iport2;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-    }
-#endif
 };
 
 //! Process constructor for a kernel process with M inputs and N outputs
@@ -369,13 +394,25 @@ private:
 template<typename TO_tuple, typename TC, typename TI_tuple> class kernelMN;
 
 template <typename... TOs, typename TC, typename... TIs>
-class kernelMN<std::tuple<TOs...>,TC,std::tuple<TIs...>> : public SADF_process
+class kernelMN<std::tuple<TOs...>,TC,std::tuple<TIs...>>
+    : public detail::kernel_core<kernelMN<std::tuple<TOs...>,TC,std::tuple<TIs...>>,
+                                 std::tuple<std::vector<TOs>...>,
+                                 std::tuple<std::vector<TIs>...>,
+                                 std::map<TC,std::tuple<std::array<size_t,sizeof...(TIs)>,
+                                                        std::array<size_t,sizeof...(TOs)>>>,
+                                 false>
 {
+    typedef detail::kernel_core<kernelMN<std::tuple<TOs...>,TC,std::tuple<TIs...>>,
+                                std::tuple<std::vector<TOs>...>,
+                                std::tuple<std::vector<TIs>...>,
+                                std::map<TC,std::tuple<std::array<size_t,sizeof...(TIs)>,
+                                                       std::array<size_t,sizeof...(TOs)>>>,
+                                false> base;
+    friend base;
 public:
-    SADF_in<TC>                 cport1;///< port for the control channel
     std::tuple<SADF_in<TIs>...>  iport;///< tuple of ports for the input channels
     std::tuple<SADF_out<TOs>...> oport;///< tuple of ports for the output channels
-    
+
     //! Type of the table of kernel's scennarios to be passed to the process constructor
     /*! The table of kernel's scennarios is a map from the scenario ID to
      * a tuple of the input consumtion and output production rates, each represented as an array.
@@ -411,11 +448,7 @@ public:
     kernelMN(sc_module_name _name,      ///< process name
           const functype& _func,        ///< function to be passed
           const scenario_table_type& scenario_table ///< the kernel scenario table
-          ) : SADF_process(_name), _func(_func), scenario_table(scenario_table),
-              report_pipe(nullptr)
-    {
-        register_introspection_args(scenario_table);
-    }
+          ) : base(_name,scenario_table), _func(_func), report_pipe(nullptr) {}
 
     //! As above, additionally reporting each firing to a self-report pipe.
     /*! Requires FORSYDE_SELF_REPORTING; without it this is a compile-time
@@ -425,43 +458,17 @@ public:
           const functype& _func,        ///< function to be passed
           const scenario_table_type& scenario_table,///< the kernel scenario table
           FILE** _report_pipe           ///< the report named pipe
-          ) : SADF_process(_name), _func(_func), scenario_table(scenario_table),
-              report_pipe(_report_pipe)
+          ) : base(_name,scenario_table), _func(_func), report_pipe(_report_pipe)
     {
         FORSYDE_REQUIRE_SELF_REPORTING(TC, "SADF::kernelMN");
-        register_introspection_args(scenario_table);
     }
 
     //! Specifying from which process constructor is the module built
     std::string forsyde_kind() const {return "SADF::kernelMN";}
-private:
-    //! Shared by both constructors above, which cannot delegate to one
-    //! another: the reporting one carries a static_assert that the
-    //! non-reporting one must not trip.
-    void register_introspection_args(const scenario_table_type& scenario_table)
-    {
-#ifdef FORSYDE_INTROSPECTION
-        std::string func_name = std::string(basename());
-        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        arg_vec.push_back(std::make_tuple("_func",func_name+std::string("_func")));
-        std::stringstream ss;
-        ss << scenario_table;
-        arg_vec.push_back(std::make_tuple("scenario_table",ss.str()));
-#else
-        (void)scenario_table;
-#endif
-    }
 
-    // Control, input and output variables
-    std::tuple<std::vector<TOs>...> ovals;
-    std::tuple<std::vector<TIs>...> ivals;
-    TC* cval1;
-    
+private:
     //! The function passed to the process constructor
     functype _func;
-
-    //! The table of kernel's scenarios to be passed to the process constructor
-    scenario_table_type scenario_table;
 
     //! Self-report string, built only when report_pipe is non-null
     std::ostringstream report_str;
@@ -469,104 +476,35 @@ private:
     //! Optional self-report pipe; null unless the constructor was given one
     FILE** report_pipe;
 
-    //Implementing the abstract semantics
-    void init()
+    auto in_ports()  {return std::apply([](auto&... p){return std::tie(p...);}, iport);}
+    auto out_ports() {return std::apply([](auto&... p){return std::tie(p...);}, oport);}
+
+    // (consumption rates, production rates), both arrays for this arity
+    void resize_vectors()
     {
-        cval1 = new TC;
+        const auto& scen_rates = this->scenario_rates();
+        this->resize_from(std::get<0>(scen_rates), std::get<1>(scen_rates));
     }
-    
-    void prep()
-    {
-        // Read the control port which is connected to the detector to determine the scenario for the kernel
-        *cval1 = cport1.read();
 
-        // Resize the input and output vectors according to 
-        // the consumption and production rates from the kernel's scenario table
-        // (consumption rate, production rate)
-        const auto& scen_rates = detail::scenario_entry(scenario_table, *cval1, name(), "kernel scenario table");
-
-        std::apply([&](auto&... oval) {
-            std::apply([&](auto&... otok) {
-                (oval.resize(otok), ...);
-            }, std::get<1>(scen_rates));
-        }, ovals);
-
-        std::apply([&](auto&... ival) {
-            std::apply([&](auto&... itok) {
-                (ival.resize(itok), ...);
-            }, std::get<0>(scen_rates));
-        }, ivals);
-
-        // Reading the input ports        
-        std::apply([&](auto&... inport) {
-            std::apply([&](auto&... ival) {
-                (
-                    [&ival,&inport](){
-                        for (auto it=ival.begin();it!=ival.end();it++)
-                            *it = inport.read();
-                    }()
-                , ...);
-            }, ivals);
-        }, iport);
-    }
-    
     void exec()
     {
         // Call the user-imlpemented kernel function with input and output vectors and the control value
-        _func(ovals, *cval1, ivals);
+        _func(this->ovals, this->cval1, this->ivals);
 #ifdef FORSYDE_SELF_REPORTING
         if (report_pipe)
         {
             // Write the report to the pipe
-            report_str << "kernelMN" << "  " << basename()
-                                    << "  " << *cval1
-                                    << "  " << std::get<0>(detail::scenario_entry(scenario_table, *cval1, name(), "kernel scenario table"))
-                                    << "  " << std::get<1>(detail::scenario_entry(scenario_table, *cval1, name(), "kernel scenario table")) << std::endl;
+            const auto& scen_rates = this->scenario_rates();
+            report_str << "kernelMN" << "  " << this->basename()
+                                    << "  " << this->cval1
+                                    << "  " << std::get<0>(scen_rates)
+                                    << "  " << std::get<1>(scen_rates) << std::endl;
             fputs(report_str.str().c_str(), *report_pipe);
             fflush(*report_pipe);
             report_str.str("");
         }
 #endif
     }
-    
-    void prod()
-    {
-        std::apply([&](auto&&... port){
-            std::apply([&](auto&&... val){
-                (write_vec_multiport(port, val), ...);
-            }, ovals);
-        }, oport);
-    }
-    
-    void clean()
-    {
-        delete cval1;
-    }
-    
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(1+sizeof...(TIs));     // control and input ports
-        boundInChans[0].port = &cport1;
-        std::apply
-        (
-            [&](auto&... ports)
-            {
-                std::size_t n{1};
-                ((boundInChans[n++].port = &ports),...);
-            }, iport
-        );
-        boundOutChans.resize(sizeof...(TOs));    // output ports
-        std::apply
-        (
-            [&](auto&... ports)
-            {
-                std::size_t n{0};
-                ((boundOutChans[n++].port = &ports),...);
-            }, oport
-        );
-    }
-#endif
 };
 
 //! Process constructor for a detector process (actor) with one data input and one control output
