@@ -27,6 +27,11 @@
 #include <tuple>
 #include <array>
 #include <algorithm>
+// std::index_sequence (combX's port pack) and std::decay (comb_core's
+// bind_all) -- both used directly here rather than left to whichever
+// other header happens to drag them in.
+#include <utility>
+#include <type_traits>
 
 // Streams a std::vector under FORSYDE_INTROSPECTION via prettyprint.hpp's
 // generic container operator<<, which this file otherwise relies on
@@ -44,281 +49,265 @@ namespace SY
 
 using namespace sc_core;
 
+namespace detail
+{
+
+//! Shared implementation of the SY combinational (comb*) family
+/*! Every process in this family does the same three things on every
+ * activation -- read one token from each input port, apply the user
+ * function, write one token to each output port -- and the same one
+ * thing once, at the end of elaboration: register both port sets for
+ * introspection. The only things that vary between comb, comb2 ...
+ * combN and combMN are how many ports there are, what they are named,
+ * and how the user function is spelled. Those stay in the derived
+ * classes below; the semantics live here, once.
+ *
+ * \a Derived supplies three members, and this class is a friend of it so
+ * that they can stay private:
+ *   - \c in_ports()  -- a tuple of references to its input ports, in the
+ *                       same order as \a IVals;
+ *   - \c out_ports() -- likewise for its output ports and \a OVals;
+ *   - \c exec()      -- the call to the user function.
+ *
+ * \a OVals and \a IVals hold one token per port. They only have to model
+ * the tuple protocol, so a std::array is as good as a std::tuple and is
+ * what combX uses -- its user function is handed the whole array.
+ *
+ * The ports themselves are deliberately *not* pulled up here. Their
+ * SystemC names appear verbatim in the introspection XML as
+ * <port name="iport1" .../>, and only an individually declared member
+ * can be given a name at construction -- an element of a std::tuple or
+ * std::array cannot be. Keeping the port declarations in the derived
+ * classes is what makes this refactoring invisible in the generated XML.
+ */
+template <typename Derived, typename OVals, typename IVals>
+class comb_core : public sy_process
+{
+protected:
+    OVals ovals;    ///< output tokens, one per output port
+    IVals ivals;    ///< input tokens, one per input port
+
+    //! The constructor requires the module name
+    /*! It creates an SC_THREAD which reads data from its input ports,
+     * applies the user-implemented function to them and writes the
+     * results using the output ports.
+     */
+    comb_core(const sc_module_name& _name) : sy_process(_name)
+    {
+#ifdef FORSYDE_INTROSPECTION
+        std::string func_name = std::string(basename());
+        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
+        arg_vec.push_back(std::make_tuple("_func",func_name+std::string("_func")));
+#endif
+    }
+
+private:
+    Derived& self() {return static_cast<Derived&>(*this);}
+
+    //Implementing the abstract semantics
+
+    // The token variables used to be allocated with new here and freed
+    // in clean(), in every one of the seven classes below. They are
+    // plain members now, so there is nothing left for either stage to
+    // do -- but both are pure virtual in ForSyDe::process, so both still
+    // have to be defined.
+    void init() {}
+
+    void clean() {}
+
+    void prep()
+    {
+        std::apply([&](auto&&... port){
+            std::apply([&](auto&&... val){
+                ((val = port.read()), ...);
+            }, ivals);
+        }, self().in_ports());
+    }
+
+    void prod()
+    {
+        std::apply([&](auto&&... port){
+            std::apply([&](auto&&... val){
+                (write_multiport(port, val), ...);
+            }, ovals);
+        }, self().out_ports());
+    }
+
+#ifdef FORSYDE_INTROSPECTION
+    //! Record a tuple of port references in one of the bound-channel vectors
+    template <typename Ports>
+    static void bind_all(std::vector<PortInfo>& chans, Ports&& ports)
+    {
+        chans.resize(std::tuple_size<typename std::decay<Ports>::type>::value);
+        std::apply
+        (
+            [&](auto&... port)
+            {
+                std::size_t n{0};
+                ((chans[n++].port = &port),...);
+            }, ports
+        );
+    }
+
+    void bindInfo()
+    {
+        bind_all(boundInChans, self().in_ports());
+        bind_all(boundOutChans, self().out_ports());
+    }
+#endif
+};
+
+}
+
 //! Process constructor for a combinational process with one input and one output
 /*! This class is used to build combinational processes with one input
  * and one output. The class is parameterized for input and output
  * data-types.
  */
 template <typename T0, typename T1>
-class comb : public sy_process
+class comb : public detail::comb_core<comb<T0,T1>,
+                                      std::tuple<abst_ext<T0>>,
+                                      std::tuple<abst_ext<T1>>>
 {
+    typedef detail::comb_core<comb<T0,T1>,
+                              std::tuple<abst_ext<T0>>,
+                              std::tuple<abst_ext<T1>>> base;
+    friend base;
 public:
     SY_in<T1>  iport1;       ///< port for the input channel
     SY_out<T0> oport1;        ///< port for the output channel
-    
+
     //! Type of the function to be passed to the process constructor
     typedef std::function<void(abst_ext<T0>&,const abst_ext<T1>&)> functype;
 
     //! The constructor requires the module name
-    /*! It creates an SC_THREAD which reads data from its input port,
-     * applies the user-imlpemented function to it and writes the
-     * results using the output port
-     */
     comb(const sc_module_name& _name,      ///< process name
          const functype& _func             ///< function to be passed
-         ) : sy_process(_name), iport1("iport1"), oport1("oport1"),
-             _func(_func)
-    {
-#ifdef FORSYDE_INTROSPECTION
-        std::string func_name = std::string(basename());
-        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        arg_vec.push_back(std::make_tuple("_func",func_name+std::string("_func")));
-#endif
-    }
-    
+         ) : base(_name), iport1("iport1"), oport1("oport1"), _func(_func) {}
+
     //! Specifying from which process constructor is the module built
     std::string forsyde_kind() const {return "SY::comb";}
 
 private:
-    // Inputs and output variables
-    abst_ext<T0>* oval;
-    abst_ext<T1>* ival1;
-    
     //! The function passed to the process constructor
     functype _func;
-    
-    //Implementing the abstract semantics
-    void init()
-    {
-        oval = new abst_ext<T0>;
-        ival1 = new abst_ext<T1>;
-    }
-    
-    void prep()
-    {
-        *ival1 = iport1.read();
-    }
-    
-    void exec()
-    {
-        _func(*oval, *ival1);
-    }
-    
-    void prod()
-    {
-        write_multiport(oport1, *oval);
-    }
-    
-    void clean()
-    {
-        delete ival1;
-        delete oval;
-    }
-    
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-    }
-#endif
+
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
+
+    void exec() {_func(std::get<0>(this->ovals), std::get<0>(this->ivals));}
 };
 
 //! Process constructor for a combinational process with two inputs and one output
 /*! similar to comb with two inputs
  */
 template <typename T0, typename T1, typename T2>
-class comb2 : public sy_process
+class comb2 : public detail::comb_core<comb2<T0,T1,T2>,
+                                       std::tuple<abst_ext<T0>>,
+                                       std::tuple<abst_ext<T1>,abst_ext<T2>>>
 {
+    typedef detail::comb_core<comb2<T0,T1,T2>,
+                              std::tuple<abst_ext<T0>>,
+                              std::tuple<abst_ext<T1>,abst_ext<T2>>> base;
+    friend base;
 public:
     SY_in<T1> iport1;        ///< port for the input channel 1
     SY_in<T2> iport2;        ///< port for the input channel 2
     SY_out<T0> oport1;        ///< port for the output channel
-    
+
     //! Type of the function to be passed to the process constructor
     typedef std::function<void(abst_ext<T0>&, const abst_ext<T1>&,
                                               const abst_ext<T2>&)> functype;
 
     //! The constructor requires the module name
-    /*! It creates an SC_THREAD which reads data from its input ports,
-     * applies the user-imlpemented function to them and writes the
-     * results using the output port
-     */
     comb2(const sc_module_name& _name,      ///< process name
            const functype& _func             ///< function to be passed
-          ) : sy_process(_name), iport1("iport1"), iport2("iport2"), oport1("oport1"),
-              _func(_func)
-    {
-#ifdef FORSYDE_INTROSPECTION
-        std::string func_name = std::string(basename());
-        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        arg_vec.push_back(std::make_tuple("_func",func_name+std::string("_func")));
-#endif
-    }
-    
+          ) : base(_name), iport1("iport1"), iport2("iport2"), oport1("oport1"),
+              _func(_func) {}
+
     //! Specifying from which process constructor is the module built
     std::string forsyde_kind() const {return "SY::comb2";}
+
 private:
-    // Inputs and output variables
-    abst_ext<T0>* oval;
-    abst_ext<T1>* ival1;
-    abst_ext<T2>* ival2;
-    
     //! The function passed to the process constructor
     functype _func;
 
-    //Implementing the abstract semantics
-    void init()
-    {
-        oval = new abst_ext<T0>;
-        ival1 = new abst_ext<T1>;
-        ival2 = new abst_ext<T2>;
-    }
-    
-    void prep()
-    {
-        *ival1 = iport1.read();
-        *ival2 = iport2.read();
-    }
-    
+    auto in_ports()  {return std::tie(iport1,iport2);}
+    auto out_ports() {return std::tie(oport1);}
+
     void exec()
     {
-        _func(*oval, *ival1, *ival2);
+        _func(std::get<0>(this->ovals),
+              std::get<0>(this->ivals), std::get<1>(this->ivals));
     }
-    
-    void prod()
-    {
-        write_multiport(oport1, *oval);
-    }
-    
-    void clean()
-    {
-        delete ival2;
-        delete ival1;
-        delete oval;
-    }
-    
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(2);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundInChans[1].port = &iport2;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-    }
-#endif
 };
 
 //! Process constructor for a combinational process with three inputs and one output
 /*! similar to comb with three inputs
  */
 template <typename T0, typename T1, typename T2, typename T3>
-class comb3 : public sy_process
+class comb3 : public detail::comb_core<comb3<T0,T1,T2,T3>,
+                                       std::tuple<abst_ext<T0>>,
+                                       std::tuple<abst_ext<T1>,abst_ext<T2>,abst_ext<T3>>>
 {
+    typedef detail::comb_core<comb3<T0,T1,T2,T3>,
+                              std::tuple<abst_ext<T0>>,
+                              std::tuple<abst_ext<T1>,abst_ext<T2>,abst_ext<T3>>> base;
+    friend base;
 public:
     SY_in<T1> iport1;        ///< port for the input channel 1
     SY_in<T2> iport2;        ///< port for the input channel 2
     SY_in<T3> iport3;        ///< port for the input channel 3
     SY_out<T0> oport1;        ///< port for the output channel
-    
+
     //! Type of the function to be passed to the process constructor
     typedef std::function<void(abst_ext<T0>&, const abst_ext<T1>&,
                                               const abst_ext<T2>&,
                                               const abst_ext<T3>&)> functype;
 
     //! The constructor requires the module name
-    /*! It creates an SC_THREAD which reads data from its input ports,
-     * applies the user-imlpemented function to them and writes the
-     * results using the output port
-     */
     comb3(const sc_module_name& _name,      ///< process name
            const functype& _func             ///< function to be passed
-          ) : sy_process(_name), iport1("iport1"), iport2("iport2"), iport3("iport3"), 
-              oport1("oport1"), _func(_func)
-    {
-#ifdef FORSYDE_INTROSPECTION
-        std::string func_name = std::string(basename());
-        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        arg_vec.push_back(std::make_tuple("_func",func_name+std::string("_func")));
-#endif
-    }
-    
+          ) : base(_name), iport1("iport1"), iport2("iport2"), iport3("iport3"),
+              oport1("oport1"), _func(_func) {}
+
     //! Specifying from which process constructor is the module built
     std::string forsyde_kind() const {return "SY::comb3";}
-    
-private:
-    // Inputs and output variables
-    abst_ext<T0>* oval;
-    abst_ext<T1>* ival1;
-    abst_ext<T2>* ival2;
-    abst_ext<T3>* ival3;
 
+private:
     //! The function passed to the process constructor
     functype _func;
-    
-    //Implementing the abstract semantics
-    void init()
-    {
-        oval = new abst_ext<T0>;
-        ival1 = new abst_ext<T1>;
-        ival2 = new abst_ext<T2>;
-        ival3 = new abst_ext<T3>;
-    }
-    
-    void prep()
-    {
-        *ival1 = iport1.read();
-        *ival2 = iport2.read();
-        *ival3 = iport3.read();
-    }
-    
+
+    auto in_ports()  {return std::tie(iport1,iport2,iport3);}
+    auto out_ports() {return std::tie(oport1);}
+
     void exec()
     {
-        _func(*oval, *ival1, *ival2, *ival3);
+        _func(std::get<0>(this->ovals),
+              std::get<0>(this->ivals), std::get<1>(this->ivals),
+              std::get<2>(this->ivals));
     }
-    
-    void prod()
-    {
-        write_multiport(oport1, *oval);
-    }
-    
-    void clean()
-    {
-        delete ival3;
-        delete ival2;
-        delete ival1;
-        delete oval;
-    }
-    
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(3);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundInChans[1].port = &iport2;
-        boundInChans[2].port = &iport3;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-    }
-#endif
 };
 
 //! Process constructor for a combinational process with four inputs and one output
 /*! similar to comb with four inputs
  */
 template <typename T0, typename T1, typename T2, typename T3, typename T4>
-class comb4 : public sy_process
+class comb4 : public detail::comb_core<comb4<T0,T1,T2,T3,T4>,
+                                       std::tuple<abst_ext<T0>>,
+                                       std::tuple<abst_ext<T1>,abst_ext<T2>,abst_ext<T3>,abst_ext<T4>>>
 {
+    typedef detail::comb_core<comb4<T0,T1,T2,T3,T4>,
+                              std::tuple<abst_ext<T0>>,
+                              std::tuple<abst_ext<T1>,abst_ext<T2>,abst_ext<T3>,abst_ext<T4>>> base;
+    friend base;
 public:
     SY_in<T1> iport1;       ///< port for the input channel 1
     SY_in<T2> iport2;       ///< port for the input channel 2
     SY_in<T3> iport3;       ///< port for the input channel 3
     SY_in<T4> iport4;       ///< port for the input channel 4
     SY_out<T0> oport1;        ///< port for the output channel
-    
+
     //! Type of the function to be passed to the process constructor
     typedef std::function<void(abst_ext<T0>&, const abst_ext<T1>&,
                                              const abst_ext<T2>&,
@@ -326,93 +315,41 @@ public:
                                              const abst_ext<T4>&)> functype;
 
     //! The constructor requires the module name
-    /*! It creates an SC_THREAD which reads data from its input ports,
-     * applies the user-imlpemented function to them and writes the
-     * results using the output port
-     */
     comb4(const sc_module_name& _name,      ///< process name
            const functype& _func             ///< function to be passed
-          ) : sy_process(_name), iport1("iport1"), iport2("iport2"), 
-              iport3("iport3"), iport4("iport4"), _func(_func)
-    {
-#ifdef FORSYDE_INTROSPECTION
-        std::string func_name = std::string(basename());
-        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        arg_vec.push_back(std::make_tuple("_func",func_name+std::string("_func")));
-#endif
-    }
-    
+          ) : base(_name), iport1("iport1"), iport2("iport2"),
+              iport3("iport3"), iport4("iport4"), _func(_func) {}
+
     //! Specifying from which process constructor is the module built
     std::string forsyde_kind() const{return "SY::comb4";}
-    
+
 private:
-    // Inputs and output variables
-    abst_ext<T0>* oval;
-    abst_ext<T1>* ival1;
-    abst_ext<T2>* ival2;
-    abst_ext<T3>* ival3;
-    abst_ext<T4>* ival4;
-    
     //! The function passed to the process constructor
     functype _func;
 
-    //Implementing the abstract semantics
-    void init()
-    {
-        oval = new abst_ext<T0>;
-        ival1 = new abst_ext<T1>;
-        ival2 = new abst_ext<T2>;
-        ival3 = new abst_ext<T3>;
-        ival4 = new abst_ext<T4>;
-    }
-    
-    void prep()
-    {
-        *ival1 = iport1.read();
-        *ival2 = iport2.read();
-        *ival3 = iport3.read();
-        *ival4 = iport4.read();
-    }
-    
+    auto in_ports()  {return std::tie(iport1,iport2,iport3,iport4);}
+    auto out_ports() {return std::tie(oport1);}
+
     void exec()
     {
-        _func(*oval, *ival1, *ival2, *ival3, *ival4);
+        _func(std::get<0>(this->ovals),
+              std::get<0>(this->ivals), std::get<1>(this->ivals),
+              std::get<2>(this->ivals), std::get<3>(this->ivals));
     }
-    
-    void prod()
-    {
-        write_multiport(oport1, *oval);
-    }
-    
-    void clean()
-    {
-        delete ival4;
-        delete ival3;
-        delete ival2;
-        delete ival1;
-        delete oval;
-    }
-    
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(4);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundInChans[1].port = &iport2;
-        boundInChans[2].port = &iport3;
-        boundInChans[3].port = &iport4;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-    }
-#endif
 };
 
 //! Process constructor for a combinational process with an array of inputs and one output
 /*! similar to comb with an array of inputs
  */
 template <typename T0, typename T1, std::size_t N>
-class combX : public sy_process
+class combX : public detail::comb_core<combX<T0,T1,N>,
+                                       std::tuple<abst_ext<T0>>,
+                                       std::array<abst_ext<T1>,N>>
 {
+    typedef detail::comb_core<combX<T0,T1,N>,
+                              std::tuple<abst_ext<T0>>,
+                              std::array<abst_ext<T1>,N>> base;
+    friend base;
 public:
     std::array<SY_in<T1>,N> iport;       ///< port for the input channel 1
     SY_out<T0> oport1;        ///< port for the output channel
@@ -421,159 +358,60 @@ public:
     typedef std::function<void(abst_ext<T0>&, const std::array<abst_ext<T1>,N>&)> functype;
 
     //! The constructor requires the module name
-    /*! It creates an SC_THREAD which reads data from its input ports,
-     * applies the user-imlpemented function to them and writes the
-     * results using the output port
-     */
     combX(const sc_module_name& _name,      ///< process name
            const functype& _func             ///< function to be passed
-          ) : sy_process(_name), _func(_func)
-    {
-#ifdef FORSYDE_INTROSPECTION
-        std::string func_name = std::string(basename());
-        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        arg_vec.push_back(std::make_tuple("_func",func_name+std::string("_func")));
-#endif
-    }
+          ) : base(_name), _func(_func) {}
 
     //! Specifying from which process constructor is the module built
     std::string forsyde_kind() const{return "SY::combX";}
 
 private:
-    // Inputs and output variables
-    abst_ext<T0>* oval;
-    std::array<abst_ext<T1>,N> ival;
-
     //! The function passed to the process constructor
     functype _func;
 
-    //Implementing the abstract semantics
-    void init()
-    {
-        oval = new abst_ext<T0>;
-    }
+    template <std::size_t... Is>
+    auto in_ports(std::index_sequence<Is...>) {return std::tie(iport[Is]...);}
+    auto in_ports()  {return in_ports(std::make_index_sequence<N>{});}
+    auto out_ports() {return std::tie(oport1);}
 
-    void prep()
-    {
-    	for (size_t i=0; i<N; i++)
-    		ival[i] = iport[i].read();
-    }
-
-    void exec()
-    {
-        _func(*oval, ival);
-    }
-
-    void prod()
-    {
-        write_multiport(oport1, *oval);
-    }
-
-    void clean()
-    {
-        delete oval;
-    }
-
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(N);     // only one input port
-        for (size_t i=0; i<N; i++)
-        	boundInChans[i].port = &iport[i];
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-    }
-#endif
+    void exec() {_func(std::get<0>(this->ovals), this->ivals);}
 };
 
 //! Process constructor for a combinational process with N inputs and one output
 /*! similar to comb with N inputs
  */
 template <typename T0, typename... Ts>
-class combN : public sy_process
+class combN : public detail::comb_core<combN<T0,Ts...>,
+                                       std::tuple<abst_ext<T0>>,
+                                       std::tuple<abst_ext<Ts>...>>
 {
+    typedef detail::comb_core<combN<T0,Ts...>,
+                              std::tuple<abst_ext<T0>>,
+                              std::tuple<abst_ext<Ts>...>> base;
+    friend base;
 public:
     std::tuple <SY_in<Ts>...> iport;///< tuple of ports for the input channels
     SY_out<T0> oport1;              ///< port for the output channel
-    
+
     //! Type of the function to be passed to the process constructor
     typedef std::function<void(abst_ext<T0>&, const std::tuple<abst_ext<Ts>...>&)> functype;
 
     //! The constructor requires the module name
-    /*! It creates an SC_THREAD which reads data from its input ports,
-     * applies the user-imlpemented function to them and writes the
-     * results using the output port
-     */
     combN(const sc_module_name& _name,      ///< process name
            const functype& _func             ///< function to be passed
-          ) : sy_process(_name), oport1("oport1"), _func(_func)
-    {
-#ifdef FORSYDE_INTROSPECTION
-        std::string func_name = std::string(basename());
-        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        arg_vec.push_back(std::make_tuple("_func",func_name+std::string("_func")));
-#endif
-    }
-    
+          ) : base(_name), oport1("oport1"), _func(_func) {}
+
     //! Specifying from which process constructor is the module built
     std::string forsyde_kind() const{return "SY::combN";}
-    
+
 private:
-    // Inputs and output variables
-    abst_ext<T0>* oval;
-    std::tuple<abst_ext<Ts>...>* ivals;
-    
     //! The function passed to the process constructor
     functype _func;
 
-    //Implementing the abstract semantics
-    void init()
-    {
-        oval = new abst_ext<T0>;
-        ivals = new std::tuple<abst_ext<Ts>...>;
-    }
-    
-    void prep()
-    {
-        std::apply([&](auto&&... port){
-            std::apply([&](auto&&... val){
-                ((val = port.read()), ...);
-            }, *ivals);
-        }, iport);
-    }
-    
-    void exec()
-    {
-        _func(*oval, *ivals);
-    }
-    
-    void prod()
-    {
-        write_multiport(oport1, *oval);
-    }
-    
-    void clean()
-    {
-        delete ivals;
-        delete oval;
-    }
-    
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(sizeof...(Ts));     // input ports
-        std::apply
-        (
-            [&](auto&... ports)
-            {
-                std::size_t n{0};
-                ((boundInChans[n++].port = &ports),...);
-            }, iport
-        );
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-    }
-#endif
+    auto in_ports()  {return std::apply([](auto&... p){return std::tie(p...);}, iport);}
+    auto out_ports() {return std::tie(oport1);}
+
+    void exec() {_func(std::get<0>(this->ovals), this->ivals);}
 };
 
 //! Process constructor for a combinational process with M inputs and N outputs
@@ -582,101 +420,38 @@ private:
 template<typename TO_tuple, typename TI_tuple> class combMN;
 
 template <typename... TOs, typename... TIs>
-class combMN<std::tuple<TOs...>,std::tuple<TIs...>> : public sy_process
+class combMN<std::tuple<TOs...>,std::tuple<TIs...>>
+    : public detail::comb_core<combMN<std::tuple<TOs...>,std::tuple<TIs...>>,
+                               std::tuple<abst_ext<TOs>...>,
+                               std::tuple<abst_ext<TIs>...>>
 {
+    typedef detail::comb_core<combMN<std::tuple<TOs...>,std::tuple<TIs...>>,
+                              std::tuple<abst_ext<TOs>...>,
+                              std::tuple<abst_ext<TIs>...>> base;
+    friend base;
 public:
     std::tuple<SY_in<TIs>...>  iport;///< tuple of ports for the input channels
     std::tuple<SY_out<TOs>...> oport;///< tuple of ports for the output channels
-    
+
     //! Type of the function to be passed to the process constructor
     typedef std::function<void(std::tuple<abst_ext<TOs>...>&, const std::tuple<abst_ext<TIs>...>&)> functype;
 
     //! The constructor requires the module name
-    /*! It creates an SC_THREAD which reads data from its input ports,
-     * applies the user-imlpemented function to them and writes the
-     * results using the output port
-     */
     combMN(const sc_module_name& _name,      ///< process name
            const functype& _func             ///< function to be passed
-          ) : sy_process(_name), _func(_func)
-    {
-#ifdef FORSYDE_INTROSPECTION
-        std::string func_name = std::string(basename());
-        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        arg_vec.push_back(std::make_tuple("_func",func_name+std::string("_func")));
-#endif
-    }
-    
+          ) : base(_name), _func(_func) {}
+
     //! Specifying from which process constructor is the module built
     std::string forsyde_kind() const{return "SY::combMN";}
-    
+
 private:
-    // Input and output variables
-    std::tuple<abst_ext<TOs>...>* ovals;
-    std::tuple<abst_ext<TIs>...>* ivals;
-    
     //! The function passed to the process constructor
     functype _func;
 
-    //Implementing the abstract semantics
-    void init()
-    {
-        ovals = new std::tuple<abst_ext<TOs>...>;
-        ivals = new std::tuple<abst_ext<TIs>...>;
-    }
-    
-    void prep()
-    {
-        std::apply([&](auto&&... port){
-            std::apply([&](auto&&... val){
-                ((val = port.read()), ...);
-            }, *ivals);
-        }, iport);
-    }
-    
-    void exec()
-    {
-        _func(*ovals, *ivals);
-    }
-    
-    void prod()
-    {
-        std::apply([&](auto&&... port){
-            std::apply([&](auto&&... val){
-                (write_multiport(port, val), ...);
-            }, *ovals);
-        }, oport);
-    }
-    
-    void clean()
-    {
-        delete ivals;
-        delete ovals;
-    }
-    
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(sizeof...(TIs));     // input ports
-        std::apply
-        (
-            [&](auto&... ports)
-            {
-                std::size_t n{0};
-                ((boundInChans[n++].port = &ports),...);
-            }, iport
-        );
-        boundOutChans.resize(sizeof...(TOs));    // output ports
-        std::apply
-        (
-            [&](auto&... ports)
-            {
-                std::size_t n{0};
-                ((boundOutChans[n++].port = &ports),...);
-            }, oport
-        );
-    }
-#endif
+    auto in_ports()  {return std::apply([](auto&... p){return std::tie(p...);}, iport);}
+    auto out_ports() {return std::apply([](auto&... p){return std::tie(p...);}, oport);}
+
+    void exec() {_func(this->ovals, this->ivals);}
 };
 
 //! Process constructor for a delay element
