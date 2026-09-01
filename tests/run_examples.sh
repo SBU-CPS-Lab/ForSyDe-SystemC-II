@@ -29,6 +29,16 @@
 # golden set: nothing in this tree is C++20-specific yet, so the two
 # rows are expected to reproduce byte-identical output, and a mismatch
 # would itself be the finding.
+#
+# CXXSTD=c++20 needs a libsystemc that was itself built as C++20:
+# SystemC 3.0.x encodes the standard into an ABI-guard symbol
+# (sc_api_version_3_0_2_cxx202002L), so a C++20 model linked against a
+# C++17-built library fails with "undefined reference to
+# sc_core::sc_api_version_..." at link time and every example reports as
+# a build failure at once. That is an environment mismatch, not a
+# regression. The CI workflow builds SystemC once per standard, which is
+# why the c++20 row passes there; a distribution package (Debian's
+# libsystemc-dev, say) is typically C++17 and will not.
 
 set -u
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -66,6 +76,15 @@ new_failures=()
 mapfile -t DIRS < <(git ls-files -- 'examples/*/Makefile' 'examples/*/*/Makefile' 'examples/*/*/*/Makefile' \
     | xargs -n1 dirname | sort -u \
     | while read -r d; do grep -q 'Makefile\.defs' "$d/Makefile" && echo "$d"; done)
+
+# tests/multi_tu is not an example -- it is a regression test that happens
+# to be shaped like one, so it rides the same build/run/diff machinery
+# below rather than duplicating it. Every example in this repository is a
+# single .cpp file, which means the example suite structurally cannot
+# catch a defect that only appears when two translation units both
+# include forsyde.hpp and are linked together; D1 was exactly that, and
+# went unnoticed for years. See tests/multi_tu/README.md.
+DIRS+=("tests/multi_tu")
 
 echo "CXXSTD=$CXXSTD $( [ $SEED = 1 ] && echo '(seed mode)' || echo '(check mode)' )"
 
