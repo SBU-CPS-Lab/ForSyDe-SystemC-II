@@ -27,10 +27,8 @@
 #include <tuple>
 #include <vector>
 #include <map>
-#ifdef FORSYDE_SELF_REPORTING
-#include <iostream>
-#include <fcntl.h>
-#endif
+#include <cstdio>
+#include <sstream>
 
 #include "sadf_process.hpp"
 // A handful of SADF process constructors below (combMN, source, sink,
@@ -45,6 +43,32 @@ namespace ForSyDe
 
 namespace SADF
 {
+
+namespace detail
+{
+
+//! Whether this build compiles the SADF self-reporting code (D10).
+/*! Dependent on a template parameter at every use site, so the
+ * static_assert it backs fires only when a self-reporting overload is
+ * actually instantiated -- not merely because this header was included.
+ */
+template <typename...>
+inline constexpr bool self_reporting_enabled =
+#ifdef FORSYDE_SELF_REPORTING
+    true;
+#else
+    false;
+#endif
+
+//! The diagnostic that a self-reporting overload emits without the macro.
+#define FORSYDE_REQUIRE_SELF_REPORTING(DEPENDENT_TYPE, WHAT)                  \
+    static_assert(::ForSyDe::SADF::detail::self_reporting_enabled<DEPENDENT_TYPE>, \
+        WHAT " was given a self-report pipe, but FORSYDE_SELF_REPORTING is "  \
+        "not defined, so no report would ever be written. Add "               \
+        "-DFORSYDE_SELF_REPORTING to this model's CFLAGS, or drop the pipe "  \
+        "argument to use the non-reporting overload.")
+
+}
 
 using namespace sc_core;
 
@@ -323,16 +347,48 @@ public:
      * applies the user-imlpemented function to them and writes the
      * results using the output ports
      */
+    //  D10: _report_pipe used to be appended to this one constructor only
+    //  #ifdef FORSYDE_SELF_REPORTING, so kernelMN had two mutually
+    //  incompatible signatures depending on a build macro -- a model
+    //  written against one could not be rebuilt against the other without
+    //  editing its call sites, which is exactly what enabling
+    //  self-reporting used to require in practice. There are now two
+    //  overloads instead, both always present: passing a pipe is a
+    //  deliberate choice at the call site rather than a macro-dependent
+    //  change of shape. The macro still decides whether the reporting
+    //  code is compiled at all, and passing a pipe without it is a
+    //  compile-time error rather than a silently-ignored argument.
     kernelMN(sc_module_name _name,      ///< process name
           const functype& _func,        ///< function to be passed
-          const scenario_table_type& scenario_table///< the kernel scenario table
-#ifdef FORSYDE_SELF_REPORTING
-        , FILE** _report_pipe   ///< the report named pipe
-#endif
-          ) : SADF_process(_name), _func(_func), scenario_table(scenario_table)
-#ifdef FORSYDE_SELF_REPORTING
-        , report_pipe(_report_pipe)
-#endif
+          const scenario_table_type& scenario_table ///< the kernel scenario table
+          ) : SADF_process(_name), _func(_func), scenario_table(scenario_table),
+              report_pipe(nullptr)
+    {
+        register_introspection_args(scenario_table);
+    }
+
+    //! As above, additionally reporting each firing to a self-report pipe.
+    /*! Requires FORSYDE_SELF_REPORTING; without it this is a compile-time
+     * error rather than an argument that quietly does nothing.
+     */
+    kernelMN(sc_module_name _name,      ///< process name
+          const functype& _func,        ///< function to be passed
+          const scenario_table_type& scenario_table,///< the kernel scenario table
+          FILE** _report_pipe           ///< the report named pipe
+          ) : SADF_process(_name), _func(_func), scenario_table(scenario_table),
+              report_pipe(_report_pipe)
+    {
+        FORSYDE_REQUIRE_SELF_REPORTING(TC, "SADF::kernelMN");
+        register_introspection_args(scenario_table);
+    }
+
+    //! Specifying from which process constructor is the module built
+    std::string forsyde_kind() const {return "SADF::kernelMN";}
+private:
+    //! Shared by both constructors above, which cannot delegate to one
+    //! another: the reporting one carries a static_assert that the
+    //! non-reporting one must not trip.
+    void register_introspection_args(const scenario_table_type& scenario_table)
     {
 #ifdef FORSYDE_INTROSPECTION
         std::string func_name = std::string(basename());
@@ -341,12 +397,11 @@ public:
         std::stringstream ss;
         ss << scenario_table;
         arg_vec.push_back(std::make_tuple("scenario_table",ss.str()));
+#else
+        (void)scenario_table;
 #endif
     }
-    
-    //! Specifying from which process constructor is the module built
-    std::string forsyde_kind() const {return "SADF::kernelMN";}
-private:
+
     // Control, input and output variables
     std::tuple<std::vector<TOs>...> ovals;
     std::tuple<std::vector<TIs>...> ivals;
@@ -358,13 +413,11 @@ private:
     //! The table of kernel's scenarios to be passed to the process constructor
     scenario_table_type scenario_table;
 
-#ifdef FORSYDE_SELF_REPORTING
-    //! Self-report string
+    //! Self-report string, built only when report_pipe is non-null
     std::ostringstream report_str;
 
-    // Communication pipes
-    FILE** report_pipe;      // Report pipe
-#endif
+    //! Optional self-report pipe; null unless the constructor was given one
+    FILE** report_pipe;
 
     //Implementing the abstract semantics
     void init()
@@ -410,14 +463,17 @@ private:
         // Call the user-imlpemented kernel function with input and output vectors and the control value
         _func(ovals, *cval1, ivals);
 #ifdef FORSYDE_SELF_REPORTING
-        // Write the report to the pipe
-        report_str << "kernelMN" << "  " << basename() 
-                                << "  " << *cval1 
-                                << "  " << std::get<0>(scenario_table[*cval1]) 
-                                << "  " << std::get<1>(scenario_table[*cval1]) << std::endl;
-        fputs(report_str.str().c_str(), *report_pipe);
-        fflush(*report_pipe);
-        report_str.str("");
+        if (report_pipe)
+        {
+            // Write the report to the pipe
+            report_str << "kernelMN" << "  " << basename()
+                                    << "  " << *cval1
+                                    << "  " << std::get<0>(scenario_table[*cval1])
+                                    << "  " << std::get<1>(scenario_table[*cval1]) << std::endl;
+            fputs(report_str.str().c_str(), *report_pipe);
+            fflush(*report_pipe);
+            report_str.str("");
+        }
 #endif
     }
     
@@ -625,20 +681,50 @@ public:
      * applies the user-imlpemented function to them and writes the
      * results using the output ports
      */
+    //  D10: see the note on kernelMN's constructors above. Two always-
+    //  present overloads rather than one whose shape a build macro
+    //  changes; the reporting one requires FORSYDE_SELF_REPORTING.
     detectorMN(sc_module_name _name,                ///< process name
           const cds_functype& _cds_func,            ///< current detector scenario function to be passed
           const kss_functype& _kss_func,            ///< kernel scenario function to be passed
           const scenario_table_type& scenario_table,///< the detector scenario table
           const TS& init_sc,                        ///< Initial scenario
           const std::array<size_t,sizeof...(TIs)>& itoks    ///< consumption rate for the first input
-#ifdef FORSYDE_SELF_REPORTING
-        , FILE** _report_pipe                 ///< the report named pipe
-#endif
           ) : SADF_process(_name), itoks(itoks), init_sc(init_sc),
-          _cds_func(_cds_func), _kss_func(_kss_func), scenario_table(scenario_table)
-#ifdef FORSYDE_SELF_REPORTING
-        , report_pipe(_report_pipe)
-#endif
+          _cds_func(_cds_func), _kss_func(_kss_func), scenario_table(scenario_table),
+          report_pipe(nullptr)
+    {
+        register_introspection_args(scenario_table, init_sc, itoks);
+    }
+
+    //! As above, additionally reporting each firing to a self-report pipe.
+    /*! Requires FORSYDE_SELF_REPORTING; without it this is a compile-time
+     * error rather than an argument that quietly does nothing.
+     */
+    detectorMN(sc_module_name _name,                ///< process name
+          const cds_functype& _cds_func,            ///< current detector scenario function to be passed
+          const kss_functype& _kss_func,            ///< kernel scenario function to be passed
+          const scenario_table_type& scenario_table,///< the detector scenario table
+          const TS& init_sc,                        ///< Initial scenario
+          const std::array<size_t,sizeof...(TIs)>& itoks,   ///< consumption rate for the first input
+          FILE** _report_pipe                       ///< the report named pipe
+          ) : SADF_process(_name), itoks(itoks), init_sc(init_sc),
+          _cds_func(_cds_func), _kss_func(_kss_func), scenario_table(scenario_table),
+          report_pipe(_report_pipe)
+    {
+        FORSYDE_REQUIRE_SELF_REPORTING(TS, "SADF::detectorMN");
+        register_introspection_args(scenario_table, init_sc, itoks);
+    }
+
+    //! Specifying from which process constructor is the module built
+    std::string forsyde_kind() const {return "SADF::detectorMN";}
+private:
+    //! Shared by both constructors above, which cannot delegate to one
+    //! another: the reporting one carries a static_assert that the
+    //! non-reporting one must not trip.
+    void register_introspection_args(const scenario_table_type& scenario_table,
+                                     const TS& init_sc,
+                                     const std::array<size_t,sizeof...(TIs)>& itoks)
     {
 #ifdef FORSYDE_INTROSPECTION
         std::string func_name = std::string(basename());
@@ -656,12 +742,11 @@ public:
         ss.str(std::string());
         ss << itoks;
         arg_vec.push_back(std::make_tuple("itoks",ss.str()));
+#else
+        (void)scenario_table; (void)init_sc; (void)itoks;
 #endif
     }
-    
-    //! Specifying from which process constructor is the module built
-    std::string forsyde_kind() const {return "SADF::detectorMN";}
-private:
+
     // consumption and production rates
     std::array<size_t,sizeof...(TIs)> itoks;
     std::array<size_t,sizeof...(TOs)> otoks;
@@ -679,13 +764,11 @@ private:
     //! The table of kernel's scenarios to be passed to the process constructor
     scenario_table_type scenario_table;
 
-#ifdef FORSYDE_SELF_REPORTING
-    //! Self-report string
+    //! Self-report string, built only when report_pipe is non-null
     std::ostringstream report_str;
-    
-    // Communication pipes
-    FILE** report_pipe;      // Report pipe
-#endif
+
+    //! Optional self-report pipe; null unless the constructor was given one
+    FILE** report_pipe;
 
     //Implementing the abstract semantics
     void init()
@@ -744,11 +827,14 @@ private:
             }, ovals);
         }, oport);
 #ifdef FORSYDE_SELF_REPORTING
-        // Write the report to the pipe
-        report_str << "detectorMN" << "  " << basename() << "  " << *sc_val << "  " << scenario_table[*sc_val] << std::endl;
-        fputs(report_str.str().c_str(), *report_pipe);
-        fflush(*report_pipe);
-        report_str.str("");
+        if (report_pipe)
+        {
+            // Write the report to the pipe
+            report_str << "detectorMN" << "  " << basename() << "  " << *sc_val << "  " << scenario_table[*sc_val] << std::endl;
+            fputs(report_str.str().c_str(), *report_pipe);
+            fflush(*report_pipe);
+            report_str.str("");
+        }
 #endif
     }
     

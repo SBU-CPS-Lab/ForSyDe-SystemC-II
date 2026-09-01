@@ -77,24 +77,72 @@ template <typename... TOs, typename TC, typename... TIs,
 inline kernelMN<std::tuple<TOs...>,TC,std::tuple<TIs...>>* make_kernelMN(const std::string& pName,
     const typename kernelMN<std::tuple<TOs...>,TC,std::tuple<TIs...>>::functype& _func,
     const typename kernelMN<std::tuple<TOs...>,TC,std::tuple<TIs...>>::scenario_table_type& _scenario_table,
-#ifdef FORSYDE_SELF_REPORTING
-    FILE** report_pipe,   ///< the report named pipe
-#endif
     std::tuple<OIf<TOs>&...> outS,
     CIf<TC>& cS1,
     std::tuple<IIf<TIs>&...> inpS
     )
-    
+
 {
     auto p = new kernelMN<std::tuple<TOs...>,TC,std::tuple<TIs...>>(
         pName.c_str(),
         _func,
         _scenario_table
-#ifdef FORSYDE_SELF_REPORTING
-        , report_pipe
-#endif       
     );
-    
+
+    (*p).cport1(cS1);
+
+    std::apply([&](auto&... inpS){
+        std::apply([&](auto&... inpP){
+            (inpP(inpS), ...);
+        }, p->iport);
+    }, inpS);
+
+    std::apply([&](auto&... outS){
+        std::apply([&](auto&... outP){
+            (outP(outS), ...);
+        }, p->oport);
+    }, outS);
+
+    return p;
+}
+
+//! As above, additionally reporting each firing to a self-report pipe.
+/*! D10: report_pipe used to be spliced into the parameter list only
+ * #ifdef FORSYDE_SELF_REPORTING, so this helper's shape depended on a
+ * build macro -- enabling self-reporting meant editing the model source,
+ * not just its CFLAGS. It is a separate overload now, always present.
+ * The pipe keeps its position among the process-constructor parameters,
+ * before the output and then input signals, because that ordering is the
+ * helper layer's convention throughout (mirroring a curried function
+ * signature, as in ForSyDe-Haskell) and a self-report pipe is a
+ * parameter of the process, not a signal.
+ *
+ * Requires FORSYDE_SELF_REPORTING; without it this is a compile-time
+ * error rather than an argument that quietly does nothing.
+ */
+template <typename... TOs, typename TC, typename... TIs,
+           template <class> class CIf,
+           template <class> class... IIf,
+           template <class> class... OIf>
+inline kernelMN<std::tuple<TOs...>,TC,std::tuple<TIs...>>* make_kernelMN(const std::string& pName,
+    const typename kernelMN<std::tuple<TOs...>,TC,std::tuple<TIs...>>::functype& _func,
+    const typename kernelMN<std::tuple<TOs...>,TC,std::tuple<TIs...>>::scenario_table_type& _scenario_table,
+    FILE** report_pipe,   ///< the report named pipe
+    std::tuple<OIf<TOs>&...> outS,
+    CIf<TC>& cS1,
+    std::tuple<IIf<TIs>&...> inpS
+    )
+
+{
+    FORSYDE_REQUIRE_SELF_REPORTING(TC, "SADF::make_kernelMN");
+
+    auto p = new kernelMN<std::tuple<TOs...>,TC,std::tuple<TIs...>>(
+        pName.c_str(),
+        _func,
+        _scenario_table,
+        report_pipe
+    );
+
     (*p).cport1(cS1);
 
     std::apply([&](auto&... inpS){
@@ -156,9 +204,6 @@ inline detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>* make_detectorMN(con
     const typename detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::scenario_table_type& scenario_table,
     const TS& init_sc,
     const std::array<size_t,sizeof...(TIs)>& itoks,
-#ifdef FORSYDE_SELF_REPORTING
-    FILE** report_pipe,   ///< the report named pipe
-#endif
     std::tuple<OIf<TOs>&...> outS,
     std::tuple<IIf<TIs>&...> inpS
     )
@@ -170,11 +215,54 @@ inline detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>* make_detectorMN(con
         scenario_table,
         init_sc,
         itoks
-#ifdef FORSYDE_SELF_REPORTING
-        , report_pipe
-#endif
     );
-    
+
+    std::apply([&](auto&... inpS){
+        std::apply([&](auto&... inpP){
+            (inpP(inpS), ...);
+        }, p->iport);
+    }, inpS);
+
+    std::apply([&](auto&... outS){
+        std::apply([&](auto&... outP){
+            (outP(outS), ...);
+        }, p->oport);
+    }, outS);
+
+    return p;
+}
+
+//! As above, additionally reporting each firing to a self-report pipe.
+/*! D10: see the note on make_kernelMN above -- same reasoning, same
+ * parameter position (with the process-constructor parameters, before
+ * the output and input signals).
+ */
+template <typename... TOs, typename... TIs, typename TS,
+           template <class> class... OIf,
+           template <class> class... IIf>
+inline detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>* make_detectorMN(const std::string& pName,
+    const typename detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::cds_functype& _cds_func,
+    const typename detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::kss_functype& _kss_func,
+    const typename detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::scenario_table_type& scenario_table,
+    const TS& init_sc,
+    const std::array<size_t,sizeof...(TIs)>& itoks,
+    FILE** report_pipe,   ///< the report named pipe
+    std::tuple<OIf<TOs>&...> outS,
+    std::tuple<IIf<TIs>&...> inpS
+    )
+{
+    FORSYDE_REQUIRE_SELF_REPORTING(TS, "SADF::make_detectorMN");
+
+    auto p = new detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>(
+        pName.c_str(),
+        _cds_func,
+        _kss_func,
+        scenario_table,
+        init_sc,
+        itoks,
+        report_pipe
+    );
+
     std::apply([&](auto&... inpS){
         std::apply([&](auto&... inpP){
             (inpP(inpS), ...);
