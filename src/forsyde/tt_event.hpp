@@ -48,7 +48,23 @@ struct tt_event
         value = get_value(ev);
         time = get_time(ev);
     }
-    
+
+    //! The copy-assignment operator
+    /*! D9: declaring the copy constructor above without also declaring
+     * this makes the implicitly-generated copy-assignment operator
+     * deprecated (-Wdeprecated-copy), even though it would already do
+     * the right thing here -- both value and time are plain data
+     * members with no resource to manage. Given verbatim rather than
+     * defaulted to keep the two consistent should either type ever gain
+     * one.
+     */
+    tt_event& operator= (const tt_event& ev)
+    {
+        value = get_value(ev);
+        time = get_time(ev);
+        return *this;
+    }
+
     //! Checks for the equivalence of two timed events
     /*! Returns true only if both the values and time tags match.
      */
