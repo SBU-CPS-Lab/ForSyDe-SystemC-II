@@ -22,9 +22,28 @@
 #include <complex>
 #include <numeric>
 
-#define grppts 2
+// grppts samples are grouped and transformed, so the DFT below produces
+// exactly grppts bins. take_spectrum_func then reads bins 1..nLow --
+// skipping bin 0, the DC component -- to measure the low end, so the
+// transform has to produce at least nLow+1 bins for that to be in
+// range.
+//
+// grppts was 2, which gives a DFT with only bins 0 and 1 while nLow=3
+// asks for bins 1, 2 and 3. Every run walked off the end of the vector
+// on its very first group and died on the libstdc++ bounds assertion
+// ("__n < this->size()"); a 2-point DFT is also too degenerate to
+// analyse an audio spectrum with at all. Raised to 8 -- a power of two,
+// as a DFT window normally is, giving 7 non-DC bins for nLow=3 to draw
+// from.
+#define grppts 8
 #define limit  1.0
 #define nLow   3
+
+// Keep the two in step: this relationship is what the indexing in
+// take_spectrum_func depends on, and nothing else enforces it.
+static_assert(grppts >= nLow + 1,
+    "grppts must provide at least nLow+1 DFT bins, since take_spectrum_func "
+    "reads bins 1..nLow and bin 0 is the DC component");
 
 using namespace ForSyDe::SY;
 
