@@ -14,16 +14,36 @@ ct/cttutorial off
 mi/ir_uwb_radar on
 mi/ir_uwb_radar off
 
-# --- D15: ct_wrappers.hpp -> fmi2.h -> XmlParserCApi.h. The header is
-# present but the parser implementation it declares is not linked, so
-# this fails at link time with undefined references (getValueReference,
-# getScalarVariable, ...), not at compile time. Scheduled for step 0.6.
-# The "off" configuration does not hit this: this harness produces the
-# "off" build by overriding CFLAGS wholesale, which also strips this
-# example's -DFORSYDE_COSIMULATION_WRAPPERS, so it silently takes the
-# non-wrapper code path instead of also failing. That is a limitation
-# of this interim harness, not evidence the "off" build is exercising
-# the wrapper path safely.
+# --- D15 fixed in step 0.6: the FMU-description XML parser
+# (XmlElement/XmlParser/XmlParserCApi) is now vendored into
+# src/forsyde/fmi2/ and libxml2-linked, and is confirmed working end to
+# end -- it unzips fmi2/car.fmu and correctly parses fmiVersion=2.0,
+# modelName=car out of its modelDescription.xml. What's left is two
+# unrelated, independently confirmed problems in the SAME "on" config,
+# only the first of which is actually reachable (it halts the
+# simulation before the second would ever run):
+#  1. mi/cruisecontrol's controller1 uses SY::make_gdbwrap, which spawns
+#     xterm to host the debugged process -- and this machine has no
+#     xterm installed. An environment gap, not a code defect; confirmed
+#     by isolating the FMI path from GDB (building with only
+#     -DFORSYDE_WITH_FMI, which the 0.6 macro split now makes possible)
+#     and by DISPLAY being set while `which xterm` finds nothing.
+#  2. Independently, with GDB isolated out: fmi2/car.fmu is a
+#     Co-Simulation-only FMU (no ModelExchange element in its XML), but
+#     whatever sim_support.h code path this wrapper drives requires
+#     ModelExchange -- "error: No ModelExchange element found in model
+#     description. This FMU is not for Model Exchange." A real,
+#     distinct defect in ct_wrappers.hpp / sim_support.h's FMU-loading
+#     logic, in the wrapper code itself rather than the parser. Natural
+#     fit for the Phase 1b wrapper rework (explicit time contract,
+#     rebuilt on CoPrep/CoApply/CoProd) rather than a standalone patch
+#     here.
+# The "off" configuration does not hit either: this harness produces
+# the "off" build by overriding CFLAGS wholesale, which also strips
+# this example's -DFORSYDE_WITH_GDB -DFORSYDE_WITH_FMI, so it silently
+# takes the non-wrapper code path instead of exercising either problem.
+# That is a limitation of this interim harness, not evidence the "off"
+# build is exercising the wrapper path safely.
 mi/cruisecontrol on
 
 # --- Invalid macroblock grid: fsr=176, fsc=44, bs=8 in globals.hpp --

@@ -25,6 +25,17 @@
 
 #include "XmlParserCApi.h"
 
+// The FMU-description XML parser (D15) ships as three .cpp files rather
+// than headers, matching its upstream layout. This library is
+// header-only and every example is built as a single translation unit
+// (main.cpp), so including the implementations directly here -- in
+// their dependency order -- follows the same single-TU assumption the
+// rest of the library already relies on, rather than introducing a
+// separate static-library build step for one optional backend.
+#include "XmlElement.cpp"
+#include "XmlParser.cpp"
+#include "XmlParserCApi.cpp"
+
 typedef struct {
     ModelDescription* modelDescription;
 
