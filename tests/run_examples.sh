@@ -250,7 +250,20 @@ run_dir() {
         # so far (gdbwrap's child) rather than leaving it to accumulate
         # across a 33-example run; a real per-example process-group kill
         # is Phase-1b's job when the wrapper itself is rebuilt.
-        pkill -9 -f 'gdb --interpreter=mi' >/dev/null 2>&1
+        #
+        # The [=] is not a typo. `pkill -f` matches against the whole
+        # command line, and pkill's own command line contains the
+        # pattern it was given -- so while pkill excludes *itself*, with
+        # JOBS>1 it happily matches and SIGKILLs the pkill that another
+        # job is running at that moment. That surfaced as
+        #   run_examples.sh: line 253: 685555 Killed  pkill -9 -f ...
+        # appearing in some runs and not others, at whichever job
+        # happened to overlap: nondeterministic output from the one
+        # script whose whole job is to diff one run against another.
+        # Bracketing the '=' makes the pattern match a real gdb argv
+        # (`--interpreter=mi`) but not the literal text `[=]` sitting in
+        # a sibling pkill's own argv.
+        pkill -9 -f 'gdb --interpreter[=]mi' >/dev/null 2>&1
 
         if [ $run_rc -ne 0 ]; then
             if is_known_failure "$key"; then

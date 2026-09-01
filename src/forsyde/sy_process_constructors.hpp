@@ -52,6 +52,49 @@ using namespace sc_core;
 namespace detail
 {
 
+#ifdef FORSYDE_INTROSPECTION
+//! Record a tuple of port references in one of a process's bound-channel vectors
+/*! Shared by all three cores below: whatever shape a family's ports are
+ * declared in, bindInfo() sees them as one flat tuple of references in
+ * port order, which is the order the introspection XML lists them in.
+ */
+template <typename Ports>
+inline void bind_all(std::vector<PortInfo>& chans, Ports&& ports)
+{
+    chans.resize(std::tuple_size<typename std::decay<Ports>::type>::value);
+    std::apply
+    (
+        [&](auto&... port)
+        {
+            std::size_t n{0};
+            ((chans[n++].port = &port),...);
+        }, ports
+    );
+}
+#endif
+
+//! Read one token from each of a tuple of input ports into a token pack
+template <typename Ports, typename Vals>
+inline void read_all(Ports&& ports, Vals& vals)
+{
+    std::apply([&](auto&&... port){
+        std::apply([&](auto&&... val){
+            ((val = port.read()), ...);
+        }, vals);
+    }, ports);
+}
+
+//! Write one token from a token pack to each of a tuple of output ports
+template <typename Ports, typename Vals>
+inline void write_all(Ports&& ports, const Vals& vals)
+{
+    std::apply([&](auto&&... port){
+        std::apply([&](auto&&... val){
+            (write_multiport(port, val), ...);
+        }, vals);
+    }, ports);
+}
+
 //! Shared implementation of the SY combinational (comb*) family
 /*! Every process in this family does the same three things on every
  * activation -- read one token from each input port, apply the user
@@ -115,43 +158,125 @@ private:
 
     void clean() {}
 
-    void prep()
-    {
-        std::apply([&](auto&&... port){
-            std::apply([&](auto&&... val){
-                ((val = port.read()), ...);
-            }, ivals);
-        }, self().in_ports());
-    }
+    void prep() {read_all(self().in_ports(), ivals);}
 
-    void prod()
-    {
-        std::apply([&](auto&&... port){
-            std::apply([&](auto&&... val){
-                (write_multiport(port, val), ...);
-            }, ovals);
-        }, self().out_ports());
-    }
+    void prod() {write_all(self().out_ports(), ovals);}
 
 #ifdef FORSYDE_INTROSPECTION
-    //! Record a tuple of port references in one of the bound-channel vectors
-    template <typename Ports>
-    static void bind_all(std::vector<PortInfo>& chans, Ports&& ports)
-    {
-        chans.resize(std::tuple_size<typename std::decay<Ports>::type>::value);
-        std::apply
-        (
-            [&](auto&... port)
-            {
-                std::size_t n{0};
-                ((chans[n++].port = &port),...);
-            }, ports
-        );
-    }
-
     void bindInfo()
     {
         bind_all(boundInChans, self().in_ports());
+        bind_all(boundOutChans, self().out_ports());
+    }
+#endif
+};
+
+//! Shared implementation of the SY zip family
+/*! zip, zipX and zipN all read one token from each of their input ports
+ * and write the whole collection as a single token on one output port.
+ * \a Pack is that collection -- a std::tuple for zip and zipN, a
+ * std::array for zipX -- and is both the input token pack and the token
+ * type of the output port, which is why the output port lives here
+ * rather than in the derived class. \a Derived supplies only in_ports().
+ *
+ * \a PropagatesAbsence says what to emit when *every* input token is
+ * absent: an absent output token, or a present \a Pack whose elements
+ * happen all to be absent. It exists solely because zip and zipX do the
+ * former and zipN does the latter, which is an inconsistency in the
+ * library as it stands rather than a designed distinction -- preserved
+ * here verbatim, and marked, rather than quietly unified. It is
+ * unobservable through a matching unzip (which looks at the elements,
+ * not at the pack) and observable through anything else.
+ */
+template <typename Derived, typename Pack, bool PropagatesAbsence>
+class zip_core : public sy_process
+{
+public:
+    SY_out<Pack> oport1;    ///< port for the output channel
+
+protected:
+    Pack ivals;             ///< input tokens, one per input port
+
+    zip_core(const sc_module_name& _name) : sy_process(_name), oport1("oport1") {}
+
+private:
+    Derived& self() {return static_cast<Derived&>(*this);}
+
+    void init() {}
+
+    void clean() {}
+
+    void exec() {}
+
+    void prep() {read_all(self().in_ports(), ivals);}
+
+    void prod()
+    {
+        if constexpr (PropagatesAbsence)
+        {
+            if (std::apply([](auto&... val){return (val.is_absent() && ...);}, ivals))
+            {
+                write_multiport(oport1, abst_ext<Pack>());
+                return;
+            }
+        }
+        write_multiport(oport1, abst_ext<Pack>(ivals));
+    }
+
+#ifdef FORSYDE_INTROSPECTION
+    void bindInfo()
+    {
+        bind_all(boundInChans, self().in_ports());
+        boundOutChans.resize(1);    // only one output port
+        boundOutChans[0].port = &oport1;
+    }
+#endif
+};
+
+//! Shared implementation of the SY unzip family
+/*! The mirror image of zip_core: unzip, unzipX and unzipN all read a
+ * single \a Pack token from one input port -- which is why that port
+ * lives here -- and write its elements one per output port, emitting an
+ * absent token on every output when the input token is absent. All three
+ * agree on that, so unlike zip_core there is no policy parameter.
+ * \a Derived supplies only out_ports().
+ */
+template <typename Derived, typename Pack>
+class unzip_core : public sy_process
+{
+public:
+    SY_in<Pack> iport1;     ///< port for the input channel
+
+protected:
+    abst_ext<Pack> in_val;  ///< the token read from iport1
+    Pack ovals;             ///< output tokens, one per output port
+
+    unzip_core(const sc_module_name& _name) : sy_process(_name), iport1("iport1") {}
+
+private:
+    Derived& self() {return static_cast<Derived&>(*this);}
+
+    void init() {}
+
+    void clean() {}
+
+    void exec() {}
+
+    void prep() {in_val = iport1.read();}
+
+    void prod()
+    {
+        // A default-constructed Pack is a pack of absent tokens, which
+        // is exactly what an absent input has to produce on every output.
+        ovals = in_val.is_absent() ? Pack() : in_val.unsafe_from_abst_ext();
+        write_all(self().out_ports(), ovals);
+    }
+
+#ifdef FORSYDE_INTROSPECTION
+    void bindInfo()
+    {
+        boundInChans.resize(1);     // only one input port
+        boundInChans[0].port = &iport1;
         bind_all(boundOutChans, self().out_ports());
     }
 #endif
@@ -1467,217 +1592,96 @@ private:
 /*! This process "zips" two incoming signals into one signal of tuples.
  */
 template <class T1, class T2>
-class zip : public sy_process
+class zip : public detail::zip_core<zip<T1,T2>,
+                                    std::tuple<abst_ext<T1>,abst_ext<T2>>, true>
 {
+    typedef detail::zip_core<zip<T1,T2>,
+                             std::tuple<abst_ext<T1>,abst_ext<T2>>, true> base;
+    friend base;
 public:
     SY_in<T1> iport1;        ///< port for the input channel 1
     SY_in<T2> iport2;        ///< port for the input channel 2
-    SY_out<std::tuple<abst_ext<T1>,abst_ext<T2>>> oport1;///< port for the output channel
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input port,
      * zips them together and writes the results using the output port
      */
     zip(const sc_module_name& _name      ///< process name
-        )
-         :sy_process(_name), iport1("iport1"), iport2("iport2"), oport1("oport1")
-    { }
-    
+        ) : base(_name), iport1("iport1"), iport2("iport2") {}
+
     //! Specifying from which process constructor is the module built
     std::string forsyde_kind() const {return "SY::zip";}
-    
+
 private:
-    // intermediate values
-    abst_ext<T1>* ival1;
-    abst_ext<T2>* ival2;
-    
-    void init()
-    {
-        ival1 = new abst_ext<T1>;
-        ival2 = new abst_ext<T2>;
-    }
-    
-    void prep()
-    {
-        *ival1 = iport1.read();
-        *ival2 = iport2.read();
-    }
-    
-    void exec() {}
-    
-    void prod()
-    {
-        typedef std::tuple<abst_ext<T1>,abst_ext<T2>> TT;
-        if (ival1->is_absent() && ival2->is_absent())
-        {
-            
-            write_multiport(oport1,abst_ext<TT>());  // write to the output 1
-        }
-        else
-        {
-            abst_ext<TT> oval(std::make_tuple(*ival1,*ival2));
-            write_multiport(oport1,oval);  // write to the output
-        }
-    }
-    
-    void clean()
-    {
-        delete ival1;
-        delete ival2;
-    }
-    
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(2);     // two input ports
-        boundInChans[0].port = &iport1;
-        boundInChans[1].port = &iport2;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-    }
-#endif
+    auto in_ports() {return std::tie(iport1,iport2);}
 };
 
 //! The zipX process with an array of inputs and one output
 /*! This process "zips" an array of incoming signals into one signal of arrays.
  */
 template <class T1, std::size_t N>
-class zipX : public sy_process
+class zipX : public detail::zip_core<zipX<T1,N>, std::array<abst_ext<T1>,N>, true>
 {
+    typedef detail::zip_core<zipX<T1,N>, std::array<abst_ext<T1>,N>, true> base;
+    friend base;
 public:
     std::array<SY_in<T1>,N> iport;              ///< port array for the input channels
-    SY_out<std::array<abst_ext<T1>,N>> oport1;  ///< port for the output channel
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input port,
      * zips them together and writes the results using the output port
      */
     zipX(const sc_module_name& _name      ///< process name
-        )
-         :sy_process(_name), oport1("oport1")
-    { }
-    
+        ) : base(_name) {}
+
     //! Specifying from which process constructor is the module built
     std::string forsyde_kind() const {return "SY::zipX";}
-    
+
 private:
-    // intermediate values
-    std::array<abst_ext<T1>,N> ival;
-    
-    void init() {}
-    
-    void prep()
-    {
-        for (size_t i=0; i<N; i++)
-            ival[i] = iport[i].read();
-    }
-    
-    void exec() {}
-    
-    void prod()
-    {
-        typedef std::array<abst_ext<T1>,N> TT;
-        if (std::all_of(ival.begin(), ival.end(), [](abst_ext<T1> ivalx){return ivalx.is_absent();}))
-        {
-            write_multiport(oport1,abst_ext<TT>());  // write to the output 1
-        }
-        else
-        {
-            write_multiport(oport1,abst_ext<TT>(ival));  // write to the output
-        }
-    }
-    
-    void clean() {}
-    
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(N);     // N input ports
-        for (size_t i=0;i<N;i++)
-            boundInChans[i].port = &iport[i];
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-    }
-#endif
+    template <std::size_t... Is>
+    auto in_ports(std::index_sequence<Is...>) {return std::tie(iport[Is]...);}
+    auto in_ports() {return in_ports(std::make_index_sequence<N>{});}
 };
 
 //! The zip process with variable number of inputs and one output
 /*! This process "zips" the incoming signals into one signal of tuples.
+ *
+ * Unlike zip and zipX, this one has never emitted an absent output token
+ * for an all-absent input -- see zip_core's PropagatesAbsence.
  */
 template <class... Ts>
-class zipN : public sy_process
+class zipN : public detail::zip_core<zipN<Ts...>, std::tuple<abst_ext<Ts>...>, false>
 {
+    typedef detail::zip_core<zipN<Ts...>, std::tuple<abst_ext<Ts>...>, false> base;
+    friend base;
 public:
     std::tuple <SY_in<Ts>...> iport;///< tuple of ports for the input channels
-    SY_out<std::tuple<abst_ext<Ts>...> > oport1;///< port for the output channel
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input port,
      * zips them together and writes the results using the output port
      */
     zipN(const sc_module_name& _name      ///< process name
-         )
-         : sy_process(_name), oport1("oport1")
-    { }
-    
+         ) : base(_name) {}
+
     //! Specifying from which process constructor is the module built
     std::string forsyde_kind() const {return "SY::zipN";}
-private:
-    // intermediate values
-    std::tuple<abst_ext<Ts>...>* in_vals;
-    
-    void init()
-    {
-        in_vals = new std::tuple<abst_ext<Ts>...>;
-    }
-    
-    void prep()
-    {
-        std::apply([&](auto&&... port){
-            std::apply([&](auto&&... val){
-                ((val = port.read()), ...);
-            }, *in_vals);
-        }, iport);
-    }
-    
-    void exec() {}
-    
-    void prod()
-    {
-        write_multiport(oport1,abst_ext<std::tuple<abst_ext<Ts>...>>(*in_vals));    // write to the output
-    }
-    
-    void clean()
-    {
-        delete in_vals;
-    }
 
- #ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(sizeof...(Ts));     // input ports
-        std::apply
-        (
-            [&](auto&... ports)
-            {
-                std::size_t n{0};
-                ((boundInChans[n++].port = &ports),...);
-            }, iport
-        );
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-    }
-#endif
+private:
+    auto in_ports() {return std::apply([](auto&... p){return std::tie(p...);}, iport);}
 };
 
 //! The unzip process with one input and two outputs
 /*! This process "unzips" a signal of tuples into two separate signals
  */
 template <class T1, class T2>
-class unzip : public sy_process
+class unzip : public detail::unzip_core<unzip<T1,T2>,
+                                        std::tuple<abst_ext<T1>,abst_ext<T2>>>
 {
+    typedef detail::unzip_core<unzip<T1,T2>,
+                               std::tuple<abst_ext<T1>,abst_ext<T2>>> base;
+    friend base;
 public:
-    SY_in<std::tuple<abst_ext<T1>,abst_ext<T2>>> iport1;///< port for the input channel
     SY_out<T1> oport1;        ///< port for the output channel 1
     SY_out<T2> oport2;        ///< port for the output channel 2
 
@@ -1686,67 +1690,24 @@ public:
      * unzips them and writes the results using the output ports
      */
     unzip(const sc_module_name& _name      ///< process name
-          )
-         :sy_process(_name), iport1("iport1"), oport1("oport1"), oport2("oport2")
-    {}
-    
+          ) : base(_name), oport1("oport1"), oport2("oport2") {}
+
     //! Specifying from which process constructor is the module built
     std::string forsyde_kind() const {return "SY::unzip";}
+
 private:
-    // intermediate values
-    abst_ext<std::tuple<abst_ext<T1>,abst_ext<T2>>>* in_val;
-    
-    void init()
-    {
-        in_val = new abst_ext<std::tuple<abst_ext<T1>,abst_ext<T2>>>;
-    }
-    
-    void prep()
-    {
-        *in_val = iport1.read();
-    }
-    
-    void exec() {}
-    
-    void prod()
-    {
-        if (in_val->is_absent())
-        {
-            write_multiport(oport1,abst_ext<T1>());  // write to the output 1
-            write_multiport(oport2,abst_ext<T2>());  // write to the output 2
-        }
-        else
-        {
-            write_multiport(oport1,abst_ext<T1>(std::get<0>(in_val->unsafe_from_abst_ext())));  // write to the output 1
-            write_multiport(oport2,abst_ext<T2>(std::get<1>(in_val->unsafe_from_abst_ext())));  // write to the output 2
-        }
-    }
-    
-    void clean()
-    {
-        delete in_val;
-    }
-    
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(2);    // two output ports
-        boundOutChans[0].port = &oport1;
-        boundOutChans[1].port = &oport2;
-    }
-#endif
+    auto out_ports() {return std::tie(oport1,oport2);}
 };
 
 //! The unzipX process with one input and an array of outputs
 /*! This process "unzips" a signal of arrays into an array of separate signals
  */
 template <class T1, std::size_t N>
-class unzipX : public sy_process
+class unzipX : public detail::unzip_core<unzipX<T1,N>, std::array<abst_ext<T1>,N>>
 {
+    typedef detail::unzip_core<unzipX<T1,N>, std::array<abst_ext<T1>,N>> base;
+    friend base;
 public:
-    SY_in<std::array<abst_ext<T1>,N>> iport1;///< port for the input channel
     std::array<SY_out<T1>,N> oport;///< port array for the output channels
 
     //! The constructor requires the module name
@@ -1754,67 +1715,26 @@ public:
      * unzips them and writes the results using the output ports
      */
     unzipX(const sc_module_name& _name      ///< process name
-          )
-         :sy_process(_name), iport1("iport1")
-    {}
-    
+          ) : base(_name) {}
+
     //! Specifying from which process constructor is the module built
     std::string forsyde_kind() const {return "SY::unzipX";}
+
 private:
-    // intermediate values
-    abst_ext<std::array<abst_ext<T1>,N>>* in_val;
-    
-    void init()
-    {
-        in_val = new abst_ext<std::array<abst_ext<T1>,N>>;
-    }
-    
-    void prep()
-    {
-        *in_val = iport1.read();
-    }
-    
-    void exec() {}
-    
-    void prod()
-    {
-        if (in_val->is_absent())
-        {
-            for (size_t i=0; i<N; i++)
-                write_multiport(oport[i],abst_ext<T1>());  // write to the output i
-        }
-        else
-        {
-            for (size_t i=0; i<N; i++)
-                write_multiport(oport[i],abst_ext<T1>(in_val->unsafe_from_abst_ext()[i]));  // write to the output i
-        }
-    }
-    
-    void clean()
-    {
-        delete in_val;
-    }
-    
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(N);    // output ports
-        for (size_t i=0;i<N;i++)
-            boundOutChans[i].port = &oport[i];
-    }
-#endif
+    template <std::size_t... Is>
+    auto out_ports(std::index_sequence<Is...>) {return std::tie(oport[Is]...);}
+    auto out_ports() {return out_ports(std::make_index_sequence<N>{});}
 };
 
 //! The unzip process with one input and variable number of outputs
 /*! This process "unzips" the incoming signal into a tuple of signals.
  */
 template <class... Ts>
-class unzipN : public sy_process
+class unzipN : public detail::unzip_core<unzipN<Ts...>, std::tuple<abst_ext<Ts>...>>
 {
+    typedef detail::unzip_core<unzipN<Ts...>, std::tuple<abst_ext<Ts>...>> base;
+    friend base;
 public:
-    SY_in<std::tuple<abst_ext<Ts>...>> iport1;///< port for the input channel
     std::tuple<SY_out<Ts>...> oport;///< tuple of ports for the output channels
 
     //! The constructor requires the module name
@@ -1822,91 +1742,13 @@ public:
      * unzips it and writes the results using the output ports
      */
     unzipN(const sc_module_name& _name      ///< process name
-           )
-          :sy_process(_name), iport1("iport1")
-    { }
-    
+           ) : base(_name) {}
+
     //! Specifying from which process constructor is the module built
     std::string forsyde_kind() const {return "SY::unzipN";}
+
 private:
-    // intermediate values
-    abst_ext<std::tuple<abst_ext<Ts>...>>* in_val;
-    
-    void init()
-    {
-        in_val = new abst_ext<std::tuple<abst_ext<Ts>...>>;
-    }
-    
-    void prep()
-    {
-        *in_val = iport1.read();
-    }
-    
-    void exec() {}
-    
-    void prod()
-    {
-        if (in_val->is_absent())
-        {
-            std::tuple<abst_ext<Ts>...> all_abs;
-            fifo_tuple_write<Ts...>(all_abs, oport);
-        }
-        else
-        {
-            fifo_tuple_write<Ts...>(in_val->unsafe_from_abst_ext(), oport);
-        }
-    }
-    
-    void clean()
-    {
-        delete in_val;
-    }
-    
-    template<size_t N,class R,  class T>
-    struct fifo_write_helper
-    {
-        static void write(const R& vals, T& t)
-        {
-            fifo_write_helper<N-1,R,T>::write(vals,t);
-            write_multiport(std::get<N>(t), std::get<N>(vals));
-        }
-    };
-
-    template<class R, class T>
-    struct fifo_write_helper<0,R,T>
-    {
-        static void write(const R& vals, T& t)
-        {
-            write_multiport(std::get<0>(t), std::get<0>(vals));
-        }
-    };
-
-    template<class... T>
-    void fifo_tuple_write(const std::tuple<abst_ext<T>...>& vals,
-                             std::tuple<SY_out<T>...>& ports)
-    {
-        fifo_write_helper<sizeof...(T)-1,
-                          std::tuple<abst_ext<T>...>,
-                          std::tuple<SY_out<T>...>>::write(vals,ports);
-    }
-
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(sizeof...(Ts));    // two output ports
-        std::apply
-        (
-            [&](auto&... ports)
-            {
-                std::size_t n{0};
-                ((boundOutChans[n++].port = &ports),...);
-            }, oport
-        );
-    }
-#endif
-
+    auto out_ports() {return std::apply([](auto&... p){return std::tie(p...);}, oport);}
 };
 
 //! The group process with one input and one absent-extended output
