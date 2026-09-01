@@ -2,103 +2,57 @@
 # line, path relative to the repo root, config is "on" or "off".
 #
 # Each entry below was individually diagnosed (not just observed) when
-# this file was seeded -- see the reason on each line. None of these are
-# fixed here; they are Phase-1 (or, where noted, Phase-2) work.
+# this file was written -- see the reason on each line.
 
-# --- Infinite-run examples: sc_start() with no stop time and no code
-# path that ever halts the simulation. Not a hang in the SystemC sense
-# and not stdin-blocked (checked); the model is simply unbounded as
-# written. Needs an explicit stop condition or a duration argument.
+# --- Slow, not broken. Both of these were registered here as "infinite
+# runs: sc_start() with no stop time and no code path that ever halts".
+# That diagnosis was wrong for both, and finding out why turned up a
+# real library defect:
+#
+#  * ct/cttutorial genuinely never terminated, but not because it was
+#    unbounded -- DDE::filter's adaptive-step solver never adapted its
+#    step. `step` was assigned once in init() and never changed, so a
+#    step that failed the error tolerance re-requested the same two
+#    sample times forever, spinning at 100% CPU with simulated time
+#    standing still at t=100us. Fixed in the library (see
+#    dde_process_constructors.hpp); the model now completes, in ~59s.
+#  * mi/ir_uwb_radar was never stuck at all. It advances steadily at
+#    ~1.67s of wall time per 100ns of model time and reaches its
+#    END_T of 11000ns in about three minutes: an 8th-order filter
+#    solved twice per 25ps step, 440,000 steps.
+#
+# Both now finish; both exceed this harness's 30s per-example budget, so
+# they stay registered. Raising TIMEOUT would let them pass at the cost
+# of making ir_uwb_radar the critical path of the whole suite (~3min vs
+# the ~105s the other 30-odd examples take together), which is a
+# trade-off worth making deliberately rather than by default.
 ct/cttutorial on
 ct/cttutorial off
 mi/ir_uwb_radar on
 mi/ir_uwb_radar off
 
-# --- D15 fixed in step 0.6: the FMU-description XML parser
-# (XmlElement/XmlParser/XmlParserCApi) is now vendored into
-# src/forsyde/fmi2/ and libxml2-linked, and is confirmed working end to
-# end -- it unzips fmi2/car.fmu and correctly parses fmiVersion=2.0,
-# modelName=car out of its modelDescription.xml. What blocks "on" now is
-# purely on the GDB side, and it comes in two layers depending on the
-# environment:
+# --- The FMU that mi/cruisecontrol loads (fmi2/car.fmu) is
+# Co-Simulation-only -- there is no ModelExchange element in its
+# modelDescription.xml -- but the code path ct_wrappers.hpp drives in
+# sim_support.h requires ModelExchange: "error: No ModelExchange element
+# found in model description. This FMU is not for Model Exchange." A
+# real defect in the wrapper's FMU-loading logic, not in the XML parser
+# (D15, fixed in step 0.6: the parser is confirmed working end to end,
+# unzipping car.fmu and reading fmiVersion=2.0, modelName=car out of it).
 #
-#  1. On a machine where GDB genuinely cannot get a controlling terminal
-#     (confirmed here: installing xterm did not fix this -- gdbwrap's
-#     spawned xterm opens and immediately shows only
-#     "warning: GDB: Failed to set controlling terminal: Operation not
-#     permitted", then hangs forever). That is a sandbox restriction
-#     (this machine runs a locked-down dev sandbox), not a missing
-#     package, and it produces a real, visible, un-closeable window --
-#     three of them accumulated across three routine test runs before
-#     this was caught. tests/run_examples.sh now refuses to run this one
-#     config at all when FORSYDE_SKIP_GDB is set in the environment,
-#     rather than letting it hang and open another window; set that
-#     permanently on any host where a GDB session cannot get a real
-#     controlling terminal.
-#  2. On a host where GDB attaches cleanly (untested from here; plausibly
-#     true on an ordinary CI VM runner, not confirmed), the run still
-#     doesn't complete: fmi2/car.fmu is a Co-Simulation-only FMU (no
-#     ModelExchange element in its XML), but whatever sim_support.h code
-#     path this wrapper drives requires ModelExchange -- "error: No
-#     ModelExchange element found in model description. This FMU is not
-#     for Model Exchange." A real defect in ct_wrappers.hpp /
-#     sim_support.h's FMU-loading logic, in the wrapper code itself
-#     rather than the parser.
+# Separately, on a host where GDB cannot get a controlling terminal
+# (this dev sandbox is one: gdbwrap's spawned xterm shows only "warning:
+# GDB: Failed to set controlling terminal: Operation not permitted" and
+# then hangs, leaving a real un-closeable window on the desktop), this
+# config must not be run at all -- set FORSYDE_SKIP_GDB in the
+# environment and the harness skips it rather than opening another one.
+# Also unfixed: gdbwrap never kills its spawned `gdb --interpreter=mi`
+# child on any exit path.
 #
-# Both are natural fits for the Phase 1b wrapper rework (explicit time
-# contract, rebuilt on CoPrep/CoApply/CoProd) rather than standalone
-# patches here. Also newly observed, not yet its own line item: gdbwrap
-# does not kill its spawned `gdb --interpreter=mi` child on any exit
-# path, confirmed on both the hang and the successful-attach case --
-# only its own clean()/destructor can fix that, not this test harness.
-#
-# The "off" configuration does not hit any of this: this harness
-# produces the "off" build by overriding CFLAGS wholesale, which also
-# strips this example's -DFORSYDE_WITH_GDB -DFORSYDE_WITH_FMI, so it
-# silently takes the non-wrapper code path instead. That is a
-# limitation of this interim harness, not evidence the "off" build is
-# exercising the wrapper path safely.
+# All of this belongs to the Phase-1b wrapper rework rather than to
+# standalone patches. The "off" configuration does not hit any of it:
+# this harness builds "off" by overriding CFLAGS wholesale, which also
+# strips -DFORSYDE_WITH_GDB -DFORSYDE_WITH_FMI, so it silently takes the
+# non-wrapper code path instead. That is a limitation of this interim
+# harness, not evidence the "off" build exercises the wrapper safely.
 mi/cruisecontrol on
-
-# --- Invalid macroblock grid: fsr=176, fsc=44, bs=8 in globals.hpp --
-# 44 is not divisible by 8, so the frame is not a whole number of
-# macroblocks. In the non-introspective build this aborts outright
-# (SIGABRT). In the introspective build it does not crash, but two
-# consecutive runs of the identical binary produce different output --
-# confirmed directly, not inferred -- consistent with the same invalid
-# grid causing an out-of-bounds or uninitialized-memory read that
-# happens not to trip an assertion here. Neither configuration's output
-# can be pinned to a golden file until this is fixed. A fix (frame size
-# expressed in terms of nmb, corrected to 64x64) already exists on the
-# wip/mp4dec-scenarios branch.
-sadf/mp4dec on
-sadf/mp4dec off
-
-# --- DEFINE_TYPE_NAME / DEFINE_TYPE used directly in example code
-# (types.hpp is only included under FORSYDE_INTROSPECTION, so these
-# macros are undefined in the "off" build and the calls parse as
-# malformed declarations: "expected identifier before string constant").
-# Same defect class as the library's own D2/D3 header-hygiene issues,
-# just found in example code instead of src/forsyde.
-sdf/vad off
-sy/equalizer off
-
-# --- zipN/unzipN called with a constructor signature
-# (name, vector<uint>&) that no longer matches ForSyDe::SDF::zipN's
-# actual constructor. API drift between this example and the current
-# library, in both configurations -- not introspection-related.
-sdf/vtoysdf on
-sdf/vtoysdf off
-
-# --- sy/adaptivecodec was registered here for D4 (abst_ext<T> required T
-# to be streamable, which std::function is not, so the one example built
-# on function adaptivity did not compile in either configuration). Fixed
-# in Phase 1a: abst_ext's operator<< now degrades to a placeholder for a
-# non-streamable T instead of failing to instantiate. Both configurations
-# build, run, and are golden-tracked; the entries are gone rather than
-# commented out, which is the point of this file.
-
-# --- Out-of-bounds std::vector<std::complex<double>> access
-# (operator[] assertion failure) somewhere in the audio pipeline.
-# Genuine bug in the example, reproducible, not a build-system issue.
-sy/equalizer on
