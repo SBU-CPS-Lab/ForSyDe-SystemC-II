@@ -71,6 +71,25 @@
 
 #ifdef FORSYDE_INTROSPECTION
 #include "forsyde/types.hpp"
+#else
+// DEFINE_TYPE / DEFINE_TYPE_NAME register a human-readable name for a
+// model's own token types, which is information only the introspection
+// XML export consumes -- so types.hpp, which defines them, is only
+// included above when that export is compiled in.
+//
+// They are still public API that models call at namespace scope, and a
+// model has no reason to guard those calls: naming your types is a
+// property of the model, not of how this particular build was
+// configured. Left undefined, the calls parse as malformed
+// declarations ("expected identifier before string constant") and the
+// whole model fails to compile without introspection -- which is
+// exactly how examples/sdf/vad and examples/sy/equalizer came to build
+// in only one of the two configurations.
+//
+// Define them as no-ops instead, so registering a type costs nothing
+// and breaks nothing in a build that has nowhere to put the name.
+#define DEFINE_TYPE(X)
+#define DEFINE_TYPE_NAME(X,N)
 #endif
 
 // include the abstract semantics
