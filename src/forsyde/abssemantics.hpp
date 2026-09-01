@@ -28,8 +28,20 @@
  * Each MoC has its own sub-namespace.
  */
 
+#include <systemc>
 #include <sstream>
 #include <fstream>
+
+// get_type_name<T>() (used a few lines below, under the same macro) is
+// declared in types.hpp. forsyde.hpp includes types.hpp itself before
+// abssemantics.hpp, so this was masked there, but that made
+// abssemantics.hpp -- like the other 41 headers fixed alongside it --
+// not self-contained: including it on its own with FORSYDE_INTROSPECTION
+// defined failed to compile, needing a translation unit to happen to
+// have pulled in types.hpp first for unrelated reasons.
+#ifdef FORSYDE_INTROSPECTION
+#include "types.hpp"
+#endif
 
 
 namespace ForSyDe
@@ -37,7 +49,27 @@ namespace ForSyDe
 
 using namespace sc_core;
 
-// Auxilliary Macro definitions
+// This is the sole definition of write_multiport in the library.
+// adaptivity.hpp used to shadow it with a #define of the same name, and
+// because the preprocessor has no namespace scoping, that macro stayed
+// active for the rest of the translation unit after adaptivity.hpp was
+// included -- silently swapping every later write_multiport(...) call
+// (this template's, everywhere else in the library) from a real
+// function call to raw textual substitution for as long as the macro
+// remained defined. That is fragile in a header-only library where a
+// user's own single-TU build can combine these headers in whatever
+// order they like, and it broke down further inside a fold expression
+// (`(write_multiport(port, val), ...)`, used in the SY process
+// constructors): the macro expands to a for-loop *statement*, which is
+// not valid where a fold expression requires an *expression*.
+//
+// Three optional-backend files (sy_wrappers.hpp/GDB, ct_wrappers.hpp/
+// FMI, parallel_sim.hpp/MPI) had, in turn, come to depend on that macro
+// being active: each has one or more write_multiport(...) call with no
+// trailing semicolon, relying on the macro's own trailing `;` to
+// terminate the statement -- which only worked because forsyde.hpp
+// happens to include all three after adaptivity.hpp. Removing the macro
+// fixed those calls too, by adding the semicolon each was missing.
 template<typename T, typename If>
 void inline write_multiport(If& PORT, const T& VAL)  {
     for (int WMPi=0;WMPi<PORT.size();WMPi++)

@@ -21,6 +21,7 @@
  * facilities used for modeling adaptive systems.
  */
 
+#include <systemc>
 #include "sy_moc.hpp"
 #include <functional>
 
@@ -31,11 +32,6 @@ namespace SY
 {
 
 using namespace sc_core;
-
-// Auxilliary Macro definitions
-#define write_multiport(PORT,VAL) \
-    for (int WMPi=0;WMPi<PORT.size();WMPi++) PORT[WMPi]->write(VAL);
-
 
 //! Process constructor for a combinational adaptive process with one input and one output
 /*! This class is used to build combinational processes with one input

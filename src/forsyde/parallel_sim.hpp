@@ -21,6 +21,7 @@
  * facilities used for enabling parallel simulations.
  */
 
+#include <systemc>
 #include <mpi.h>
 
 namespace ForSyDe
@@ -173,7 +174,7 @@ private:
     
     void prod()
     {
-        write_multiport(oport1, *oval1)
+        write_multiport(oport1, *oval1);
     }
     
     void clean()
@@ -340,7 +341,7 @@ private:
     
     void prod()
     {
-        write_multiport(oport1, *oval1)
+        write_multiport(oport1, *oval1);
     }
     
     void clean()

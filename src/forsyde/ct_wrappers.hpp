@@ -23,11 +23,17 @@
  * ForSyDe.
  */
 
-#include "fmi2/fmi2.h"
-#include "fmi2/sim_support.h"
+#include <systemc>
 
+// fmi2/sim_support.h uses ForSyDe::CTTYPE (sub_signal.hpp), so it has to
+// come after that -- this only worked before because forsyde.hpp always
+// reaches ct_moc.hpp (which pulls in sub_signal.hpp transitively) long
+// before it gets to this file.
 #include "sub_signal.hpp"
 #include "ct_process.hpp"
+
+#include "fmi2/fmi2.h"
+#include "fmi2/sim_support.h"
 
 namespace ForSyDe
 {
@@ -160,7 +166,7 @@ private:
                         //~ return res;
                     //~ }
                //~ );
-        //~ write_multiport(oport1, oval)
+        //~ write_multiport(oport1, oval);
         //~ time += h;
         //~ wait(time - sc_time_stamp());
         ival1 = iport1.read();
@@ -201,7 +207,7 @@ private:
     
     void prod()
     {
-        write_multiport(oport1, oval)
+        write_multiport(oport1, oval);
         time += h;
         wait(time - sc_time_stamp());
     }

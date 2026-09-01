@@ -21,6 +21,7 @@
  * of freign models into the synchronous model of computation of ForSyDe.
  */
 
+#include <systemc>
 #include <functional>
 #include <tuple>
 #include <iostream>
@@ -140,7 +141,7 @@ private:
       oval_str.str(d.EvalExpression("forsyde_out"));
       oval_str >> *oval;
       oval_str.clear();
-      write_multiport(oport1, abst_ext<T0>(*oval))
+      write_multiport(oport1, abst_ext<T0>(*oval));
       
       // Resume execution
       async_run(d.Continue());
@@ -309,7 +310,7 @@ private:
       oval_str.str(std::string(buf));
       oval_str >> *oval;
       oval_str.clear();
-      write_multiport(oport1, abst_ext<T0>(*oval))
+      write_multiport(oport1, abst_ext<T0>(*oval));
     }
     
     void clean()
@@ -472,7 +473,7 @@ private:
             oval_str.str(std::string(buf));
             oval_str >> *oval;
             oval_str.clear();
-            write_multiport(oport1, abst_ext<T0>(*oval))
+            write_multiport(oport1, abst_ext<T0>(*oval));
         }
         if (offset<0) offset++;
         else if (offset>0) offset--;
