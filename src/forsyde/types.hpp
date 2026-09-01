@@ -30,11 +30,22 @@
 template<typename T> const char* get_type_name() {return typeid(T).name();}
 
 // Specialization for each type
+//
+// `inline` is load-bearing, not decoration: an explicit specialization of
+// a function template is an ordinary function, not a template, so unlike
+// the primary template above it is *not* implicitly inline and does not
+// get vague linkage. Without it, every translation unit that includes
+// this header emits its own strong definition of all fourteen
+// specializations below, and linking any two of them fails with
+// "multiple definition of `get_type_name<char>()'" and so on -- which
+// means the library could not be used from more than one .cpp file at
+// all. Both macros are part of the public API (examples call them to
+// register their own types), so they must carry it too.
 #define DEFINE_TYPE(X) \
-    template<>const char* get_type_name<X>(){return #X;}
+    template<> inline const char* get_type_name<X>(){return #X;}
 // Another version where we explicitly provide the type name (for complex types)
 #define DEFINE_TYPE_NAME(X,N) \
-    template<>const char* get_type_name<X>(){return N;}
+    template<> inline const char* get_type_name<X>(){return N;}
 
 // Specialization for base types
 

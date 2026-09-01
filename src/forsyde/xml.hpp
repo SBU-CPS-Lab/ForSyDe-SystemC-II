@@ -37,7 +37,10 @@ using namespace sc_core;
 
 // Some Helper Fuctions
 //! Extracts the MoC and the process constructor name from a ForSyDe kind.
-void get_moc_and_pc(const std::string& kind, std::string& moc, std::string& pc)
+//! `inline`: this is a non-template free function defined in a header, so
+//! without it each including translation unit emits a strong definition
+//! and linking two of them fails (see the note in types.hpp).
+inline void get_moc_and_pc(const std::string& kind, std::string& moc, std::string& pc)
 {
     moc = kind.substr(0, kind.find(':'));
     pc = kind.substr(kind.rfind(':')+1, kind.length());
