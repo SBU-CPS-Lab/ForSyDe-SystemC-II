@@ -26,12 +26,33 @@
 #include "XmlParserCApi.h"
 
 // The FMU-description XML parser (D15) ships as three .cpp files rather
-// than headers, matching its upstream layout. This library is
-// header-only and every example is built as a single translation unit
-// (main.cpp), so including the implementations directly here -- in
-// their dependency order -- follows the same single-TU assumption the
-// rest of the library already relies on, rather than introducing a
-// separate static-library build step for one optional backend.
+// than headers, matching its upstream layout, and this library is
+// header-only, so the implementations are included directly here in
+// their dependency order rather than built as a separate static library
+// for one optional backend.
+//
+// KNOWN LIMITATION -- FORSYDE_WITH_FMI is single-translation-unit only.
+// These are real .cpp files with ordinary external linkage throughout
+// (out-of-line member definitions, plus the XmlParser::elmNames and
+// XmlParser::attNames static data members), so including forsyde.hpp
+// with FORSYDE_WITH_FMI from two translation units and linking them
+// fails with a multiple-definition error for each. Verified directly.
+//
+// That is the same defect class as D1, but it is NOT fixed by D1's fix
+// and it is not confined to these three files: the vendored QTronic FMU
+// SDK header sim_support.h, which ct_wrappers.hpp pulls in, does the
+// same thing for unzip(), loadFMU(), error() and a dozen more, and it
+// has no declarations-only counterpart to include instead. A guard that
+// suppressed only the block below would therefore still not produce a
+// linkable two-TU FMI model, so there deliberately isn't one -- the fix
+// is to compile the FMU SDK and this parser once as a real library
+// rather than #including .cpp files at all, which belongs with the
+// Phase-1b rework that is already going to rebuild this backend.
+//
+// The core library is multi-TU clean and stays that way via
+// tests/multi_tu; the GDB backend was verified the same way by hand, and
+// parallel_sim_helpers.hpp (MPI) defines nothing that is neither a
+// template nor inline.
 #include "XmlElement.cpp"
 #include "XmlParser.cpp"
 #include "XmlParserCApi.cpp"
