@@ -30,6 +30,7 @@
 #include <cstdio>
 #include <sstream>
 
+#include "abst_ext.hpp"     // detail::stream_or_placeholder, used by scenario_entry below
 #include "sadf_process.hpp"
 // A handful of SADF process constructors below (combMN, source, sink,
 // delayn) are plain re-exports of their SDF counterparts, so this file
@@ -67,6 +68,53 @@ inline constexpr bool self_reporting_enabled =
         "not defined, so no report would ever be written. Add "               \
         "-DFORSYDE_SELF_REPORTING to this model's CFLAGS, or drop the pipe "  \
         "argument to use the non-reporting overload.")
+
+//! Looks a scenario up in a scenario table, erroring if it is not there (D8).
+/*! Every one of these lookups used to be a plain scenario_table[scen] on
+ * a non-const std::map. That is not a lookup: std::map::operator[]
+ * *inserts* a default-constructed entry when the key is absent. So a
+ * detector emitting a scenario the kernel's table doesn't define -- a
+ * modelling mistake, and an easy one to make, since the two tables are
+ * written separately and nothing cross-checks them -- did not fail. It
+ * silently gained a zero-rate entry, meaning that from then on the
+ * process consumed no tokens and produced none, forever: the model
+ * quietly stops making progress with no diagnostic. It also mutates a
+ * table that is conceptually read-only during simulation, growing it
+ * once per distinct bad scenario.
+ *
+ * This does a find() and raises a real error instead. The offending
+ * scenario value is included in the message when its type can be
+ * streamed, since knowing *which* scenario arrived is usually the whole
+ * diagnosis.
+ */
+template <typename Table, typename Key>
+inline const typename Table::mapped_type& scenario_entry(
+    const Table& table,         ///< the scenario table to look in
+    const Key& scen,            ///< the scenario received
+    const char* process_name,   ///< reporting process, for the message
+    const char* table_name      ///< which table, for the message
+)
+{
+    auto it = table.find(scen);
+    if (it != table.end())
+        return it->second;
+
+    std::ostringstream msg;
+    msg << "received scenario ";
+    ForSyDe::detail::stream_or_placeholder(msg, scen);
+    msg << " which is not defined in its " << table_name << " ("
+        << table.size() << " scenario(s) defined). The process driving "
+           "this one is emitting a scenario this one does not know how "
+           "to fire in; the two scenario tables disagree.";
+    SC_REPORT_ERROR(process_name, msg.str().c_str());
+
+    // Only reached if the report handler is configured not to throw on
+    // SC_ERROR. Returning a shared zero-rate entry keeps that path
+    // defined rather than dereferencing end(); it reproduces the old
+    // silent behaviour, but only after the error above has been raised.
+    static const typename Table::mapped_type absent{};
+    return absent;
+}
 
 }
 
@@ -146,8 +194,9 @@ private:
         
         // Set the consumption and production rates from the kernel's scenario table
         // (consumption rate, production rate)
-        auto cons_rate = std::get<0>(scenario_table[*cval1]);
-        auto prod_rate = std::get<1>(scenario_table[*cval1]);
+        const auto& scen_rates = detail::scenario_entry(scenario_table, *cval1, name(), "kernel scenario table");
+        auto cons_rate = std::get<0>(scen_rates);
+        auto prod_rate = std::get<1>(scen_rates);
 
         // Resizing the input and output vectors according to the consumption and production rates
         i1vals.resize(cons_rate);
@@ -265,9 +314,10 @@ private:
         
         // Set the consumption and production rates from the kernel's scenario table
         // (consumption rate, production rate)
-        auto cons_rate1 = std::get<0>(scenario_table[*cval1])[0];
-        auto cons_rate2 = std::get<0>(scenario_table[*cval1])[1];
-        auto prod_rate = std::get<1>(scenario_table[*cval1]);
+        const auto& scen_rates = detail::scenario_entry(scenario_table, *cval1, name(), "kernel scenario table");
+        auto cons_rate1 = std::get<0>(scen_rates)[0];
+        auto cons_rate2 = std::get<0>(scen_rates)[1];
+        auto prod_rate = std::get<1>(scen_rates);
 
         // Resizing the input and output vectors according to the consumption and production rates
         i1vals.resize(cons_rate1);
@@ -433,16 +483,18 @@ private:
         // Resize the input and output vectors according to 
         // the consumption and production rates from the kernel's scenario table
         // (consumption rate, production rate)
+        const auto& scen_rates = detail::scenario_entry(scenario_table, *cval1, name(), "kernel scenario table");
+
         std::apply([&](auto&... oval) {
             std::apply([&](auto&... otok) {
                 (oval.resize(otok), ...);
-            }, std::get<1>(scenario_table[*cval1]));
+            }, std::get<1>(scen_rates));
         }, ovals);
 
         std::apply([&](auto&... ival) {
             std::apply([&](auto&... itok) {
                 (ival.resize(itok), ...);
-            }, std::get<0>(scenario_table[*cval1]));
+            }, std::get<0>(scen_rates));
         }, ivals);
 
         // Reading the input ports        
@@ -468,8 +520,8 @@ private:
             // Write the report to the pipe
             report_str << "kernelMN" << "  " << basename()
                                     << "  " << *cval1
-                                    << "  " << std::get<0>(scenario_table[*cval1])
-                                    << "  " << std::get<1>(scenario_table[*cval1]) << std::endl;
+                                    << "  " << std::get<0>(detail::scenario_entry(scenario_table, *cval1, name(), "kernel scenario table"))
+                                    << "  " << std::get<1>(detail::scenario_entry(scenario_table, *cval1, name(), "kernel scenario table")) << std::endl;
             fputs(report_str.str().c_str(), *report_pipe);
             fflush(*report_pipe);
             report_str.str("");
@@ -616,7 +668,7 @@ private:
         _cds_func(*sc_val, *sc_val, i1vals);
         
         // Look up the scenario table to get the output tokens production rate
-        o1toks = scenario_table[*sc_val];
+        o1toks = detail::scenario_entry(scenario_table, *sc_val, name(), "detector scenario table");
 
         // Resize the output buffers
         o1vals.resize(o1toks);
@@ -804,7 +856,7 @@ private:
         _cds_func(*sc_val, *sc_val, ivals);
 
         // Look up the scenario table to get the output tokens production rate
-        otoks = scenario_table[*sc_val];
+        otoks = detail::scenario_entry(scenario_table, *sc_val, name(), "detector scenario table");
 
         // Resize the output buffers
         std::apply([&](auto&... oval) {
@@ -830,7 +882,7 @@ private:
         if (report_pipe)
         {
             // Write the report to the pipe
-            report_str << "detectorMN" << "  " << basename() << "  " << *sc_val << "  " << scenario_table[*sc_val] << std::endl;
+            report_str << "detectorMN" << "  " << basename() << "  " << *sc_val << "  " << detail::scenario_entry(scenario_table, *sc_val, name(), "detector scenario table") << std::endl;
             fputs(report_str.str().c_str(), *report_pipe);
             fflush(*report_pipe);
             report_str.str("");
