@@ -769,6 +769,29 @@ private:
           if(h==min_step)
             std::cout << "Step accepted due to minimum step size. "
              << "However, err_tol is not met." << std::endl;
+          // Recover the full step for the next interval: a reduction
+          // below is a response to one hard interval, not a permanent
+          // downgrade of the solver.
+          step = max_step;
+        } else {
+          // The step was rejected -- and until this branch existed,
+          // that meant the solver hung. Nothing here updated
+          // samplingTimeTag, t_1 or step, so prod() below re-requested
+          // the *same* two sample times, prep() read back the same two
+          // inputs, and exec() recomputed the same failing error
+          // estimate, forever, at 100% CPU and a standing simulated
+          // time. The step size this whole routine is written around --
+          // note min_step, max_step, and the h<=roundingFactor*min_step
+          // guard above, which can only ever be reached once the step
+          // actually shrinks -- was assigned once in init() and never
+          // touched again, so "adaptive" step control did not adapt.
+          //
+          // Halve it, floored at min_step, and let prod() re-request the
+          // interval at the finer spacing. Termination is guaranteed by
+          // the guard above: once h reaches min_step the step is
+          // force-accepted with the warning already written for it.
+          step = step / 2;
+          if (step < min_step) step = min_step;
         }
     }
 
