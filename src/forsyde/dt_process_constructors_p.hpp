@@ -22,6 +22,7 @@
  * in the discrete-time model of computation.
  */
 
+#include <systemc>
 #include <functional>
 #include <tuple>
 

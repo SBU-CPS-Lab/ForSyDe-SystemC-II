@@ -12,8 +12,8 @@
     * License: BSD3                                                   *
     *******************************************************************/
 
-#ifndef DT_PROCESS_CONSTRUCTORS_P_HPP
-#define DT_PROCESS_CONSTRUCTORS_P_HPP
+#ifndef DT_PROCESS_CONSTRUCTORS_S_HPP
+#define DT_PROCESS_CONSTRUCTORS_S_HPP
 
 /*! \file dt_process_constructors.hpp
  * \brief Implements the basic process constructors in the DT MoC with event count based invocation
@@ -22,6 +22,7 @@
  * in the discrete-time model of computation.
  */
 
+#include <systemc>
 #include <functional>
 #include <tuple>
 

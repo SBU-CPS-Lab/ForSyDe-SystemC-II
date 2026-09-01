@@ -12,8 +12,8 @@
     * License: BSD3                                                   *
     *******************************************************************/
 
-#ifndef DT_PROCESS_CONSTRUCTORS_P_HPP
-#define DT_PROCESS_CONSTRUCTORS_P_HPP
+#ifndef DT_PROCESS_CONSTRUCTORS_T_HPP
+#define DT_PROCESS_CONSTRUCTORS_T_HPP
 
 /*! \file dt_process_constructors.hpp
  * \brief Implements the basic process constructors in the DT MoC with event count and timeout
@@ -22,6 +22,7 @@
  * in the discrete-time model of computation.
  */
 
+#include <systemc>
 #include <functional>
 #include <tuple>
 
@@ -34,7 +35,14 @@ namespace ForSyDe
 namespace DT
 {
 
-namespace S
+// Was mistakenly "namespace S" -- a copy-paste of
+// dt_process_constructors_s.hpp that was never corrected, which combined
+// with the identical include guard both files used to carry (see the
+// D2 fix above) to make DT::T::mealy unreachable: dt_moc.hpp includes
+// _p.hpp first, so _s.hpp and _t.hpp's *bodies* were never even
+// parsed, and had they been, this would have defined its mealy inside
+// DT::S right on top of _s.hpp's own, not DT::T.
+namespace T
 {
 
 using namespace sc_core;
