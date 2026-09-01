@@ -1,7 +1,7 @@
 /**********************************************************************
     * siggen.hpp -- a ramp process                                    *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Demonstration of a simple source process.              *
     *                                                                 *

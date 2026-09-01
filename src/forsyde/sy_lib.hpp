@@ -1,7 +1,7 @@
 /**********************************************************************           
     * sy_lib.hpp -- a library of useful processes in the SY MoC       *
     *                                                                 *
-    * Authors:  Hosein Attarzadeh (shan2@kth.se)                      *
+    * Authors:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)            *
     *                                                                 *
     * Purpose: Enriching the SY library.                              *
     *                                                                 *

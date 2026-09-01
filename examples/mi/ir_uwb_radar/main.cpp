@@ -2,7 +2,7 @@
     * main.cpp -- the top module and testbench for an Impulse Radio    *
     *            Ultra Wide-band (IR UWB) radar transceiver           *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *          Based on a model developed by Novelda AS               *
     *                                                                 *
     * Purpose: Demonstration of a single cyber-physical system        *

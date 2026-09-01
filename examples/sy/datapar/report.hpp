@@ -1,7 +1,7 @@
 /**********************************************************************
     * report.hpp -- a report process                                  *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Demonstration of a data parallel model.                *
     *                                                                 *

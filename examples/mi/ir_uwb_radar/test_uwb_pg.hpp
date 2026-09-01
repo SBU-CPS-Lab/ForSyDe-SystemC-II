@@ -2,7 +2,7 @@
     * test_uwb_pg.hpp -- the test module and testbench for an Ultra   *
     *                    Wide-band Pulse Generator                    *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *          Based on a model developed by Kody Lee (Novelda AS)    *
     *                                                                 *
     * Purpose: Demonstration of a single cyber-physical system        *

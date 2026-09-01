@@ -1,7 +1,7 @@
 /**********************************************************************           
     * Top.hpp -- the Top process and testbench for the toy sdf example*
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Demonstration of a variadic program using zip and unzip*
     *                                                                 *

@@ -3,7 +3,7 @@
     *          library                                                *
     *                                                                 *
     * Authors: Gilmar Besera (gilmar@kth.se)                          *
-    *          Hosein Attarzadeh (shan2@kth.se)                       *
+    *          Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Providing MoC interfaces for ForSyDe-SystemC           *
     *                                                                 *

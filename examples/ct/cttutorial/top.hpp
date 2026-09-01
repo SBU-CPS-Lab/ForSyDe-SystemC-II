@@ -1,7 +1,7 @@
 /**********************************************************************           
     * Top.hpp -- the Top process and testbench for a tutorial CT exmpl*
     *                                                                 *
-    * Authors:  Hosein Attarzadeh (shan2@kth.se)                      *
+    * Authors:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)            *
     *           Jun Zhu (junz@kth.se)                                 *
     *                                                                 *
     * Purpose: Demonstration of a simple program.                     *

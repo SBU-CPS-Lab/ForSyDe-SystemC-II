@@ -1,7 +1,7 @@
 /**********************************************************************
     * conf.hpp -- the configuration parameters and inputs             *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Demonstration of the vector operations.                *
     *                                                                 *

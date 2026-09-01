@@ -1,7 +1,7 @@
 /**********************************************************************           
     * sorter.hpp -- the top level module of a sorter                  *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Demonstration of a simple program.                     *
     *                                                                 *

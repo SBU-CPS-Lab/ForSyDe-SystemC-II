@@ -1,7 +1,7 @@
 /**********************************************************************           
     * ct_helpers.hpp -- Helper primitives in the CT MoC               *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Providing helper primitives for modeling in the CT MoC *
     *                                                                 *

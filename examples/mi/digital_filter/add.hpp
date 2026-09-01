@@ -1,7 +1,7 @@
 /**********************************************************************
     * add.hpp -- an adder process                                     *
     *                                                                 *
-    * Authors: Hosein Attarzadeh (shan2@kth.se)                       *
+    * Authors: Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Demonstration of a heterogeneous system.               *
     *                                                                 *

@@ -1,7 +1,7 @@
 /**********************************************************************
     * main.cpp -- the main file and testbench for the mulacc example  *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Demonstration of a simple sequential processes.        *
     *                                                                 *

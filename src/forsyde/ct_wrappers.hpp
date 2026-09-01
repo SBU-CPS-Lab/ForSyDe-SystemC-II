@@ -1,7 +1,7 @@
 /**********************************************************************           
     * ct_wrappers.hpp -- Co-simulation wrappers for the CT MOC        *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *          FMI code adopted from QTronic GmbH's FMI 2.0 SDK       *
     *                                                                 *
     * Purpose: Providing co-simulation wrappers for integration of    *

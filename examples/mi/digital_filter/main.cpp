@@ -1,7 +1,7 @@
 /**********************************************************************           
     * main.cpp -- the main file and testbench for the digital filter  *
     *                                                                 *
-    * Authors: Hosein Attarzadeh (shan2@kth.se)                       *
+    * Authors: Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Demonstration of a heterogeneous system.               *
     *                                                                 *

@@ -1,7 +1,7 @@
 /**********************************************************************           
     * dde_helpers.hpp -- Helper primitives in the DDE MoC             *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Providing helper primitives for modeling in the DDE MoC*
     *                                                                 *

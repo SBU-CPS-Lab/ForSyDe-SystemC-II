@@ -1,7 +1,7 @@
 /**********************************************************************
     * button_control.hpp -- The user interface in the equalizer system*
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *          the Haskell version from Ingo Sander (ingo@kth.se)     *
     *                                                                 *
     * Purpose: Demonstrating how co-simulation with legacy codes is   *

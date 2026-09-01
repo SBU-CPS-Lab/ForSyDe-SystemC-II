@@ -1,7 +1,7 @@
 /**********************************************************************
     * ramp.hpp -- function used to create a ramp input                *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Demonstration of a simple example in the untimed MoC.  *
     *                                                                 *

@@ -2,7 +2,7 @@
     * main.cpp -- the main file for the bask_mod example.             *
     *                                                                 *
     * Author:  Gilmar Beserra (gilmar@kth.se)                         *
-    *          Hosein Attarzadeh (shan2@kth.se)                       *
+    *          Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: A BASK modulator system.                               *
     *                                                                 *

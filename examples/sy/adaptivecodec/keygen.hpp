@@ -1,7 +1,7 @@
 /**********************************************************************
     * keygen.hpp -- a key generator fr adaptive encoding              *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Demonstration of a simple adaptive process.            *
     *                                                                 *

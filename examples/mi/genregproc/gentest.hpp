@@ -1,7 +1,7 @@
 /**********************************************************************
     * gentest.hpp -- test the generator                               *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *          Based on the example from chapter 1 of:                *
     *          System Design, Modeling, and Simulation using PtolemyII*
     *                                                                 *

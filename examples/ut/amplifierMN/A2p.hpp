@@ -1,7 +1,7 @@
 /**********************************************************************
     * A2p.hpp -- the merge process based on the comb constructor      *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Demonstration of a simple example in the untimed MoC.  *
     *                                                                 *

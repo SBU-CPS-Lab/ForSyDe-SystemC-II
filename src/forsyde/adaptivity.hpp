@@ -1,7 +1,7 @@
 /**********************************************************************           
     * adaptivity.hpp -- Definition of some adaptive processes         *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Providing promitive element required for modeling      *
     *          adaptive systems in ForSyDe-SystemC                    *

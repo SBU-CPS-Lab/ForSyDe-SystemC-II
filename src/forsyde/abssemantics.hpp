@@ -1,7 +1,7 @@
 /**********************************************************************           
     * abssemantics.hpp -- The common abstract semantics for all MoCs  *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: The common base for mapping supported MoCs on top of   *
     *          the SystemC simulation kernel.                         *

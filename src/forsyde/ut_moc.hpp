@@ -1,7 +1,7 @@
 /**********************************************************************           
     * ut_moc.hpp -- The untimed model of computation                  *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Providing promitive element required for modeling      *
     *          synchronous dataflow systems in ForSyDe-SystemC        *

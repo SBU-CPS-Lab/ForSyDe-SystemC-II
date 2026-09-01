@@ -1,7 +1,7 @@
 /**********************************************************************           
     * mi_helpers.hpp -- Helper primitives for MoC interfaces          *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Providing helper primitives for modeling MIs           *
     *                                                                 *

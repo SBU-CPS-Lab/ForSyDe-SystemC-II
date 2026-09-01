@@ -1,7 +1,7 @@
 /**********************************************************************
     * controller.hpp -- digital cruise controller                     *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Demonstration of a heterogeneous system                *
     *                                                                 *

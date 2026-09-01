@@ -1,7 +1,7 @@
 /**********************************************************************
     * discrete_generator.hpp -- a generator wrapped in a DDE interface*
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *          Based on the example from chapter 1 of:                *
     *          System Design, Modeling, and Simulation using PtolemyII*
     *                                                                 *

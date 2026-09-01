@@ -2,7 +2,7 @@
     * ut_process_constructors.hpp -- Process constructors in the      *
     *                                untimed MOC.                     *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Providing basic process constructors for modeling      *
     *          UT systems in ForSyDe-SystemC                          *

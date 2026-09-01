@@ -1,7 +1,7 @@
 /**********************************************************************           
     * main.cpp -- the main file and testbench for the sorter example  *
     *                                                                 *
-    * Author:  Hosien Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosien Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Demonstration of a simple program.                     *
     *                                                                 *

@@ -1,7 +1,7 @@
 /**********************************************************************
     * report.hpp -- the report process                                *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Demonstration of a simple DDE system.                  *
     *                                                                 *

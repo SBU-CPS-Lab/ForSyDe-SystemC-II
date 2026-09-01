@@ -1,7 +1,7 @@
 /**********************************************************************           
     * downSampler.hpp -- a 3:2 down sampler                           *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Demonstration of a simple program.                     *
     *                                                                 *

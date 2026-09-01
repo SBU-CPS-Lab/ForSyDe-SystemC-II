@@ -1,7 +1,7 @@
 /**********************************************************************           
     * dde_process.hpp -- The DDE MoC process                          *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Providing the primitives for the DDE MoC                *
     *                                                                 *

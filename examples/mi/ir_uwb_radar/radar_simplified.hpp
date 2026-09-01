@@ -1,7 +1,7 @@
 /**********************************************************************
     * radar_simplified.hpp -- the IR UWB simplified radar model       *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *          Based on a model developed by (Novelda AS)             *
     *                                                                 *
     * Purpose: Demonstration of a single cyber-physical system        *

@@ -2,7 +2,7 @@
     * bask_mod.hpp -- the BASK mudulator module.                      *
     *                                                                 *
     * Author:  Gilmar Beserra (gilmar@kth.se)                         *
-    *          Hosein Attarzadeh (shan2@kth.se)                       *
+    *          Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: A BASK modulator system.                               *
     *                                                                 *

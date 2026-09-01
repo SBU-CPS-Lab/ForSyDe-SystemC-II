@@ -2,7 +2,7 @@
     * sub_signal.hpp -- Data type for representing a function over an *
     *                   interval.                                     *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Represents a sb-component of a CT signal.              *
     *                                                                 *

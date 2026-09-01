@@ -1,7 +1,7 @@
 /**********************************************************************           
     * dt_process.hpp -- The discrete-time MoC process                 *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Providing the primitives for the DT MoC                *
     *                                                                 *

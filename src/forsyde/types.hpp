@@ -1,7 +1,7 @@
 /**********************************************************************           
     * types.hpp -- provides a simple type reflection mechanism.       *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se) based on:             *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir) based on:   *
     * http://stackoverflow.com/questions/1055452/c-get-name-of-type-in-template *
     *                                                                 *
     * Purpose: Provide facilities to store the type names, used in    *

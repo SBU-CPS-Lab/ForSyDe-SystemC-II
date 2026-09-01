@@ -1,7 +1,7 @@
 /**********************************************************************           
     * sy_wrappers.hpp -- Co-simulation wrappers for the SY MOC        *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Providing co-simulation wrappers for integration of    *
     *          foreign models into ForSyDe                            *

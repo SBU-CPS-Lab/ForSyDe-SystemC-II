@@ -1,7 +1,7 @@
 /**********************************************************************           
     * comparator.hpp -- a simple two input comparator                 *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Demonstration of a simple program.                     *
     *                                                                 *

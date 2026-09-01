@@ -1,7 +1,7 @@
 /**********************************************************************           
     * tt_event.hpp -- Time-Tagged Event data type                     *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Define a time-tagged event used in the timed MoCs      *
     *                                                                 *

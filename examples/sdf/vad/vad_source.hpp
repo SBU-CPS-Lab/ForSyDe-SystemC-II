@@ -1,7 +1,7 @@
 /**********************************************************************
     * vad_source.hpp                                                  *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *          adapted from KisTA: https://github.com/nandohca/kista  *
     *                                                                 *
     * Purpose: Provide input stimuli                                  *

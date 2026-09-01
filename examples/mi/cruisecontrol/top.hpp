@@ -2,7 +2,7 @@
     * top.hpp -- the top module and testbench for the cruise control  *
     *          example                                                *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Demonstration of a heterogeneous system                *
     *                                                                 *

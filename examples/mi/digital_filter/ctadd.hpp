@@ -1,7 +1,7 @@
 /**********************************************************************
     * ctadd.hpp -- an adder process for the CT MoC                    *
     *                                                                 *
-    * Authors: Hosein Attarzadeh (shan2@kth.se)                       *
+    * Authors: Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Demonstration of a heterogeneous system.               *
     *                                                                 *

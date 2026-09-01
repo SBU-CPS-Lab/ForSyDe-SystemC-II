@@ -2,7 +2,7 @@
     * forsyde.hpp -- the main header file used to import the SystemC  *
     *          map of the ForSyDe library                             *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Exporting library definitions of the ForSyDe-SystemC   *
     *                                                                 *

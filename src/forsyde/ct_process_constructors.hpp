@@ -2,7 +2,7 @@
     * ct_process_constructors.hpp -- Process constructors in the CT   *
     *                                MOC                              *
     *                                                                 *
-    * Author:  Hosein Attarzadeh (shan2@kth.se)                       *
+    * Author:  Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
     * Purpose: Providing basic process constructors for modeling      *
     *          continuous-time systems in ForSyDe-SystemC             *
