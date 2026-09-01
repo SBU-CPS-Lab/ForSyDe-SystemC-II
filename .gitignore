@@ -55,6 +55,10 @@ examples/sy/mulaccwrap/socket
 examples/mi/cruisecontrol/software/controller
 examples/sdf/toysdf_file/output.txt
 
+# sim_support.h unzips each FMU into a fresh fmuTmpXXXXXX/ (mkdtemp) next
+# to wherever the example runs, and never cleans it up on its own.
+fmuTmp*/
+
 # Failed/discontinued experiments -- confirmed not worth carrying forward
 /examples/sadf/dstarlite/
 /examples/sadf/sadf_tutorialMN-hide/

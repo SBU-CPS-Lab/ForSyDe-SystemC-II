@@ -32,13 +32,13 @@ SC_MODULE(top)
   {
     SY::make_sconstant("step", 1.0, 0, r);
 
-    #ifndef FORSYDE_COSIMULATION_WRAPPERS
+    #ifndef FORSYDE_WITH_GDB
     SY::make_scomb2("sub1", sub_func, e, r, dv);
     #else
     SY::make_pipewrap2("sub1", -1, "simulink", e, r, dv);
     #endif
     
-    #ifndef FORSYDE_COSIMULATION_WRAPPERS
+    #ifndef FORSYDE_WITH_GDB
     SY::make_smealy("controller1",
               controller_ns_func,
               controller_od_func,

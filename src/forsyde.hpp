@@ -103,14 +103,48 @@
 #include "forsyde/xml.hpp"
 #endif
 
-#ifdef FORSYDE_PARALLEL_SIM
+// Each optional backend below has its own dependency (an MPI
+// implementation; libmigdb and POSIX sockets; the FMI 2.0 headers and
+// an FMU; a ROS distribution) and its own independent switch, so one
+// can be requested without pulling in the others' build requirements.
+// FORSYDE_PARALLEL_SIM and FORSYDE_COSIMULATION_WRAPPERS are kept as
+// compatibility aliases: defining either still turns on exactly what it
+// always did, for anyone building against this library from the
+// command line they already have.
+
+#if defined(FORSYDE_PARALLEL_SIM) && !defined(FORSYDE_WITH_MPI)
+#define FORSYDE_WITH_MPI
+#endif
+
+#if defined(FORSYDE_COSIMULATION_WRAPPERS)
+#ifndef FORSYDE_WITH_GDB
+#define FORSYDE_WITH_GDB
+#endif
+#ifndef FORSYDE_WITH_FMI
+#define FORSYDE_WITH_FMI
+#endif
+#endif
+
+#ifdef FORSYDE_WITH_MPI
 #include "forsyde/parallel_sim_helpers.hpp"
 #endif
 
-#ifdef FORSYDE_COSIMULATION_WRAPPERS
+#ifdef FORSYDE_WITH_GDB
 #include "forsyde/sy_wrappers.hpp"
+#endif
+
+#ifdef FORSYDE_WITH_FMI
+// Builds the vendored FMU-description XML parser (D15) in the mode it
+// offers precisely for embedding outside its origin toolchain, rather
+// than pulling in that toolchain's own logging/globals headers.
+#ifndef STANDALONE_XML_PARSER
+#define STANDALONE_XML_PARSER
+#endif
 #include "forsyde/ct_wrappers.hpp"
 #endif
+
+// FORSYDE_WITH_ROS is reserved for the ROS co-simulation wrapper
+// (Phase 1b); there is nothing in this tree for it to guard yet.
 
 
 #endif

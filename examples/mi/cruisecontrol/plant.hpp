@@ -39,7 +39,7 @@ SC_MODULE(plant)
             //      v,
             //      u
             // );
-            #ifndef FORSYDE_COSIMULATION_WRAPPERS
+            #ifndef FORSYDE_WITH_FMI
             auto car = new CT::filter("car",
                     {1.0},
                     {{m, b}},
