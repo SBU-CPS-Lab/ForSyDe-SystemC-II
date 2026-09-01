@@ -44,6 +44,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Not optional, unlike GDB/FMI/MPI/ROS below: dde_process_constructors.hpp
+      # includes boost/numeric/ublas/matrix.hpp, and dde_moc.hpp is pulled in
+      # unconditionally by forsyde.hpp, so every example needs this even if it
+      # never touches the DDE MoC. Found the hard way -- this repo's own dev
+      # machine has it installed system-wide, which silently hid the
+      # dependency for the entire rest of Phase 0; the first real run on a
+      # clean runner failed every single example on this exact missing
+      # header. uBLAS is header-only, so libboost-dev alone is enough.
+      - name: Install Boost (required by the DDE MoC, unconditionally included)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libboost-dev
+
       - name: Cache SystemC ${{ env.SYSTEMC_REF }} (C++${{ matrix.cxxstd }})
         id: systemc-cache
         uses: actions/cache@v4
@@ -87,6 +98,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Boost (required by the DDE MoC, unconditionally included)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libboost-dev
 
       - name: Cache SystemC ${{ env.SYSTEMC_REF }} (C++17)
         id: systemc-cache
@@ -154,6 +168,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Boost (required by the DDE MoC, unconditionally included)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libboost-dev
+
       - name: Cache SystemC ${{ env.SYSTEMC_REF }} (C++17)
         id: systemc-cache
         uses: actions/cache@v4
@@ -205,6 +222,9 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Boost (required by the DDE MoC, unconditionally included)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libboost-dev
 
       - name: Cache SystemC ${{ env.SYSTEMC_REF }} (C++17)
         id: systemc-cache
