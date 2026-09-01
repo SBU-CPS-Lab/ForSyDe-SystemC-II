@@ -29,7 +29,17 @@
 
 #include "abssemantics.hpp"
 
-using namespace rapidxml;
+// D6: this file used to also carry an unconditional
+// "using namespace rapidxml;" here, alongside every rapidxml type it
+// names (xml_node, xml_document, xml_attribute, node_element) below.
+// Qualified those instead and dropped the using-directive: rapidxml is
+// this file's own vendored XML backend, not part of ForSyDe's public
+// surface, and this using-directive sat at *file* scope -- before
+// `namespace ForSyDe {` even opens below -- so it polluted the global
+// namespace of every translation unit that so much as included
+// forsyde.hpp with FORSYDE_INTROSPECTION defined, whether or not that
+// TU ever wrote `using namespace ForSyDe;`.
+//
 // "using namespace boost;" used to sit here unconditionally, with
 // nothing in this file ever using anything from it -- it compiled only
 // because something else in a whole-library build happened to include a
@@ -119,7 +129,7 @@ public:
     void traverse(sc_module* top)
     {
         // Initiate the XML file for this level of hierarchy
-        xml_node<>* pn_node = init(top);
+        rapidxml::xml_node<>* pn_node = init(top);
         
         // Get the list of module children (ports and other processes)
         std::vector<sc_object*> children = top->get_child_objects();
@@ -171,10 +181,10 @@ public:
     //! The init member initiates the XML DOM and performs initial settings.
     /*! 
      */
-    xml_node<>* init(const sc_module* p)
+    rapidxml::xml_node<>* init(const sc_module* p)
     {
         // The top most node
-        xml_node<> *pn_node = xml_doc.allocate_node(node_element, const_process_network);
+        rapidxml::xml_node<> *pn_node = xml_doc.allocate_node(rapidxml::node_element, const_process_network);
         xml_doc.append_node(pn_node);
         // NOTE: Extract the composite process name based on the
         // convention: "nameX" or "nameXX", where Xs are 0-9
@@ -204,7 +214,7 @@ public:
     }
     
     //! Add a leaf process
-    void add_leaf_process(const ForSyDe::process* p, xml_node<>* pn_node)
+    void add_leaf_process(const ForSyDe::process* p, rapidxml::xml_node<>* pn_node)
     {
         // Determine the process consructor and the belonging MoC
         std::string moc, pc;
@@ -226,21 +236,21 @@ public:
         }
         
         // Add the process node
-        xml_node<> *p_node = allocate_append_node(pn_node, const_leaf_process);
+        rapidxml::xml_node<> *p_node = allocate_append_node(pn_node, const_leaf_process);
         allocate_append_attribute(p_node, const_name, p->basename());
         
             // Add the leaf process ports
             add_leaf_process_ports(p, p_node);
         
             // Add the process constructor node
-            xml_node<> *pc_node = allocate_append_node(p_node, const_process_constructor);
+            rapidxml::xml_node<> *pc_node = allocate_append_node(p_node, const_process_constructor);
             allocate_append_attribute(pc_node, const_name, xml_pc);
             allocate_append_attribute(pc_node, const_moc, moc_name);
             
             // Add arguments
             for (auto it=p->arg_vec.begin();it!=p->arg_vec.end();it++)
             {
-                xml_node<> *arg_node = allocate_append_node(pc_node, const_argument);
+                rapidxml::xml_node<> *arg_node = allocate_append_node(pc_node, const_argument);
                 char* arg_name = xml_doc.allocate_string(std::get<0>(*it).c_str());
                 char* arg_val = xml_doc.allocate_string(std::get<1>(*it).c_str());
                 allocate_append_attribute(arg_node, const_name, arg_name);
@@ -249,7 +259,7 @@ public:
     }
     
     //! Add the ports for a leaf process
-    void add_leaf_process_ports(const ForSyDe::process* p, xml_node<>* pn_node)
+    void add_leaf_process_ports(const ForSyDe::process* p, rapidxml::xml_node<>* pn_node)
     {
         for (auto it=p->boundInChans.begin();it!=p->boundInChans.end();it++)
             add_port(dynamic_cast<ForSyDe::introspective_port*>((*it).port), const_in, pn_node);
@@ -258,9 +268,9 @@ public:
     }
     
     //! Add a composite process
-    void add_composite_process(const sc_module* p, xml_node<>* pn_node)
+    void add_composite_process(const sc_module* p, rapidxml::xml_node<>* pn_node)
     {
-        xml_node<> *p_node = allocate_append_node(pn_node, const_composite_process);
+        rapidxml::xml_node<> *p_node = allocate_append_node(pn_node, const_composite_process);
         allocate_append_attribute(p_node, const_name, p->basename());
         // NOTE: Extract the composite process name based on the
         // convention: "nameX" or "nameXX", where Xs are 0-9
@@ -283,10 +293,10 @@ public:
     }
     
     //! Add a port
-    void add_port(introspective_port* port, const char* dir, xml_node<>* pn_node, 
+    void add_port(introspective_port* port, const char* dir, rapidxml::xml_node<>* pn_node, 
                   const char* bound_process=NULL, const char* bound_port=NULL)
     {
-        xml_node<> *p_node = allocate_append_node(pn_node, const_port);
+        rapidxml::xml_node<> *p_node = allocate_append_node(pn_node, const_port);
         if (port != NULL)
         {
             allocate_append_attribute(p_node, const_name, dynamic_cast<sc_object*>(port)->basename());
@@ -315,9 +325,9 @@ public:
     }
     
     //! Add a ForSyDe signal
-    void add_signal(introspective_channel* sig, xml_node<>* pn_node)
+    void add_signal(introspective_channel* sig, rapidxml::xml_node<>* pn_node)
     {
-        xml_node<> *sig_node = allocate_append_node(pn_node, const_signal);
+        rapidxml::xml_node<> *sig_node = allocate_append_node(pn_node, const_signal);
         allocate_append_attribute(sig_node, const_name, dynamic_cast<sc_object*>(sig)->basename());
         char* moc_name;
         if (sig->moc()=="SDF") moc_name = const_sdf;
@@ -369,7 +379,7 @@ private:
     std::string path; 
     
     //! The RapidXML DOM
-    xml_document<> xml_doc;
+    rapidxml::xml_document<> xml_doc;
     
     //! Some global constant names
     char *const_name, *const_leaf_process, *const_composite_process, 
@@ -381,16 +391,16 @@ private:
          *const_source, *const_source_port, *const_target, *const_target_port,
          *const_bound_process, *const_bound_port;
     
-    inline xml_node<>* allocate_append_node(xml_node<>* top, const char* name)
+    inline rapidxml::xml_node<>* allocate_append_node(rapidxml::xml_node<>* top, const char* name)
     {
-        xml_node<>* node = xml_doc.allocate_node(node_element, name);
+        rapidxml::xml_node<>* node = xml_doc.allocate_node(rapidxml::node_element, name);
         top->append_node(node);
         return node;
     }
     
-    inline void allocate_append_attribute(xml_node<>* node, const char* attr_name, const char* attr_val)
+    inline void allocate_append_attribute(rapidxml::xml_node<>* node, const char* attr_name, const char* attr_val)
     {
-        xml_attribute<>* attr = xml_doc.allocate_attribute(attr_name, attr_val);
+        rapidxml::xml_attribute<>* attr = xml_doc.allocate_attribute(attr_name, attr_val);
         node->append_attribute(attr);
     }
     
