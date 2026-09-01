@@ -1,0 +1,239 @@
+name: CI
+
+# Phase 0 (see tests/run_examples.sh and tests/known_failures.txt).
+#
+# Two kinds of job:
+#   - core: {C++17, C++20} x {introspection on, off} (the "off" side is
+#     inside run_examples.sh itself). Must build and pass with NONE of
+#     the optional backends' dependencies installed -- that is the
+#     actual definition of "core" this repo is using.
+#   - one job per optional backend (gdb, fmi, mpi), each installing only
+#     its own dependency and each allowed to fail
+#     (continue-on-error: true) rather than gating the merge on a
+#     co-simulation dependency being available in this environment.
+#     FORSYDE_WITH_ROS has no row: nothing in this tree guards on it yet
+#     (Phase 1b).
+#
+# SystemC 3.0.2 is built from source rather than trusted from a distro
+# package, once per C++ standard (its own CMake option), and cached on
+# that key. This was not a hypothetical precaution: building it under
+# both standards and diffing output against an apt-installed 3.0.2
+# showed identical simulation output but a different copyright-banner
+# build timestamp, which is why run_examples.sh elides that one line
+# before comparing against tests/golden/ -- every job here reproduces
+# that from-source date, never the golden-seeding machine's.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+env:
+  SYSTEMC_REF: "3.0.2"
+
+jobs:
+  core:
+    name: core (C++${{ matrix.cxxstd }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cxxstd: ["17", "20"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache SystemC ${{ env.SYSTEMC_REF }} (C++${{ matrix.cxxstd }})
+        id: systemc-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.systemc-install
+          key: systemc-${{ env.SYSTEMC_REF }}-cxx${{ matrix.cxxstd }}-${{ runner.os }}
+
+      - name: Build SystemC ${{ env.SYSTEMC_REF }} from source
+        if: steps.systemc-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "$SYSTEMC_REF" \
+            https://github.com/accellera-official/systemc.git /tmp/systemc-src
+          cmake -S /tmp/systemc-src -B /tmp/systemc-build \
+            -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/.systemc-install" \
+            -DCMAKE_CXX_STANDARD=${{ matrix.cxxstd }} \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=ON
+          cmake --build /tmp/systemc-build -j "$(nproc)"
+          cmake --install /tmp/systemc-build
+
+      - name: Point the build system at this SystemC
+        run: |
+          echo "CPLUS_INCLUDE_PATH=${{ github.workspace }}/.systemc-install/include" >> "$GITHUB_ENV"
+          echo "LIBRARY_PATH=${{ github.workspace }}/.systemc-install/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=${{ github.workspace }}/.systemc-install/lib" >> "$GITHUB_ENV"
+
+      - name: Run the example suite (both introspection configs)
+        env:
+          CXXSTD: c++${{ matrix.cxxstd }}
+        run: bash tests/run_examples.sh
+
+  optional-gdb:
+    name: optional (GDB wrapper)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    # Belt and suspenders on top of the run step's own `timeout 30`:
+    # this is the one job with a directly observed hang risk (see the
+    # comment on the run step below), so cap the whole job rather than
+    # trust GitHub's own 6-hour default if something about this
+    # particular hang turns out to survive `timeout` after all.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache SystemC ${{ env.SYSTEMC_REF }} (C++17)
+        id: systemc-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.systemc-install
+          key: systemc-${{ env.SYSTEMC_REF }}-cxx17-${{ runner.os }}
+
+      - name: Build SystemC ${{ env.SYSTEMC_REF }} from source
+        if: steps.systemc-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "$SYSTEMC_REF" \
+            https://github.com/accellera-official/systemc.git /tmp/systemc-src
+          cmake -S /tmp/systemc-src -B /tmp/systemc-build \
+            -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/.systemc-install" \
+            -DCMAKE_CXX_STANDARD=17 -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON
+          cmake --build /tmp/systemc-build -j "$(nproc)"
+          cmake --install /tmp/systemc-build
+
+      # gdbwrap spawns xterm to host the debugged process, hence Xvfb +
+      # xvfb-run -- the standard pattern for GUI-dependent tools in
+      # headless CI. That much is not in question. What is: on the
+      # sandboxed local machine this repo was developed on, installing
+      # xterm was not enough -- GDB itself failed with "Failed to set
+      # controlling terminal: Operation not permitted" and hung inside
+      # the window rather than erroring out (see known_failures.txt).
+      # That is this specific sandbox restricting terminal/session
+      # ioctls, not a property of Linux VMs in general, so it is
+      # plausible an ordinary GitHub-hosted runner does not have it --
+      # but that is not confirmed from outside GitHub's infrastructure.
+      # If this job hangs rather than failing cleanly, that restriction
+      # is the first thing to check, and the fix is the same one applied
+      # locally: don't run this config at all in that environment.
+      # libmigdb (http://libmigdb.sourceforge.net/) has no distro
+      # package; built from source here. SourceForge availability is a
+      # known source of CI flakiness, which is exactly why this job is
+      # continue-on-error rather than gating anything.
+      - name: Install xterm, Xvfb, libmigdb
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xterm xvfb gdb
+          curl -sSL -o /tmp/libmigdb.tar.bz2 \
+            "https://sourceforge.net/projects/libmigdb/files/libmigdb/0.8.13/libmigdb-0.8.13.tar.bz2/download"
+          mkdir -p /tmp/libmigdb-src
+          tar xjf /tmp/libmigdb.tar.bz2 -C /tmp/libmigdb-src --strip-components=1
+          make -C /tmp/libmigdb-src/libmigdb
+          sudo make -C /tmp/libmigdb-src/libmigdb install
+          sudo ldconfig
+
+      - name: Point the build system at this SystemC
+        run: |
+          echo "CPLUS_INCLUDE_PATH=${{ github.workspace }}/.systemc-install/include" >> "$GITHUB_ENV"
+          echo "LIBRARY_PATH=${{ github.workspace }}/.systemc-install/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=${{ github.workspace }}/.systemc-install/lib" >> "$GITHUB_ENV"
+
+      - name: Build and run mi/cruisecontrol under Xvfb
+        run: |
+          make -C examples/mi/cruisecontrol/software
+          xvfb-run -a bash -c 'cd examples/mi/cruisecontrol && make clean && make && timeout 30 ./run.x'
+
+  optional-fmi:
+    name: optional (FMI co-simulation)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache SystemC ${{ env.SYSTEMC_REF }} (C++17)
+        id: systemc-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.systemc-install
+          key: systemc-${{ env.SYSTEMC_REF }}-cxx17-${{ runner.os }}
+
+      - name: Build SystemC ${{ env.SYSTEMC_REF }} from source
+        if: steps.systemc-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "$SYSTEMC_REF" \
+            https://github.com/accellera-official/systemc.git /tmp/systemc-src
+          cmake -S /tmp/systemc-src -B /tmp/systemc-build \
+            -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/.systemc-install" \
+            -DCMAKE_CXX_STANDARD=17 -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON
+          cmake --build /tmp/systemc-build -j "$(nproc)"
+          cmake --install /tmp/systemc-build
+
+      - name: Install libxml2
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libxml2-dev
+
+      - name: Point the build system at this SystemC
+        run: |
+          echo "CPLUS_INCLUDE_PATH=${{ github.workspace }}/.systemc-install/include" >> "$GITHUB_ENV"
+          echo "LIBRARY_PATH=${{ github.workspace }}/.systemc-install/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=${{ github.workspace }}/.systemc-install/lib" >> "$GITHUB_ENV"
+
+      # No xterm/Xvfb here: FORSYDE_WITH_FMI is requested without
+      # FORSYDE_WITH_GDB precisely so this job exercises the FMI parser
+      # (D15) on its own, the same isolation that verified the fix.
+      # It is still expected to fail -- see known_failures.txt,
+      # "No ModelExchange element found" -- car.fmu is Co-Simulation-only
+      # and the wrapper's own loading logic currently requires
+      # ModelExchange. continue-on-error covers that expected failure;
+      # a build/link failure here would be the regression to watch for.
+      - name: Build and run mi/cruisecontrol (FMI only)
+        run: |
+          cd examples/mi/cruisecontrol
+          g++ -Wall -Wno-deprecated -Wno-return-type -Wno-char-subscripts -pthread -g -O0 -std=c++17 \
+            $(pkg-config --cflags libxml-2.0) -DFORSYDE_INTROSPECTION -DFORSYDE_WITH_FMI \
+            -I. -I.. -I../../../src -c -o main.o main.cpp
+          g++ -pthread -O0 -std=c++17 -I. -I.. -I../../../src -L. -L.. \
+            -o run.x main.o -lm $(pkg-config --libs libxml-2.0) -lsystemc
+          timeout 30 ./run.x
+
+  optional-mpi:
+    name: optional (MPI parallel simulation)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache SystemC ${{ env.SYSTEMC_REF }} (C++17)
+        id: systemc-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.systemc-install
+          key: systemc-${{ env.SYSTEMC_REF }}-cxx17-${{ runner.os }}
+
+      - name: Build SystemC ${{ env.SYSTEMC_REF }} from source
+        if: steps.systemc-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "$SYSTEMC_REF" \
+            https://github.com/accellera-official/systemc.git /tmp/systemc-src
+          cmake -S /tmp/systemc-src -B /tmp/systemc-build \
+            -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/.systemc-install" \
+            -DCMAKE_CXX_STANDARD=17 -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON
+          cmake --build /tmp/systemc-build -j "$(nproc)"
+          cmake --install /tmp/systemc-build
+
+      - name: Install Open MPI
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libopenmpi-dev openmpi-bin
+
+      - name: Point the build system at this SystemC
+        run: |
+          echo "CPLUS_INCLUDE_PATH=${{ github.workspace }}/.systemc-install/include" >> "$GITHUB_ENV"
+          echo "LIBRARY_PATH=${{ github.workspace }}/.systemc-install/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=${{ github.workspace }}/.systemc-install/lib" >> "$GITHUB_ENV"
+
+      - name: Build par/mulacc (both sub-simulations)
+        run: |
+          make -C examples/par/mulacc/subsim1
+          make -C examples/par/mulacc/subsim2
