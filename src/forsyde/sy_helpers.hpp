@@ -20,6 +20,7 @@
  * processes in the SY MoC
  */
 
+#include <systemc>
 #include <functional>
 #include <tuple>
 

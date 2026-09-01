@@ -20,6 +20,7 @@
  * abstract base process used in the distributed discrete-event MoC.
  */
 
+#include <systemc>
 #include "tt_event.hpp"
 #include "abssemantics.hpp"
 

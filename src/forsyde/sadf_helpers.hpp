@@ -20,6 +20,7 @@
  * processes in the SADF MoC
  */
 
+#include <systemc>
 #include <functional>
 #include <tuple>
 

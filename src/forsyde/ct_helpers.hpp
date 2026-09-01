@@ -20,6 +20,7 @@
  * processes in the continuous-time MoC
  */
 
+#include <systemc>
 #include <functional>
 
 #include "sub_signal.hpp"

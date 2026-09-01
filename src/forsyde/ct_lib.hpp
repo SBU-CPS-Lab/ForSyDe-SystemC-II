@@ -13,9 +13,14 @@
 #ifndef CTLIB_H
 #define CTLIB_H
 
+#include <systemc>
 #include "ct_moc.hpp"
 #include "dde_moc.hpp"
 #include "mis.hpp"
+// ForSyDe::CT::gaussian below wraps a SY::gaussian source (sy_lib.hpp),
+// not a CT one -- worth including explicitly rather than relying on
+// forsyde.hpp having already reached sy_lib.hpp by the time it gets here.
+#include "sy_lib.hpp"
 
 /*! \file ct_lib.hpp
  * \brief Implements extra facilities on top of the CT MoC

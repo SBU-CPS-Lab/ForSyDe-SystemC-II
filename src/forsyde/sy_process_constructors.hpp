@@ -22,10 +22,16 @@
  * in the synchronous model of computation.
  */
 
+#include <systemc>
 #include <functional>
 #include <tuple>
 #include <array>
 #include <algorithm>
+
+// Streams a std::vector under FORSYDE_INTROSPECTION via prettyprint.hpp's
+// generic container operator<<, which this file otherwise relies on
+// forsyde.hpp having included first.
+#include "prettyprint.hpp"
 
 #include "abst_ext.hpp"
 #include "sy_process.hpp"

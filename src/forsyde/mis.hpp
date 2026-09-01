@@ -22,6 +22,19 @@
  * facilities used for creating MoC interfaces between different MoCs.
  */
 
+#include <systemc>
+// mis.hpp defines MoC interfaces, so unlike a single-MoC header it
+// genuinely needs more than one MoC's process/port/signal types --
+// abssemantics.hpp (for the process base class), and each MoC pair a
+// converter class below actually names (SY, CT, DDE; tt_event.hpp comes
+// in transitively via dde_process.hpp for ttn_event<T>). It relied on
+// forsyde.hpp having already included all of ut_moc.hpp through
+// dde_moc.hpp by the time it reaches mis.hpp for every one of these.
+#include "abssemantics.hpp"
+#include "sy_process.hpp"
+#include "sdf_process.hpp"
+#include "ct_process.hpp"
+#include "dde_process.hpp"
 namespace ForSyDe
 {
 using namespace sc_core;

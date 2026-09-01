@@ -18,6 +18,7 @@
  * \brief Implements the Absent-extended values
  */
 
+#include <systemc>
 #include <ostream>
 #include <type_traits>
 #include <utility>

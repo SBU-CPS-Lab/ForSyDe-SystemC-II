@@ -20,6 +20,7 @@
  * MoC interfaces
  */
 
+#include <systemc>
 #include <functional>
 
 #include "mis.hpp"

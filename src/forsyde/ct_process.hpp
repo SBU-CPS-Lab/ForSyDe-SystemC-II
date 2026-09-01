@@ -20,6 +20,7 @@
  * abstract base process used in the continuous-time MoC.
  */
 
+#include <systemc>
 #include "sub_signal.hpp"
 #include "abssemantics.hpp"
 

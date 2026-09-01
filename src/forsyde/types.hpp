@@ -14,6 +14,8 @@
 #ifndef TYPES_HPP
 #define TYPES_HPP
 
+#include <typeinfo>
+
 /*! \file types.hpp
  * \brief Provides facilities for basic type introspection
  * 

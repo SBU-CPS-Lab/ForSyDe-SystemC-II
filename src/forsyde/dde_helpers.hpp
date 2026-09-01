@@ -20,6 +20,7 @@
  * processes in the DDE MoC
  */
 
+#include <systemc>
 #include <functional>
 #include <tuple>
 

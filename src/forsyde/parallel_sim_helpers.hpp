@@ -20,6 +20,7 @@
  * parallel sub-simulations.
  */
 
+#include <systemc>
 #include <mpi.h>
 
 #include "parallel_sim.hpp"

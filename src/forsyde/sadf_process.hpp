@@ -20,7 +20,12 @@
  * abstract base process used in the SADF MoC.
  */
 
+#include <systemc>
 #include "abssemantics.hpp"
+// SADF is built directly on top of UT's types (SADF2SADF : UT::UT2UT<T>,
+// and likewise for SADF_in/SADF_out below), the same relationship SDF
+// has to UT -- see the identical note in sdf_process.hpp.
+#include "ut_process.hpp"
 
 namespace ForSyDe
 {

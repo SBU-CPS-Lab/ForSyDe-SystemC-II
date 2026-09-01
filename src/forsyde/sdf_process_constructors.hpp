@@ -22,9 +22,15 @@
  * in the SDF model of computation.
  */
 
+#include <systemc>
 #include <functional>
 #include <tuple>
 #include <vector>
+
+// Streams a std::vector under FORSYDE_INTROSPECTION via prettyprint.hpp's
+// generic container operator<<, which this file otherwise relies on
+// forsyde.hpp having included first.
+#include "prettyprint.hpp"
 
 #include "sdf_process.hpp"
 

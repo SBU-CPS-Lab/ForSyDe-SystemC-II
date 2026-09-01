@@ -20,6 +20,7 @@
  * abstract base process used in the untimed MoC.
  */
 
+#include <systemc>
 #include "abssemantics.hpp"
 
 namespace ForSyDe

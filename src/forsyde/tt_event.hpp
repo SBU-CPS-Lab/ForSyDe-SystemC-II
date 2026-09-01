@@ -17,6 +17,7 @@
  * \brief Implements the time-tagged events
  */
 
+#include <systemc>
 #include "abst_ext.hpp"
 
 namespace ForSyDe

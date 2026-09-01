@@ -18,6 +18,7 @@
  * \brief Implements the sub-components of a CT signal
  */
 
+#include <systemc>
 namespace ForSyDe
 {
 

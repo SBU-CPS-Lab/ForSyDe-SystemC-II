@@ -22,6 +22,7 @@
  * This format can be used by other tools for further manipulation.
  */
 
+#include <systemc>
 #include <algorithm>
 #include <filesystem>
 #include "rapidxml_print.hpp"
@@ -29,7 +30,16 @@
 #include "abssemantics.hpp"
 
 using namespace rapidxml;
-using namespace boost;
+// "using namespace boost;" used to sit here unconditionally, with
+// nothing in this file ever using anything from it -- it compiled only
+// because something else in a whole-library build happened to include a
+// boost header first (dde_process_constructors.hpp's
+// boost/numeric/ublas/matrix.hpp), which is exactly the kind of
+// implicit, include-order-dependent link D5 is about. Confirmed unused
+// (grep for boost:: and every Boost facility this library touches
+// elsewhere turns up nothing in this file) and removed outright rather
+// than given its own include, rather than keep a namespace-polluting
+// using-directive (D6) alive to serve a dependency that doesn't exist.
 
 namespace ForSyDe
 {

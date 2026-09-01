@@ -22,11 +22,17 @@
  * in the distributed discrete-event model of computation.
  */
 
+#include <systemc>
 #include <functional>
 #include <algorithm>
 #include <tuple>
 #include <deque>
 #include <boost/numeric/ublas/matrix.hpp>
+
+// Streams a std::vector under FORSYDE_INTROSPECTION (e.g. "ss << offsets"
+// below) via prettyprint.hpp's generic container operator<<, which this
+// file otherwise relies on forsyde.hpp having included first.
+#include "prettyprint.hpp"
 
 #include "tt_event.hpp"
 #include "dde_process.hpp"

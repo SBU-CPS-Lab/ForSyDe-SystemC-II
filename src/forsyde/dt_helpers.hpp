@@ -20,6 +20,7 @@
  * processes in the discrete-time MoC
  */
 
+#include <systemc>
 #include <functional>
 #include <tuple>
 

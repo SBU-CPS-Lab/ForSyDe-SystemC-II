@@ -22,6 +22,7 @@
  * in the SADF model of computation.
  */
 
+#include <systemc>
 #include <functional>
 #include <tuple>
 #include <vector>
@@ -32,6 +33,12 @@
 #endif
 
 #include "sadf_process.hpp"
+// A handful of SADF process constructors below (combMN, source, sink,
+// delayn) are plain re-exports of their SDF counterparts, so this file
+// needs SDF's definitions regardless of whether the including
+// translation unit reached sdf_process_constructors.hpp by some other
+// path already.
+#include "sdf_process_constructors.hpp"
 
 namespace ForSyDe
 {

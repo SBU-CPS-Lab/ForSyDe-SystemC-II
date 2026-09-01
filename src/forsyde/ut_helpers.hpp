@@ -20,6 +20,7 @@
  * processes in the untimed MoC
  */
 
+#include <systemc>
 #include <functional>
 #include <tuple>
 

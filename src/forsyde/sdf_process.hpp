@@ -20,7 +20,13 @@
  * abstract base process used in the SDF MoC.
  */
 
+#include <systemc>
 #include "abssemantics.hpp"
+// SDF is built directly on top of UT's types (SDF2SDF : UT::UT2UT<T>,
+// and likewise for SDF_in/SDF_out below), so this header needs UT's
+// definitions regardless of whether the including translation unit
+// happens to have reached ut_process.hpp by some other path already.
+#include "ut_process.hpp"
 
 namespace ForSyDe
 {

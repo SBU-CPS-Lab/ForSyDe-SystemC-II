@@ -20,6 +20,7 @@
  * functions for creating advanced SY processes.
  */
 
+#include <systemc>
 #include "sy_moc.hpp"
 
 namespace ForSyDe

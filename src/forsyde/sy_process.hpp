@@ -20,6 +20,7 @@
  * abstract base process used in the synchronous MoC.
  */
 
+#include <systemc>
 #include "abst_ext.hpp"
 #include "abssemantics.hpp"
 
