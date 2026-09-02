@@ -34,6 +34,27 @@ SC_MODULE(all)
         inst<SY::unzipX<int,3>>             ("sy_unzipX");
         inst<SY::unzipN<int,char,bool>>     ("sy_unzipN");
 
+        // ---- SY, strict ------------------------------------------------
+        // Same cores as above under detail::token_policy::strict. Several
+        // of these had never been named by anything: SY::sunzip's prod()
+        // called std::get<0>() on an abst_ext<std::tuple<...>>, which has
+        // no tuple interface at all, so it could not have compiled.
+        inst<SY::scomb <int,int>>            ("sy_scomb",  [](int&,const int&){});
+        inst<SY::scomb2<int,int,int>>        ("sy_scomb2", [](int&,const int&,const int&){});
+        inst<SY::scomb3<int,int,int,int>>    ("sy_scomb3", [](int&,const int&,const int&,const int&){});
+        inst<SY::scomb4<int,int,int,int,int>>("sy_scomb4", [](int&,const int&,const int&,const int&,const int&){});
+        inst<SY::scombX<int,int,3>>          ("sy_scombX", [](int&,const std::array<int,3>&){});
+        inst<SY::scombN<int,int,int>>        ("sy_scombN", [](int&,const std::tuple<int,int>&){});
+        inst<SY::scombMN<std::tuple<int,int>,std::tuple<int,int,int>>>
+                                             ("sy_scombMN",[](std::tuple<int,int>&,
+                                                              const std::tuple<int,int,int>&){});
+        inst<SY::szip   <int,char>>          ("sy_szip");
+        inst<SY::szipX  <int,3>>             ("sy_szipX");
+        inst<SY::szipN  <int,char,bool>>     ("sy_szipN");
+        inst<SY::sunzip <int,char>>          ("sy_sunzip");
+        inst<SY::sunzipX<int,3>>             ("sy_sunzipX");
+        inst<SY::sunzipN<int,char,bool>>     ("sy_sunzipN");
+
         // ---- SDF ------------------------------------------------------
         inst<SDF::comb <int,int>>            ("sdf_comb",  [](std::vector<int>&,const std::vector<int>&){}, 1u, 1u);
         inst<SDF::comb2<int,int,int>>        ("sdf_comb2", [](std::vector<int>&,const std::vector<int>&,const std::vector<int>&){}, 1u,1u,1u);
