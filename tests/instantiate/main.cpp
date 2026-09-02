@@ -99,6 +99,36 @@ SC_MODULE(all)
         inst<UT::zipsN <int,char,bool>>     ("ut_zipsN", std::array<size_t,3>{1,1,1});
         inst<UT::unzip <int,char>>          ("ut_unzip");
         inst<UT::unzipN<int,char,bool>>     ("ut_unzipN");
+        inst<UT::scan  <int,int>>           ("ut_scan",
+                                             [](unsigned int& n,const int&){n=1;},
+                                             [](int&,const int&,const std::vector<int>&){}, 0);
+        inst<UT::scand <int,int>>           ("ut_scand",
+                                             [](unsigned int& n,const int&){n=1;},
+                                             [](int&,const int&,const std::vector<int>&){}, 0);
+        inst<UT::moore <int,int,int>>       ("ut_moore",
+                                             [](unsigned int& n,const int&){n=1;},
+                                             [](int&,const int&,const std::vector<int>&){},
+                                             [](std::vector<int>&,const int&){}, 0);
+        inst<UT::mealy <int,int,int>>       ("ut_mealy",
+                                             [](unsigned int& n,const int&){n=1;},
+                                             [](int&,const int&,const std::vector<int>&){},
+                                             [](std::vector<int>&,const int&,const std::vector<int>&){}, 0);
+        inst<UT::mooreMN<std::tuple<int,int>,std::tuple<int,int,int>,std::tuple<int>>>
+                                            ("ut_mooreMN",
+                                             [](std::array<size_t,3>& n,const std::tuple<int>&){n={1,1,1};},
+                                             [](std::tuple<int>&,const std::tuple<int>&,
+                                                const std::tuple<std::vector<int>,std::vector<int>,std::vector<int>>&){},
+                                             [](std::tuple<std::vector<int>,std::vector<int>>&,
+                                                const std::tuple<int>&){}, std::tuple<int>{0});
+        inst<UT::mealyMN<std::tuple<int,int>,std::tuple<int,int,int>,std::tuple<int>>>
+                                            ("ut_mealyMN",
+                                             [](std::array<size_t,3>& n,const std::tuple<int>&){n={1,1,1};},
+                                             [](std::tuple<int>&,const std::tuple<int>&,
+                                                const std::tuple<std::vector<int>,std::vector<int>,std::vector<int>>&){},
+                                             [](std::tuple<std::vector<int>,std::vector<int>>&,
+                                                const std::tuple<int>&,
+                                                const std::tuple<std::vector<int>,std::vector<int>,std::vector<int>>&){},
+                                             std::tuple<int>{0});
 
         // ---- SADF -----------------------------------------------------
         // The scenario tables differ in shape per arity: a pair of

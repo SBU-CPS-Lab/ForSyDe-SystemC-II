@@ -103,6 +103,109 @@ inline void write_all(Ports&& ports, const Vals& vals)
     }, ports);
 }
 
+//! Shared implementation of the UT state-machine family
+/*! scan, scand, moore, mooreMN, mealy and mealyMN all carry a state and
+ * all consume a state-dependent number of tokens: the partitioning
+ * function gamma is handed the current state and answers how many tokens
+ * to read this cycle. That is Jantsch's gamma(w_i) -- the untimed
+ * constructors are defined with a consumption rate that is a function of
+ * the state, which is what separates them from their SDF counterparts,
+ * where the rate is a constant fixed at construction.
+ *
+ * This core owns the state, the first-cycle flag, the read and write
+ * loops and the _gamma_func/_ns_func argument pair that all six share.
+ * \a Derived supplies:
+ *   - in_ports() and out_ports();
+ *   - resize_inputs(), which calls its own gamma -- the arity variants
+ *     take an unsigned int and the MN ones a std::array, so the call
+ *     itself cannot be hoisted;
+ *   - exec(), where the next-state and output-decoding functions are
+ *     applied in the order that distinguishes the constructors;
+ *   - the remaining introspection arguments, since scan and scand have
+ *     no output-decoding function to register.
+ *
+ * \a EmitsBeforeFirstRead marks the constructors whose first evaluation
+ * cycle emits without consuming: scand, moore and mooreMN. For scand
+ * that is its whole definition -- Jantsch (3.8) gives scandU as scanU
+ * with the initial state prepended -- and for the Moore machines it is
+ * the initial output that makes them usable in a feedback loop.
+ */
+template <typename Derived, typename OVals, typename IVals, typename ST,
+          bool EmitsBeforeFirstRead = false>
+class fsm_core : public ut_process
+{
+protected:
+    OVals ovals;    ///< output tokens, one vector per output port
+    IVals ivals;    ///< input tokens, one vector per input port
+
+    ST stval;       ///< the current state
+    ST nsval;       ///< the next state, as computed by this cycle
+    ST init_st;     ///< the initial state
+
+    //! True until the first evaluation cycle has run
+    bool first_run;
+
+    fsm_core(const sc_module_name& _name,   ///< process name
+             const ST& init_st              ///< initial state
+             ) : ut_process(_name), init_st(init_st)
+    {
+#ifdef FORSYDE_INTROSPECTION
+        std::string func_name = std::string(basename());
+        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
+        arg_vec.push_back(std::make_tuple("_gamma_func",func_name+std::string("_gamma_func")));
+        arg_vec.push_back(std::make_tuple("_ns_func",func_name+std::string("_ns_func")));
+#endif
+    }
+
+private:
+    Derived& self() {return static_cast<Derived&>(*this);}
+
+    //Implementing the abstract semantics
+    void init()
+    {
+        stval = init_st;
+        first_run = true;
+    }
+
+    void clean() {}
+
+    void prep()
+    {
+        if constexpr (EmitsBeforeFirstRead)
+            if (first_run) return;      // nothing consumed on the first cycle
+        self().resize_inputs();
+        read_all(self().in_ports(), ivals);
+    }
+
+    void prod()
+    {
+        // An empty output token pack means this constructor does not
+        // write a vector per output port -- scan and scand emit their
+        // state as a single event -- and overrides prod() itself. The
+        // test cannot be left to the override alone: a virtual member of
+        // a class template is instantiated along with the class whether
+        // or not anything calls it, so without `if constexpr` the write
+        // loop below would be instantiated for them too, and fail on the
+        // mismatch between an empty pack and a one-port tuple.
+        if constexpr (std::tuple_size<OVals>::value > 0)
+        {
+            write_all(self().out_ports(), ovals);
+            // An untimed output has no declared rate: the user function
+            // appends whatever this cycle produced, so the vectors are
+            // emptied again ready for the next one.
+            std::apply([](auto&... val){(val.clear(), ...);}, ovals);
+        }
+    }
+
+#ifdef FORSYDE_INTROSPECTION
+    void bindInfo()
+    {
+        bind_all(boundInChans, self().in_ports());
+        bind_all(boundOutChans, self().out_ports());
+    }
+#endif
+};
+
 //! Shared implementation of the UT combinational (comb*) family
 /*! The untimed counterpart of ForSyDe::SDF::detail::comb_core, and it
  * differs from it in exactly the way the two MoCs differ: an input port
@@ -659,8 +762,16 @@ private:
  * to compute the next state.
  */
 template <class IT, class ST>
-class scan : public ut_process
+class scan : public detail::fsm_core<scan<IT,ST>,
+                         std::tuple<>,
+                         std::tuple<std::vector<IT>>,
+                         ST>
 {
+    typedef detail::fsm_core<scan<IT,ST>,
+                             std::tuple<>,
+                             std::tuple<std::vector<IT>>,
+                             ST> base;
+    friend base;
 public:
     UT_in<IT>  iport1;        ///< port for the input channel
     UT_out<ST> oport1;        ///< port for the output channel
@@ -680,17 +791,12 @@ public:
          const gamma_functype& _gamma_func,///< The partitioning function
          const ns_functype& _ns_func, ///< The next_state function
          const ST& init_st  ///< Initial state
-         ) : ut_process(_name), _gamma_func(_gamma_func), _ns_func(_ns_func),
-             init_st(init_st)
+         ) : base(_name, init_st), iport1("iport1"), oport1("oport1"), _gamma_func(_gamma_func), _ns_func(_ns_func)
     {
 #ifdef FORSYDE_INTROSPECTION
-        std::string func_name = std::string(basename());
-        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        arg_vec.push_back(std::make_tuple("_gamma_func",func_name+std::string("_gamma_func")));
-        arg_vec.push_back(std::make_tuple("_ns_func",func_name+std::string("_ns_func")));
         std::stringstream ss;
         ss << init_st;
-        arg_vec.push_back(std::make_tuple("init_st",ss.str()));
+        this->arg_vec.push_back(std::make_tuple("init_st",ss.str()));
 #endif
     }
     
@@ -701,56 +807,28 @@ private:
     //! The functions passed to the process constructor
     gamma_functype _gamma_func;
     ns_functype _ns_func;
-    // Initial state
-    ST init_st;
-        
-    // Input, output, current state, and next state variables
-    std::vector<IT> ivals;
-    ST* stval;
-    ST* nsval;
 
-    //Implementing the abstract semantics
-    void init()
-    {
-        stval = new ST;
-        *stval = init_st;
-        nsval = new ST;
-    }
-    
-    void prep()
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
+
+    void resize_inputs()
     {
         unsigned int itoks;
-        _gamma_func(itoks, *stval);    // determine how many tokens to read
-        ivals.resize(itoks);
-        for (auto it=ivals.begin();it!=ivals.end();it++)
-            *it = iport1.read();
+        _gamma_func(itoks, this->stval);    // determine how many tokens to read
+        std::get<0>(this->ivals).resize(itoks);
     }
-    
+
     void exec()
     {
-        _ns_func(*nsval, *stval, ivals);
-        *stval = *nsval;
+        _ns_func(this->nsval, this->stval, std::get<0>(this->ivals));
+        this->stval = this->nsval;
     }
-    
-    void prod()
-    {
-        write_multiport(oport1, *stval);
-    }
-    
-    void clean()
-    {
-        delete stval;
-        delete nsval;
-    }
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-    }
-#endif
+
+    // scan makes its state directly visible as a single event rather than
+    // as a vector of output tokens, so it carries no output token pack and
+    // writes in its own prod() instead of through the core's write loop.
+    void prod() {write_multiport(oport1, this->stval);}
+
 };
 
 //! Process constructor for a scand process
@@ -760,8 +838,16 @@ private:
  * to compute the next state.
  */
 template <class IT, class ST>
-class scand : public ut_process
+class scand : public detail::fsm_core<scand<IT,ST>,
+                          std::tuple<>,
+                          std::tuple<std::vector<IT>>,
+                          ST, true>
 {
+    typedef detail::fsm_core<scand<IT,ST>,
+                             std::tuple<>,
+                             std::tuple<std::vector<IT>>,
+                             ST, true> base;
+    friend base;
 public:
     UT_in<IT>  iport1;        ///< port for the input channel
     UT_out<ST> oport1;        ///< port for the output channel
@@ -781,17 +867,12 @@ public:
            const gamma_functype& _gamma_func,///< The partitioning function
            const ns_functype& _ns_func, ///< The next_state function
            const ST& init_st  ///< Initial state
-           ) : ut_process(_name), _gamma_func(_gamma_func), _ns_func(_ns_func),
-             init_st(init_st)
+           ) : base(_name, init_st), iport1("iport1"), oport1("oport1"), _gamma_func(_gamma_func), _ns_func(_ns_func)
     {
 #ifdef FORSYDE_INTROSPECTION
-        std::string func_name = std::string(basename());
-        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        arg_vec.push_back(std::make_tuple("_gamma_func",func_name+std::string("_gamma_func")));
-        arg_vec.push_back(std::make_tuple("_ns_func",func_name+std::string("_ns_func")));
         std::stringstream ss;
         ss << init_st;
-        arg_vec.push_back(std::make_tuple("init_st",ss.str()));
+        this->arg_vec.push_back(std::make_tuple("init_st",ss.str()));
 #endif
     }
     
@@ -802,72 +883,33 @@ private:
     //! The functions passed to the process constructor
     gamma_functype _gamma_func;
     ns_functype _ns_func;
-    // Initial state
-    ST init_st;
-    
-    bool first_run;
-    
-    // Input, output, current state, and next state variables
-    std::vector<IT> ivals;
-    ST* stval;
-    ST* nsval;
 
-    //Implementing the abstract semantics
-    void init()
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
+
+    void resize_inputs()
     {
-        stval = new ST;
-        *stval = init_st;
-        nsval = new ST;
-        // First evaluation cycle
-        first_run = true;
+        unsigned int itoks;
+        _gamma_func(itoks, this->stval);    // determine how many tokens to read
+        std::get<0>(this->ivals).resize(itoks);
     }
-    
-    void prep()
-    {
-        // We do not read anything in the first cycle since we can produce the output.
-        if (!first_run)
-        {
-            unsigned int itoks;
-            _gamma_func(itoks, *stval);    // determine how many tokens to read
-            ivals.resize(itoks);
-            for (auto it=ivals.begin();it!=ivals.end();it++)
-                *it = iport1.read();
-        }
-    }
-    
+
     void exec()
     {
-        // Compute only the output in the first iteration.
-        if (!first_run)
-        {
-            _ns_func(*nsval, *stval, ivals);
-            *stval = *nsval;
-        }
+        if (this->first_run)
+            this->first_run = false;
         else
         {
-            first_run = false;
+            _ns_func(this->nsval, this->stval, std::get<0>(this->ivals));
+            this->stval = this->nsval;
         }
     }
-    
-    void prod()
-    {
-        write_multiport(oport1, *stval);
-    }
-    
-    void clean()
-    {
-        delete stval;
-        delete nsval;
-    }
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-    }
-#endif
+
+    // scan makes its state directly visible as a single event rather than
+    // as a vector of output tokens, so it carries no output token pack and
+    // writes in its own prod() instead of through the core's write loop.
+    void prod() {write_multiport(oport1, this->stval);}
+
 };
 
 //! Process constructor for a Moore machine
@@ -876,8 +918,16 @@ private:
  * function it creates a Moore process.
  */
 template <class IT, class ST, class OT>
-class moore : public ut_process
+class moore : public detail::fsm_core<moore<IT,ST,OT>,
+                          std::tuple<std::vector<OT>>,
+                          std::tuple<std::vector<IT>>,
+                          ST, true>
 {
+    typedef detail::fsm_core<moore<IT,ST,OT>,
+                             std::tuple<std::vector<OT>>,
+                             std::tuple<std::vector<IT>>,
+                             ST, true> base;
+    friend base;
 public:
     UT_in<IT>  iport1;        ///< port for the input channel
     UT_out<OT> oport1;        ///< port for the output channel
@@ -901,18 +951,16 @@ public:
            const ns_functype& _ns_func, ///< The next_state function
            const od_functype& _od_func, ///< The output-decoding function
            const ST& init_st  ///< Initial state
-          ) : ut_process(_name), _gamma_func(_gamma_func), _ns_func(_ns_func),
-              _od_func(_od_func), init_st(init_st)
+          ) : base(_name, init_st), iport1("iport1"), oport1("oport1"), _gamma_func(_gamma_func), _ns_func(_ns_func),
+              _od_func(_od_func)
     {
 #ifdef FORSYDE_INTROSPECTION
-        std::string func_name = std::string(basename());
+        std::string func_name = std::string(this->basename());
         func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        arg_vec.push_back(std::make_tuple("_gamma_func",func_name+std::string("_gamma_func")));
-        arg_vec.push_back(std::make_tuple("_ns_func",func_name+std::string("_ns_func")));
-        arg_vec.push_back(std::make_tuple("_od_func",func_name+std::string("_od_func")));
+        this->arg_vec.push_back(std::make_tuple("_od_func",func_name+std::string("_od_func")));
         std::stringstream ss;
         ss << init_st;
-        arg_vec.push_back(std::make_tuple("init_st",ss.str()));
+        this->arg_vec.push_back(std::make_tuple("init_st",ss.str()));
 #endif
     }
     
@@ -924,76 +972,32 @@ private:
     gamma_functype _gamma_func;
     ns_functype _ns_func;
     od_functype _od_func;
-    // Initial state
-    ST init_st;
-    
-    bool first_run;
-    
-    // Input, output, current state, and next state variables
-    std::vector<IT> ivals;
-    ST* stval;
-    ST* nsval;
-    std::vector<OT> ovals;
 
-    //Implementing the abstract semantics
-    void init()
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
+
+    void resize_inputs()
     {
-        stval = new ST;
-        *stval = init_st;
-        nsval = new ST;
-        // First evaluation cycle
-        first_run = true;
+        unsigned int itoks;
+        _gamma_func(itoks, this->stval);    // determine how many tokens to read
+        std::get<0>(this->ivals).resize(itoks);
     }
-    
-    void prep()
-    {
-        // We do not read anything in the first cycle since we can produce the output.
-        if (!first_run)
-        {
-            unsigned int itoks;
-            _gamma_func(itoks, *stval);    // determine how many tokens to read
-            ivals.resize(itoks);
-            for (auto it=ivals.begin();it!=ivals.end();it++)
-                *it = iport1.read();
-        }
-    }
-    
+
     void exec()
     {
-        // Compute only the output in the first iteration.
-        if (!first_run)
+        if (!this->first_run)
         {
-            _ns_func(*nsval, *stval, ivals);
-            _od_func(ovals, *stval);
-            *stval = *nsval;
+            _ns_func(this->nsval, this->stval, std::get<0>(this->ivals));
+            _od_func(std::get<0>(this->ovals), this->stval);
+            this->stval = this->nsval;
         }
         else
         {
-            first_run = false;
-            _od_func(ovals, *stval);
+            this->first_run = false;
+            _od_func(std::get<0>(this->ovals), this->stval);
         }
     }
-    
-    void prod()
-    {
-        write_vec_multiport(oport1, ovals);
-        ovals.clear();
-    }
-    
-    void clean()
-    {
-        delete stval;
-        delete nsval;
-    }
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-    }
-#endif
+
 };
 
 //! Process constructor for a Moore machine
@@ -1004,8 +1008,16 @@ private:
 template<typename TO_tuple, typename TI_tuple, typename TS_tuple> class mooreMN;
 
 template <typename... TOs, typename... TIs, typename... TSs>
-class mooreMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>>: public ut_process
+class mooreMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>> : public detail::fsm_core<mooreMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>>,
+                            std::tuple<std::vector<TOs>...>,
+                            std::tuple<std::vector<TIs>...>,
+                            std::tuple<TSs...>, true>
 {
+    typedef detail::fsm_core<mooreMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>>,
+                             std::tuple<std::vector<TOs>...>,
+                             std::tuple<std::vector<TIs>...>,
+                             std::tuple<TSs...>, true> base;
+    friend base;
 public:
     std::tuple<UT_in<TIs>...>  iport;///< tuple of ports for the input channels
     std::tuple<UT_out<TOs>...> oport;///< tuple of ports for the output channels
@@ -1033,18 +1045,16 @@ public:
             const ns_functype& _ns_func,        ///< The next_state function
             const od_functype& _od_func,        ///< The output-decoding function
             const std::tuple<TSs...>& init_st   ///< Initial state
-            ) : ut_process(_name), _gamma_func(_gamma_func), _ns_func(_ns_func),
-              _od_func(_od_func), init_st(init_st)
+            ) : base(_name, init_st), _gamma_func(_gamma_func), _ns_func(_ns_func),
+              _od_func(_od_func)
     {
 #ifdef FORSYDE_INTROSPECTION
-        std::string func_name = std::string(basename());
+        std::string func_name = std::string(this->basename());
         func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        arg_vec.push_back(std::make_tuple("_gamma_func",func_name+std::string("_gamma_func")));
-        arg_vec.push_back(std::make_tuple("_ns_func",func_name+std::string("_ns_func")));
-        arg_vec.push_back(std::make_tuple("_od_func",func_name+std::string("_od_func")));
+        this->arg_vec.push_back(std::make_tuple("_od_func",func_name+std::string("_od_func")));
         std::stringstream ss;
         ss << init_st;
-        arg_vec.push_back(std::make_tuple("init_st",ss.str()));
+        this->arg_vec.push_back(std::make_tuple("init_st",ss.str()));
 #endif
     }
     
@@ -1056,112 +1066,32 @@ private:
     gamma_functype _gamma_func;
     ns_functype _ns_func;
     od_functype _od_func;
-    // Initial value
-    std::tuple<TSs...> init_st;
-    // consumption rates
-    std::array<size_t, sizeof...(TOs)> otoks;
-    std::array<size_t, sizeof...(TIs)> itoks;
 
-    bool first_run;
-    
-    // Input, output, current state, and next state variables
-    std::tuple<std::vector<TOs>...>* ovals;
-    std::tuple<TSs...>* stvals;
-    std::tuple<TSs...>* nsvals;
-    std::tuple<std::vector<TIs>...>* ivals;
+    auto in_ports()  {return std::apply([](auto&... p){return std::tie(p...);}, iport);}
+    auto out_ports() {return std::apply([](auto&... p){return std::tie(p...);}, oport);}
 
-    //Implementing the abstract semantics
-    void init()
+    void resize_inputs()
     {
-        ovals = new std::tuple<std::vector<TOs>...>;
-        stvals = new std::tuple<TSs...>;
-        *stvals = init_st;
-        nsvals = new std::tuple<TSs...>;
-        ivals = new std::tuple<std::vector<TIs>...>;
-        // First evaluation cycle
-        first_run = true;
+        std::array<size_t, sizeof...(TIs)> itoks;
+        _gamma_func(itoks, this->stval);    // determine how many tokens to read
+        detail::resize_all(this->ivals, itoks);
     }
-    
-    void prep()
-    {
-        if (!first_run)
-        {
-            _gamma_func(itoks, *stvals);    // determine how many tokens to read
-            // Size the input buffers
-            std::apply([&](auto&... ival) {
-                std::apply([&](auto&... itok) {
-                    (ival.resize(itok), ...);
-                }, itoks);
-            }, *ivals);
-            // Read the input tokens
-            std::apply([&](auto&... inport) {
-                std::apply([&](auto&... ival) {
-                    (
-                        [&ival,&inport](){
-                            for (auto it=ival.begin();it!=ival.end();it++)
-                                *it = inport.read();
-                        }()
-                    , ...);
-                }, *ivals);
-            }, iport);
-        }
-    }
-    
+
     void exec()
     {
-        if (!first_run)
+        if (!this->first_run)
         {
-            _ns_func(*nsvals, *stvals, *ivals);
-            _od_func(*ovals, *stvals);
-            *stvals = *nsvals;
+            _ns_func(this->nsval, this->stval, this->ivals);
+            _od_func(this->ovals, this->stval);
+            this->stval = this->nsval;
         }
         else
         {
-            first_run = false;
-            _od_func(*ovals, *stvals);
+            this->first_run = false;
+            _od_func(this->ovals, this->stval);
         }
     }
-    
-    void prod()
-    {
-        std::apply([&](auto&&... port){
-            std::apply([&](auto&&... val){
-                (write_vec_multiport(port, val), ...);
-                (val.clear(), ...);
-            }, *ovals);
-        }, oport);
-    }
-    
-    void clean()
-    {
-        delete ivals;
-        delete ovals;
-        delete stvals;
-        delete nsvals;
-    }
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(sizeof...(TIs));     // input ports
-        std::apply
-        (
-            [&](auto&... ports)
-            {
-                std::size_t n{0};
-                ((boundInChans[n++].port = &ports),...);
-            }, iport
-        );
-        boundOutChans.resize(sizeof...(TOs));    // output ports
-        std::apply
-        (
-            [&](auto&... ports)
-            {
-                std::size_t n{0};
-                ((boundOutChans[n++].port = &ports),...);
-            }, oport
-        );
-    }
-#endif
+
 };
 
 //! Process constructor for a Mealy machine
@@ -1170,8 +1100,16 @@ private:
  * function it creates a Mealy process.
  */
 template <class IT, class ST, class OT>
-class mealy : public ut_process
+class mealy : public detail::fsm_core<mealy<IT,ST,OT>,
+                          std::tuple<std::vector<OT>>,
+                          std::tuple<std::vector<IT>>,
+                          ST>
 {
+    typedef detail::fsm_core<mealy<IT,ST,OT>,
+                             std::tuple<std::vector<OT>>,
+                             std::tuple<std::vector<IT>>,
+                             ST> base;
+    friend base;
 public:
     UT_in<IT>  iport1;        ///< port for the input channel
     UT_out<OT> oport1;        ///< port for the output channel
@@ -1196,18 +1134,16 @@ public:
            const ns_functype& _ns_func, ///< The next_state function
            const od_functype& _od_func, ///< The output-decoding function
            const ST& init_st  ///< Initial state
-          ) : ut_process(_name), _gamma_func(_gamma_func), _ns_func(_ns_func),
-              _od_func(_od_func), init_st(init_st)
+          ) : base(_name, init_st), iport1("iport1"), oport1("oport1"), _gamma_func(_gamma_func), _ns_func(_ns_func),
+              _od_func(_od_func)
     {
 #ifdef FORSYDE_INTROSPECTION
-        std::string func_name = std::string(basename());
+        std::string func_name = std::string(this->basename());
         func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        arg_vec.push_back(std::make_tuple("_gamma_func",func_name+std::string("_gamma_func")));
-        arg_vec.push_back(std::make_tuple("_ns_func",func_name+std::string("_ns_func")));
-        arg_vec.push_back(std::make_tuple("_od_func",func_name+std::string("_od_func")));
+        this->arg_vec.push_back(std::make_tuple("_od_func",func_name+std::string("_od_func")));
         std::stringstream ss;
         ss << init_st;
-        arg_vec.push_back(std::make_tuple("init_st",ss.str()));
+        this->arg_vec.push_back(std::make_tuple("init_st",ss.str()));
 #endif
     }
     
@@ -1219,59 +1155,24 @@ private:
     gamma_functype _gamma_func;
     ns_functype _ns_func;
     od_functype _od_func;
-    // Initial value
-    ST init_st;
-    
-    // Input, output, current state, and next state variables
-    std::vector<IT> ivals;
-    ST* stval;
-    ST* nsval;
-    std::vector<OT> ovals;
 
-    //Implementing the abstract semantics
-    void init()
-    {
-        stval = new ST;
-        *stval = init_st;
-        nsval = new ST;
-    }
-    
-    void prep()
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
+
+    void resize_inputs()
     {
         unsigned int itoks;
-        _gamma_func(itoks, *stval);    // determine how many tokens to read
-        ivals.resize(itoks);
-        for (auto it=ivals.begin();it!=ivals.end();it++)
-            *it = iport1.read();
+        _gamma_func(itoks, this->stval);    // determine how many tokens to read
+        std::get<0>(this->ivals).resize(itoks);
     }
-    
+
     void exec()
     {
-        _ns_func(*nsval, *stval, ivals);
-        _od_func(ovals, *stval, ivals);
-        *stval = *nsval;
+        _ns_func(this->nsval, this->stval, std::get<0>(this->ivals));
+        _od_func(std::get<0>(this->ovals), this->stval, std::get<0>(this->ivals));
+        this->stval = this->nsval;
     }
-    
-    void prod()
-    {
-        write_vec_multiport(oport1, ovals);
-        ovals.clear();
-    }
-    
-    void clean()
-    {
-        delete stval;
-        delete nsval;
-    }
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-    }
-#endif
+
 };
 
 //! Process constructor for a Mealy machine
@@ -1282,8 +1183,16 @@ private:
 template<typename TO_tuple, typename TI_tuple, typename TS_tuple> class mealyMN;
 
 template <typename... TOs, typename... TIs, typename... TSs>
-class mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>>: public ut_process
+class mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>> : public detail::fsm_core<mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>>,
+                            std::tuple<std::vector<TOs>...>,
+                            std::tuple<std::vector<TIs>...>,
+                            std::tuple<TSs...>>
 {
+    typedef detail::fsm_core<mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>>,
+                             std::tuple<std::vector<TOs>...>,
+                             std::tuple<std::vector<TIs>...>,
+                             std::tuple<TSs...>> base;
+    friend base;
 public:
     std::tuple<UT_in<TIs>...>  iport;///< tuple of ports for the input channels
     std::tuple<UT_out<TOs>...> oport;///< tuple of ports for the output channels
@@ -1312,18 +1221,16 @@ public:
             const ns_functype& _ns_func,        ///< The next_state function
             const od_functype& _od_func,        ///< The output-decoding function
             const std::tuple<TSs...>& init_st   ///< Initial state
-            ) : ut_process(_name), _gamma_func(_gamma_func), _ns_func(_ns_func),
-              _od_func(_od_func), init_st(init_st)
+            ) : base(_name, init_st), _gamma_func(_gamma_func), _ns_func(_ns_func),
+              _od_func(_od_func)
     {
 #ifdef FORSYDE_INTROSPECTION
-        std::string func_name = std::string(basename());
+        std::string func_name = std::string(this->basename());
         func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        arg_vec.push_back(std::make_tuple("_gamma_func",func_name+std::string("_gamma_func")));
-        arg_vec.push_back(std::make_tuple("_ns_func",func_name+std::string("_ns_func")));
-        arg_vec.push_back(std::make_tuple("_od_func",func_name+std::string("_od_func")));
+        this->arg_vec.push_back(std::make_tuple("_od_func",func_name+std::string("_od_func")));
         std::stringstream ss;
         ss << init_st;
-        arg_vec.push_back(std::make_tuple("init_st",ss.str()));
+        this->arg_vec.push_back(std::make_tuple("init_st",ss.str()));
 #endif
     }
     
@@ -1335,97 +1242,24 @@ private:
     gamma_functype _gamma_func;
     ns_functype _ns_func;
     od_functype _od_func;
-    // Initial value
-    std::tuple<TSs...> init_st;
-    // consumption rates
-    std::array<size_t, sizeof...(TOs)> otoks;
-    std::array<size_t, sizeof...(TIs)> itoks;
-    
-    // Input, output, current state, and next state variables
-    std::tuple<std::vector<TOs>...>* ovals;
-    std::tuple<TSs...>* stvals;
-    std::tuple<TSs...>* nsvals;
-    std::tuple<std::vector<TIs>...>* ivals;
 
-    //Implementing the abstract semantics
-    void init()
+    auto in_ports()  {return std::apply([](auto&... p){return std::tie(p...);}, iport);}
+    auto out_ports() {return std::apply([](auto&... p){return std::tie(p...);}, oport);}
+
+    void resize_inputs()
     {
-        ovals = new std::tuple<std::vector<TOs>...>;
-        stvals = new std::tuple<TSs...>;
-        *stvals = init_st;
-        nsvals = new std::tuple<TSs...>;
-        ivals = new std::tuple<std::vector<TIs>...>;
+        std::array<size_t, sizeof...(TIs)> itoks;
+        _gamma_func(itoks, this->stval);    // determine how many tokens to read
+        detail::resize_all(this->ivals, itoks);
     }
-    
-    void prep()
-    {
-        _gamma_func(itoks, *stvals);    // determine how many tokens to read
-        // Size the input buffers
-        std::apply([&](auto&... ival) {
-            std::apply([&](auto&... itok) {
-                (ival.resize(itok), ...);
-            }, itoks);
-        }, *ivals);
-        // Read the input tokens
-        std::apply([&](auto&... inport) {
-            std::apply([&](auto&... ival) {
-                (
-                    [&ival,&inport](){
-                        for (auto it=ival.begin();it!=ival.end();it++)
-                            *it = inport.read();
-                    }()
-                , ...);
-            }, *ivals);
-        }, iport);
-    }
-    
+
     void exec()
     {
-        _ns_func(*nsvals, *stvals, *ivals);
-        _od_func(*ovals, *stvals, *ivals);
-        *stvals = *nsvals;
+        _ns_func(this->nsval, this->stval, this->ivals);
+        _od_func(this->ovals, this->stval, this->ivals);
+        this->stval = this->nsval;
     }
-    
-    void prod()
-    {
-        std::apply([&](auto&&... port){
-            std::apply([&](auto&&... val){
-                (write_vec_multiport(port, val), ...);
-                (val.clear(), ...);
-            }, *ovals);
-        }, oport);
-    }
-    
-    void clean()
-    {
-        delete ivals;
-        delete ovals;
-        delete stvals;
-        delete nsvals;
-    }
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(sizeof...(TIs));     // input ports
-        std::apply
-        (
-            [&](auto&... ports)
-            {
-                std::size_t n{0};
-                ((boundInChans[n++].port = &ports),...);
-            }, iport
-        );
-        boundOutChans.resize(sizeof...(TOs));    // output ports
-        std::apply
-        (
-            [&](auto&... ports)
-            {
-                std::size_t n{0};
-                ((boundOutChans[n++].port = &ports),...);
-            }, oport
-        );
-    }
-#endif
+
 };
 
 //! Process constructor for a constant source process
