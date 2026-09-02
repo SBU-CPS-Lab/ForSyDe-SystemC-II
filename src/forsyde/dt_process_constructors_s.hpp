@@ -46,8 +46,14 @@ using namespace sc_core;
  * function, and an initial state, it creates a timed Mealy process.
  */
 template <class IT, class ST, class OT>
-class mealy : public dt_process
+class mealy : public detail::fsm_core<mealy<IT,ST,OT>,
+                                    std::tuple<std::vector<OT>>,
+                                    std::tuple<std::vector<IT>>, ST>
 {
+    typedef detail::fsm_core<mealy<IT,ST,OT>,
+                             std::tuple<std::vector<OT>>,
+                             std::tuple<std::vector<IT>>, ST> base;
+    friend base;
 public:
     DT_in<IT>  iport1;        ///< port for the input channel
     DT_out<OT> oport1;        ///< port for the output channel
@@ -75,117 +81,49 @@ public:
            ns_functype _ns_func,    ///< The next_state function
            od_functype _od_func,    ///< The output-decoding function
            ST init_st               ///< Initial state
-          ) : dt_process(_name), gamma(gamma), _ns_func(_ns_func),
-              _od_func(_od_func), init_st(init_st)
-    {
-#ifdef FORSYDE_INTROSPECTION
-        std::string func_name = std::string(basename());
-        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        arg_vec.push_back(std::make_tuple("gamma",func_name+std::string("_gamma")));
-        arg_vec.push_back(std::make_tuple("_ns_func",func_name+std::string("_ns_func")));
-        arg_vec.push_back(std::make_tuple("_od_func",func_name+std::string("_od_func")));
-        std::stringstream ss;
-        ss << init_st;
-        arg_vec.push_back(std::make_tuple("init_st",ss.str()));
-#endif
-    }
+          ) : base(_name, init_st), iport1("iport1"), oport1("oport1"), gamma(gamma), _ns_func(_ns_func),
+              _od_func(_od_func) {}
     
     //! Specifying from which process constructor is the module built
     std::string forsyde_kind() const{return "DT::S::mealy";}
     
-private:    
+private:
     //! The functions passed to the process constructor
     gamma_functype gamma;
     ns_functype _ns_func;
     od_functype _od_func;
-    
-    // Initial value
-    ST init_st;
-    
-    // Input, output, current state, and next state variables
-    std::vector<IT> ivals;
-    ST* stval;
-    ST* nsval;
-    std::vector<OT> ovals;
-    
-    size_t itoks;
 
-    // Whether the function should be invoked in this iteration
-    bool invoke;
-    
-    // The current input/output time
-    size_t tin;
-    size_t tout;
-    size_t k;
-    
-    //Implementing the abstract semantics
-    void init()
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
+
+    // mealyST: gamma is a number of *nonabsent* events, so keep reading
+    // until that many have arrived. An absent event costs a token but
+    // does not count towards the total.
+    std::size_t read_inputs()
     {
-        tin = tout = k = 0;
-        stval = new ST;
-        *stval = init_st;
-        nsval = new ST;
-    }
-    
-    void prep()
-    {
-        // Determine the number of non-absent events to be read
-        gamma(itoks, *stval);
-        // Read the input events
-        ivals.clear();
-        for (size_t i=0; i<itoks; i++)
+        std::size_t itoks;
+        gamma(itoks, this->stval);
+        auto& in = std::get<0>(this->ivals);
+        in.clear();
+        std::size_t read{0};
+        for (std::size_t i=0; i<itoks; i++)
         {
             auto tmp = iport1.read();
+            read++;
             if (is_present(tmp))
-                ivals.push_back(unsafe_from_abst_ext(tmp));
+                in.push_back(unsafe_from_abst_ext(tmp));
             else
                 itoks++;    // read one more token for each absent event
         }
-        // Update tin with the number of tokens read
-        tin += itoks;
+        return read;
     }
-    
+
     void exec()
     {
-        _ns_func(*nsval, *stval, ivals);
-        _od_func(ovals, *stval, ivals);
-        *stval = *nsval;
+        _ns_func(this->nsval, this->stval, std::get<0>(this->ivals));
+        _od_func(std::get<0>(this->ovals), this->stval, std::get<0>(this->ivals));
+        this->stval = this->nsval;
     }
-    
-    void prod()
-    {
-        // Update k
-        k = std::max((int)tin-(int)tout-1, 0);
-
-        // First write the required absent events to ensure casaulity
-        for (size_t i=0; i<k; i++)
-            write_multiport(oport1, abst_ext<OT>());
-
-        // Then write out the result
-        write_vec_multiport(oport1, ovals);
-
-        // Update tout with the total number of written tokens
-        tout += (k+ovals.size());
-        
-        // clean up the input and output vectors
-        ivals.clear();
-        ovals.clear();
-    }
-    
-    void clean()
-    {
-        delete stval;
-        delete nsval;
-    }
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-    }
-#endif
 };
 
 

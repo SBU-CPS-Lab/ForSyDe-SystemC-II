@@ -130,6 +130,37 @@ SC_MODULE(all)
                                                 const std::tuple<std::vector<int>,std::vector<int>,std::vector<int>>&){},
                                              std::tuple<int>{0});
 
+        // ---- DT -------------------------------------------------------
+        // The four timed Mealy variants of Jantsch section 5.2.1:
+        // mealyT, mealyPT, mealyST and mealyTT. S and T are named by no
+        // example, so this is the only thing that compiles them.
+        inst<DT::mealy<int,int,int>>
+            ("dt_mealy", [](size_t& n,const int&){n=1;},
+             [](int&,const int&,const std::vector<abst_ext<int>>&){},
+             [](std::vector<abst_ext<int>>&,const int&,const std::vector<abst_ext<int>>&){}, 0);
+        inst<DT::mealyMN<std::tuple<int,int>,std::tuple<int,int,int>,int>>
+            ("dt_mealyMN", [](size_t& n,const int&){n=1;},
+             [](int&,const int&,const std::tuple<std::vector<abst_ext<int>>,std::vector<abst_ext<int>>,std::vector<abst_ext<int>>>&){},
+             [](std::tuple<std::vector<abst_ext<int>>,std::vector<abst_ext<int>>>&,const int&,
+                const std::tuple<std::vector<abst_ext<int>>,std::vector<abst_ext<int>>,std::vector<abst_ext<int>>>&){}, 0);
+        inst<DT::P::mealy<int,int,int>>
+            ("dt_p_mealy", [](size_t& n,const int&){n=1;},
+             [](int&,const int&,const std::vector<int>&){},
+             [](std::vector<int>&,const int&,const std::vector<int>&){}, 0);
+        inst<DT::P::mealyMN<std::tuple<int,int>,std::tuple<int,int,int>,int>>
+            ("dt_p_mealyMN", [](size_t& n,const int&){n=1;},
+             [](int&,const int&,const std::tuple<std::vector<int>,std::vector<int>,std::vector<int>>&){},
+             [](std::tuple<std::vector<int>,std::vector<int>>&,const int&,
+                const std::tuple<std::vector<int>,std::vector<int>,std::vector<int>>&){}, 0);
+        inst<DT::S::mealy<int,int,int>>
+            ("dt_s_mealy", [](size_t& n,const int&){n=1;},
+             [](int&,const int&,const std::vector<int>&){},
+             [](std::vector<int>&,const int&,const std::vector<int>&){}, 0);
+        inst<DT::T::mealy<int,int,int>>
+            ("dt_t_mealy", [](size_t& n,size_t& t,const int&){n=1;t=4;},
+             [](int&,const int&,const std::vector<int>&){},
+             [](std::vector<int>&,const int&,const std::vector<int>&){}, 0);
+
         // ---- SADF -----------------------------------------------------
         // The scenario tables differ in shape per arity: a pair of
         // scalars, an array plus a scalar, then two arrays.

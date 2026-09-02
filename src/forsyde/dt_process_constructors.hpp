@@ -42,6 +42,163 @@ namespace DT
 
 using namespace sc_core;
 
+namespace detail
+{
+
+//! Record a tuple of port references in one of a process's bound-channel vectors
+#ifdef FORSYDE_INTROSPECTION
+template <typename Ports>
+inline void bind_all(std::vector<PortInfo>& chans, Ports&& ports)
+{
+    chans.resize(std::tuple_size<typename std::decay<Ports>::type>::value);
+    std::apply
+    (
+        [&](auto&... port)
+        {
+            std::size_t n{0};
+            ((chans[n++].port = &port),...);
+        }, ports
+    );
+}
+#endif
+
+//! The plain token type behind a token slot: abst_ext<T> -> T, T -> T
+/*! The base variant hands its functions absent-extended tokens and the
+ * P/S/T variants hand them bare values, so their output vectors have
+ * different element types -- but both have to emit a genuine absent
+ * event for the causality delay, never a value-initialised token.
+ */
+template <typename T> struct token_of {typedef T type;};
+template <typename T> struct token_of<abst_ext<T>> {typedef T type;};
+
+//! Shared implementation of the DT state-machine family
+/*! A timed process is a blend of an untimed and a synchronous one: it
+ * may consume and emit any number of events per evaluation cycle, and it
+ * must obey causality -- an output event that reacts to an input event
+ * cannot precede it. Jantsch (5.1) enforces that by prepending absent
+ * events to each cycle's output:
+ *
+ *      b_i = <absent>^{K_i} + c_i
+ *      K_i = T_i(i) - T_o(i-1) - 1
+ *
+ * where T_i and T_o are the running counts of tokens consumed and
+ * produced. That bookkeeping -- tin, touts, ks -- is the same for every
+ * member of this family and lives here, with one T_o per output port.
+ *
+ * What the four variants actually differ in is one thing: which tokens
+ * of the cycle the user's functions get to see. That is \a Derived's
+ * read_inputs(), which fills the input pack and returns how many tokens
+ * it consumed from the port, and it is the whole of the distinction
+ * Jantsch draws in section 5.2.1:
+ *
+ *   DT::mealy      mealyT   the functions see the absent events too
+ *   DT::P::mealy   mealyPT  timer-based: gamma is a time period, the
+ *                           interface strips absent events, and the
+ *                           functions only ever see present values
+ *   DT::S::mealy   mealyST  event-count-based: gamma is a number of
+ *                           *nonabsent* events, so the process keeps
+ *                           reading until it has that many
+ *   DT::T::mealy   mealyTT  event count with a time-out: as S, but it
+ *                           gives up after gamma's time period whether
+ *                           or not the count was reached
+ *
+ * Those are four points on one axis -- how far the timing and
+ * synchronisation of a process are separated from its behaviour -- not
+ * four unrelated constructors, and the more separated they are the
+ * cheaper they are to implement in a distributed setting and the less
+ * they can express.
+ */
+template <typename Derived, typename OVals, typename IVals, typename ST>
+class fsm_core : public dt_process
+{
+protected:
+    static constexpr std::size_t n_outs = std::tuple_size<OVals>::value;
+
+    OVals ovals;    ///< output tokens, one vector per output port
+    IVals ivals;    ///< input tokens, one vector per input port
+
+    ST stval;       ///< the current state
+    ST nsval;       ///< the next state, as computed by this cycle
+    ST init_st;     ///< the initial state
+
+    std::size_t tin;                          ///< T_i: tokens consumed so far
+    std::array<std::size_t, n_outs> touts;    ///< T_o, one per output port
+    std::array<std::size_t, n_outs> ks;       ///< K_i, one per output port
+
+    fsm_core(const sc_module_name& _name,   ///< process name
+             const ST& init_st              ///< initial state
+             ) : dt_process(_name), init_st(init_st)
+    {
+#ifdef FORSYDE_INTROSPECTION
+        std::string func_name = std::string(basename());
+        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
+        // "_gamma_func", not the scalar variants' old "gamma": the other
+        // two arguments are _ns_func and _od_func, the MN variants and
+        // every UT state machine already spell it this way, and the four
+        // of them have to agree now that one core registers all of them.
+        arg_vec.push_back(std::make_tuple("_gamma_func",func_name+std::string("_gamma_func")));
+        arg_vec.push_back(std::make_tuple("_ns_func",func_name+std::string("_ns_func")));
+        arg_vec.push_back(std::make_tuple("_od_func",func_name+std::string("_od_func")));
+        std::stringstream ss;
+        ss << init_st;
+        arg_vec.push_back(std::make_tuple("init_st",ss.str()));
+#endif
+    }
+
+private:
+    Derived& self() {return static_cast<Derived&>(*this);}
+
+    //! Emit one output port's share of this cycle: its delay, then its tokens
+    template <typename Port, typename Vec>
+    void emit(Port& port, const Vec& val, std::size_t n)
+    {
+        typedef typename token_of<typename Vec::value_type>::type T;
+        for (std::size_t i=0; i<ks[n]; i++)
+            write_multiport(port, abst_ext<T>());
+        write_vec_multiport(port, val);
+        touts[n] += ks[n] + val.size();
+    }
+
+    //Implementing the abstract semantics
+    void init()
+    {
+        stval = init_st;
+        tin = 0;
+        touts.fill(0);
+        ks.fill(0);
+    }
+
+    void clean() {}
+
+    void prep() {tin += self().read_inputs();}
+
+    void prod()
+    {
+        for (std::size_t i=0; i<n_outs; i++)
+            ks[i] = std::max((int)tin-(int)touts[i]-1, 0);
+
+        std::apply([&](auto&... port){
+            std::apply([&](auto&... val){
+                std::size_t n{0};
+                (emit(port, val, n++), ...);
+            }, ovals);
+        }, self().out_ports());
+
+        std::apply([](auto&... val){(val.clear(), ...);}, ovals);
+        std::apply([](auto&... val){(val.clear(), ...);}, ivals);
+    }
+
+#ifdef FORSYDE_INTROSPECTION
+    void bindInfo()
+    {
+        bind_all(boundInChans, self().in_ports());
+        bind_all(boundOutChans, self().out_ports());
+    }
+#endif
+};
+
+}
+
 //! Process constructor for a delay element
 /*! This class is used to build the most basic sequential process which
  * is a delay element. Given an initial value, it inserts this value at
@@ -206,8 +363,14 @@ private:
  * function, and an initial state, it creates a timed Mealy process.
  */
 template <class IT, class ST, class OT>
-class mealy : public dt_process
+class mealy : public detail::fsm_core<mealy<IT,ST,OT>,
+                                    std::tuple<std::vector<abst_ext<OT>>>,
+                                    std::tuple<std::vector<abst_ext<IT>>>, ST>
 {
+    typedef detail::fsm_core<mealy<IT,ST,OT>,
+                             std::tuple<std::vector<abst_ext<OT>>>,
+                             std::tuple<std::vector<abst_ext<IT>>>, ST> base;
+    friend base;
 public:
     DT_in<IT>  iport1;        ///< port for the input channel
     DT_out<OT> oport1;        ///< port for the output channel
@@ -235,111 +398,40 @@ public:
            ns_functype _ns_func,    ///< The next_state function
            od_functype _od_func,    ///< The output-decoding function
            ST init_st               ///< Initial state
-          ) : dt_process(_name), gamma(gamma), _ns_func(_ns_func),
-              _od_func(_od_func), init_st(init_st)
-    {
-#ifdef FORSYDE_INTROSPECTION
-        std::string func_name = std::string(basename());
-        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        arg_vec.push_back(std::make_tuple("gamma",func_name+std::string("_gamma")));
-        arg_vec.push_back(std::make_tuple("_ns_func",func_name+std::string("_ns_func")));
-        arg_vec.push_back(std::make_tuple("_od_func",func_name+std::string("_od_func")));
-        std::stringstream ss;
-        ss << init_st;
-        arg_vec.push_back(std::make_tuple("init_st",ss.str()));
-#endif
-    }
+          ) : base(_name, init_st), iport1("iport1"), oport1("oport1"), gamma(gamma), _ns_func(_ns_func),
+              _od_func(_od_func) {}
     
     //! Specifying from which process constructor is the module built
     std::string forsyde_kind() const{return "DT::mealy";}
     
-private:    
+private:
     //! The functions passed to the process constructor
     gamma_functype gamma;
     ns_functype _ns_func;
     od_functype _od_func;
-    
-    // Initial value
-    ST init_st;
-    
-    // Input, output, current state, and next state variables
-    std::vector<abst_ext<IT>> ivals;
-    ST* stval;
-    ST* nsval;
-    std::vector<abst_ext<OT>> ovals;
-    
-    size_t itoks;
 
-    // Whether the function should be invoked in this iteration
-    bool invoke;
-    
-    // The current input/output time
-    size_t tin;
-    size_t tout;
-    size_t k;
-    
-    //Implementing the abstract semantics
-    void init()
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
+
+    // mealyT: gamma is a time period, and the functions see every token
+    // of it, absent events included.
+    std::size_t read_inputs()
     {
-        tin = tout = k = 0;
-        stval = new ST;
-        *stval = init_st;
-        nsval = new ST;
+        std::size_t itoks;
+        gamma(itoks, this->stval);
+        auto& in = std::get<0>(this->ivals);
+        in.resize(itoks);
+        for (std::size_t i=0; i<itoks; i++)
+            in[i] = iport1.read();
+        return itoks;
     }
-    
-    void prep()
-    {
-        // Determine the number of event to be read
-        gamma(itoks, *stval);
-        // Read the input events
-        ivals.resize(itoks);
-        for (size_t i=0; i<itoks; i++)
-            ivals[i] = iport1.read();
-        // Update tin with the number of tokens read
-        tin += itoks;
-    }
-    
+
     void exec()
     {
-        _ns_func(*nsval, *stval, ivals);
-        _od_func(ovals, *stval, ivals);
-        *stval = *nsval;
+        _ns_func(this->nsval, this->stval, std::get<0>(this->ivals));
+        _od_func(std::get<0>(this->ovals), this->stval, std::get<0>(this->ivals));
+        this->stval = this->nsval;
     }
-    
-    void prod()
-    {
-        // Update k
-        k = std::max((int)tin-(int)tout-1, 0);
-
-        // First write the required absent events to ensure casaulity
-        for (size_t i=0; i<k; i++)
-            write_multiport(oport1, abst_ext<OT>());
-
-        // Then write out the result
-        write_vec_multiport(oport1, ovals);
-
-        // Update tout with the total number of written tokens
-        tout += (k+ovals.size());
-        
-        // clean up the input and output vectors
-        ivals.clear();
-        ovals.clear();
-    }
-    
-    void clean()
-    {
-        delete stval;
-        delete nsval;
-    }
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-    }
-#endif
 };
 
 //! Process constructor for a Mealy machine
@@ -350,8 +442,14 @@ private:
 template<typename TO_tuple, typename TI_tuple, typename TS> class mealyMN;
 
 template <typename... TOs, typename... TIs, typename TS>
-class mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>: public dt_process
+class mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,TS> : public detail::fsm_core<mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>,
+                                    std::tuple<std::vector<abst_ext<TOs>>...>,
+                                    std::tuple<std::vector<abst_ext<TIs>>...>, TS>
 {
+    typedef detail::fsm_core<mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>,
+                             std::tuple<std::vector<abst_ext<TOs>>...>,
+                             std::tuple<std::vector<abst_ext<TIs>>...>, TS> base;
+    friend base;
 public:
     std::tuple<DT_in<TIs>...>  iport;///< tuple of ports for the input channels
     std::tuple<DT_out<TOs>...> oport;///< tuple of ports for the output channels
@@ -380,20 +478,8 @@ public:
             const ns_functype& _ns_func,        ///< The next_state function
             const od_functype& _od_func,        ///< The output-decoding function
             const TS& init_st   ///< Initial state
-            ) : dt_process(_name), _gamma_func(_gamma_func), _ns_func(_ns_func),
-              _od_func(_od_func), init_st(init_st)
-    {
-#ifdef FORSYDE_INTROSPECTION
-        std::string func_name = std::string(basename());
-        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        arg_vec.push_back(std::make_tuple("_gamma_func",func_name+std::string("_gamma_func")));
-        arg_vec.push_back(std::make_tuple("_ns_func",func_name+std::string("_ns_func")));
-        arg_vec.push_back(std::make_tuple("_od_func",func_name+std::string("_od_func")));
-        std::stringstream ss;
-        ss << init_st;
-        arg_vec.push_back(std::make_tuple("init_st",ss.str()));
-#endif
-    }
+            ) : base(_name, init_st), _gamma_func(_gamma_func), _ns_func(_ns_func),
+              _od_func(_od_func) {}
     
     //! Specifying from which process constructor is the module built
     std::string forsyde_kind() const{return "DT::mealyMN";}
@@ -403,143 +489,34 @@ private:
     gamma_functype _gamma_func;
     ns_functype _ns_func;
     od_functype _od_func;
-    // Initial value
-    TS init_st;
-    // consumption rates
-    size_t itoks;
-    
-    // Input, output, current state, and next state variables
-    std::tuple<std::vector<abst_ext<TOs>>...>* ovals;
-    TS* stvals;
-    TS* nsvals;
-    std::tuple<std::vector<abst_ext<TIs>>...>* ivals;
 
-    // The current input/output time
-    std::array<size_t, sizeof...(TOs)> ks;
-    size_t tin;
-    std::array<size_t, sizeof...(TOs)> touts;
+    auto in_ports()  {return std::apply([](auto&... p){return std::tie(p...);}, iport);}
+    auto out_ports() {return std::apply([](auto&... p){return std::tie(p...);}, oport);}
 
-    //Implementing the abstract semantics
-    void init()
+    // mealyT, several inputs: gamma gives one time period and every
+    // input port is read for it.
+    std::size_t read_inputs()
     {
-        tin = 0;
-        std::fill_n(touts.begin(), sizeof...(TOs), 0);
-        std::fill_n(ks.begin(), sizeof...(TOs), 0);
-        ovals = new std::tuple<std::vector<abst_ext<TOs>>...>;
-        stvals = new TS;
-        *stvals = init_st;
-        nsvals = new TS;
-        ivals = new std::tuple<std::vector<abst_ext<TIs>>...>;
-    }
-    
-    void prep()
-    {
-        // Determine the number of event to be read
-        _gamma_func(itoks, *stvals);
-        // Size the input and output buffers
-        std::apply([&](auto&... ival) {
-            (ival.resize(itoks), ...);
-        }, *ivals);
-        // Read the input tokens
-        std::apply([&](auto&... inport) {
-            std::apply([&](auto&... ival) {
-                (
-                    [&ival,&inport](){
-                        for (auto it=ival.begin();it!=ival.end();it++)
-                            *it = inport.read();
-                    }()
-                , ...);
-            }, *ivals);
+        std::size_t itoks;
+        _gamma_func(itoks, this->stval);
+        std::apply([&](auto&... ival){(ival.resize(itoks), ...);}, this->ivals);
+        std::apply([&](auto&... inport){
+            std::apply([&](auto&... ival){
+                ([&](auto& port, auto& vals){
+                    for (auto it=vals.begin(); it!=vals.end(); it++)
+                        *it = port.read();
+                }(inport, ival), ...);
+            }, this->ivals);
         }, iport);
-        // update tin with the number of tokens read
-        tin += itoks;
+        return itoks;
     }
-    
+
     void exec()
     {
-        _ns_func(*nsvals, *stvals, *ivals);
-        _od_func(*ovals, *stvals, *ivals);
-        *stvals = *nsvals;
+        _ns_func(this->nsval, this->stval, this->ivals);
+        _od_func(this->ovals, this->stval, this->ivals);
+        this->stval = this->nsval;
     }
-    
-    void prod()
-    {
-        // Update ks
-        for (size_t i=0; i<sizeof...(TOs); i++)
-            ks[i] = std::max((int)tin-(int)touts[i]-1, 0);
-
-        // First write the required absent events to ensure casaulity
-        std::apply([&](auto&... oport) {
-            std::apply([&](auto&&... val){
-                size_t n{0};
-                (
-                    [&oport,&val,&n,this](){
-                        for (size_t i=0;i<ks[n];i++)
-                        {   
-                            using T = std::decay_t<decltype(val[0])>;
-                            write_multiport(oport, T());
-                        }
-                        n++;
-                    }()
-                , ...);
-            }, *ovals);
-        }, oport);
-        // Then write out the result
-        std::apply([&](auto&&... port){
-            std::apply([&](auto&&... val){
-                (write_vec_multiport(port, val), ...);
-            }, *ovals);
-        }, oport);
-
-        // Update tout with the total number of written tokens
-        std::apply([&](auto&&... val){
-            size_t n{0};
-            ((touts[n] += (ks[n]+val.size())), ...);
-            n++;
-            (val.clear(), ...);
-        }, *ovals);
-    }
-    
-    void clean()
-    {
-        delete ivals;
-        delete ovals;
-        delete stvals;
-        delete nsvals;
-    }
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(sizeof...(TIs));     // input ports
-        std::apply
-        (
-            [&](auto&... ports)
-            {
-                std::size_t n{0};
-                ((boundInChans[n++].port = &ports),...);
-            }, iport
-        );
-        [&]()
-        {
-            std::size_t n{0};
-            ((boundInChans[n++].portType = typeid(TIs).name()),...);
-        }();
-        boundOutChans.resize(sizeof...(TOs));    // output ports
-        std::apply
-        (
-            [&](auto&... ports)
-            {
-                std::size_t n{0};
-                ((boundOutChans[n++].port = &ports),...);
-            }, oport
-        );
-        [&]()
-        {
-            std::size_t n{0};
-            ((boundOutChans[n++].portType = typeid(TOs).name()),...);
-        }();
-    }
-#endif
 };
 
 //! Process constructor for a constant source process
