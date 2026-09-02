@@ -28,7 +28,6 @@
 #include "sy_process.hpp"
 #include "sy_process_constructors.hpp"
 #include "sy_helpers.hpp"
-#include "sy_process_constructors_strict.hpp"
 #include "sy_helpers_strict.hpp"
 
 namespace ForSyDe

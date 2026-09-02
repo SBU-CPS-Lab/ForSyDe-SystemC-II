@@ -181,6 +181,14 @@ protected:
     OVals ovals;    ///< output tokens, one per output port
     IVals ivals;    ///< input tokens, one per input port
 
+    //! Tag for the constructor below that registers no "_func" argument
+    /*! Most of this family is a user function plus ports, so the ordinary
+     * constructor records a "_func" argument for the introspection XML.
+     * A few members of it -- delay, group -- have no user function and
+     * name their own arguments instead, and pass this to say so.
+     */
+    struct no_func_arg {};
+
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input ports,
      * applies the user-implemented function to them and writes the
@@ -194,6 +202,9 @@ protected:
         arg_vec.push_back(std::make_tuple("_func",func_name+std::string("_func")));
 #endif
     }
+
+    //! As above, for a process that takes no user function
+    comb_core(const sc_module_name& _name, no_func_arg) : sy_process(_name) {}
 
 private:
     Derived& self() {return static_cast<Derived&>(*this);}
@@ -2287,6 +2298,855 @@ public:
 
 private:
     auto out_ports() {return std::apply([](auto&... p){return std::tie(p...);}, oport);}
+};
+
+//! Process constructor for a strict delay element
+/*! The strict counterpart of delay: an absent input is an error rather
+ * than something to pass through. It is comb_core with an init() that
+ * emits the initial token before the first read, and an exec() that
+ * copies its input to its output.
+ */
+template <class T>
+class sdelay : public detail::comb_core<sdelay<T>,
+                                        std::tuple<T>, std::tuple<T>,
+                                        detail::token_policy::strict>
+{
+    typedef detail::comb_core<sdelay<T>, std::tuple<T>, std::tuple<T>,
+                              detail::token_policy::strict> base;
+    friend base;
+public:
+    SY_in<T>  iport1;       ///< port for the input channel
+    SY_out<T> oport1;        ///< port for the output channel
+
+    //! The constructor requires the module name
+    /*! It creates an SC_THREAD which inserts the initial element, reads
+     * data from its input port, and writes the results using the output
+     * port.
+     */
+    sdelay(const sc_module_name& _name,  ///< process name
+           const T& init_val            ///< initial value
+          ) : base(_name, typename base::no_func_arg{}),
+              iport1("iport1"), oport1("oport1"), init_val(init_val)
+    {
+#ifdef FORSYDE_INTROSPECTION
+        std::stringstream ss;
+        ss << init_val;
+        this->arg_vec.push_back(std::make_tuple("init_val", ss.str()));
+#endif
+    }
+
+    //! Specifying from which process constructor is the module built
+    std::string forsyde_kind() const {return "SY::sdelay";}
+
+private:
+    //! Initial value
+    T init_val;
+
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
+
+    void init() {write_multiport(oport1, abst_ext<T>(init_val));}
+
+    void exec() {std::get<0>(this->ovals) = std::get<0>(this->ivals);}
+};
+
+//! Process constructor for a strict n-delay element
+/*! This class is used to build a sequential process similar to sdelay
+ * but with an extra initial variable which sets the number of delay
+ * elements (initial tokens).
+ */
+template <class T>
+class sdelayn : public detail::comb_core<sdelayn<T>,
+                                         std::tuple<T>, std::tuple<T>,
+                                         detail::token_policy::strict>
+{
+    typedef detail::comb_core<sdelayn<T>, std::tuple<T>, std::tuple<T>,
+                              detail::token_policy::strict> base;
+    friend base;
+public:
+    SY_in<T>  iport1;       ///< port for the input channel
+    SY_out<T> oport1;        ///< port for the output channel
+
+    //! The constructor requires the module name
+    sdelayn(const sc_module_name& _name,    ///< process name
+            const T& init_val,              ///< initial value
+            const unsigned int& n           ///< number of delay elements
+           ) : base(_name, typename base::no_func_arg{}),
+               iport1("iport1"), oport1("oport1"), init_val(init_val), ns(n)
+    {
+#ifdef FORSYDE_INTROSPECTION
+        std::stringstream ss;
+        ss << init_val;
+        this->arg_vec.push_back(std::make_tuple("init_val", ss.str()));
+        this->arg_vec.push_back(std::make_tuple("n", std::to_string(n)));
+#endif
+    }
+
+    //! Specifying from which process constructor is the module built
+    std::string forsyde_kind() const {return "SY::sdelayn";}
+
+private:
+    T init_val;             ///< Initial value
+    unsigned int ns;        ///< Number of delay elements
+
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
+
+    void init()
+    {
+        for (unsigned int i=0; i<ns; i++)
+            write_multiport(oport1, abst_ext<T>(init_val));
+    }
+
+    void exec() {std::get<0>(this->ovals) = std::get<0>(this->ivals);}
+};
+
+//! A data-parallel process constructor for a strict combinational process with input and output array types
+/*! This class is used to build a data-parallel process which applies a
+ * user-supplied function to each element of an input array.
+ */
+template <typename T0, typename T1, std::size_t N>
+class sdpmap : public detail::comb_core<sdpmap<T0,T1,N>,
+                                        std::tuple<std::array<T0,N>>,
+                                        std::tuple<std::array<T1,N>>,
+                                        detail::token_policy::strict>
+{
+    typedef detail::comb_core<sdpmap<T0,T1,N>,
+                              std::tuple<std::array<T0,N>>,
+                              std::tuple<std::array<T1,N>>,
+                              detail::token_policy::strict> base;
+    friend base;
+public:
+    SY_in<std::array<T1,N>> iport1;       ///< port for the input channel 1
+    SY_out<std::array<T0,N>> oport1;        ///< port for the output channel
+
+    //! Type of the function to be passed to the process constructor
+    typedef std::function<void(T0&, const T1&)> functype;
+
+    //! The constructor requires the module name
+    sdpmap(const sc_module_name& _name,    ///< process name
+           const functype& _func            ///< function to be passed
+          ) : base(_name), iport1("iport1"), oport1("oport1"), _func(_func) {}
+
+    //! Specifying from which process constructor is the module built
+    std::string forsyde_kind() const {return "SY::sdpmap";}
+
+private:
+    //! The function passed to the process constructor
+    functype _func;
+
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
+
+    void exec()
+    {
+        auto& oval = std::get<0>(this->ovals);
+        const auto& ival = std::get<0>(this->ivals);
+        #ifdef FORSYDE_OPENMP
+        #pragma omp parallel for
+        #endif
+        for (size_t i=0; i<N; i++)
+        {
+            _func(oval[i], ival[i]);
+        }
+    }
+};
+
+//! A data-parallel process constructor for a strict reduce process with an array of inputs and one output
+/*! This class is used to build a data-parallel process which folds a
+ * user-supplied binary function over an input array.
+ */
+template <typename T0, std::size_t N>
+class sdpreduce : public detail::comb_core<sdpreduce<T0,N>,
+                                           std::tuple<T0>,
+                                           std::tuple<std::array<T0,N>>,
+                                           detail::token_policy::strict>
+{
+    typedef detail::comb_core<sdpreduce<T0,N>,
+                              std::tuple<T0>,
+                              std::tuple<std::array<T0,N>>,
+                              detail::token_policy::strict> base;
+    friend base;
+public:
+    SY_in<std::array<T0,N>> iport1;     ///< port for the input channel 1
+    SY_out<T0> oport1;                  ///< port for the output channel
+
+    //! Type of the function to be passed to the process constructor
+    typedef std::function<void(T0&, const T0&, const T0&)> functype;
+
+    //! The constructor requires the module name
+    sdpreduce(const sc_module_name& _name,      ///< process name
+           const functype& _func             ///< function to be passed
+          ) : base(_name), iport1("iport1"), oport1("oport1"), _func(_func) {}
+
+    //! Specifying from which process constructor is the module built
+    std::string forsyde_kind() const {return "SY::sdpreduce";}
+
+private:
+    //! The function passed to the process constructor
+    functype _func;
+
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
+
+    void exec()
+    {
+        const auto& ival = std::get<0>(this->ivals);
+        T0 res = T0();
+        #ifdef FORSYDE_OPENMP  // this can be enhanced with the new delare reduction clause in OpenMP 4.0
+
+        #pragma omp parallel shared(res) // Create omp threads
+        {
+            T0 val = T0();  // val can be declared as local variable (for each thread)
+            #pragma omp for nowait
+            for (int i = 0; i < N; ++i)
+            {
+                _func(val, val, ival[i]);
+            }
+            #pragma omp critical
+            {
+                _func(res, res, val);
+            }
+        }
+
+        #else
+
+        res = ival[0];
+        for (size_t i=1;i<N;i++)
+            _func(res, res, ival[i]);
+
+        #endif
+        std::get<0>(this->ovals) = res;
+    }
+};
+
+//! A data-parallel process constructor for a strict scan process with input and output array types
+/*! This class is used to build a data-parallel process which runs a
+ * user-supplied function over an input array, carrying a running result.
+ */
+template <typename T0, typename T1, std::size_t N>
+class sdpscan : public detail::comb_core<sdpscan<T0,T1,N>,
+                                         std::tuple<std::array<T0,N>>,
+                                         std::tuple<std::array<T1,N>>,
+                                         detail::token_policy::strict>
+{
+    typedef detail::comb_core<sdpscan<T0,T1,N>,
+                              std::tuple<std::array<T0,N>>,
+                              std::tuple<std::array<T1,N>>,
+                              detail::token_policy::strict> base;
+    friend base;
+public:
+    SY_in<std::array<T1,N>> iport1;       ///< port for the input channel 1
+    SY_out<std::array<T0,N>> oport1;        ///< port for the output channel
+
+    //! Type of the function to be passed to the process constructor
+    typedef std::function<void(T0&, const T0&, const T1&)> functype;
+
+    //! The constructor requires the module name
+    sdpscan(const sc_module_name& _name,      ///< process name
+           const functype& _func,             ///< function to be passed
+           const T0& init_res                 ///< initial value for running result
+          ) : base(_name), iport1("iport1"), oport1("oport1"),
+              _func(_func), init_res(init_res)
+    {
+#ifdef FORSYDE_INTROSPECTION
+        std::stringstream ss;
+        ss << init_res;
+        this->arg_vec.push_back(std::make_tuple("init_res",ss.str()));
+#endif
+    }
+
+    //! Specifying from which process constructor is the module built
+    std::string forsyde_kind() const {return "SY::sdpscan";}
+
+private:
+    //! The function passed to the process constructor
+    functype _func;
+
+    //! Initial value for the running result
+    T0 init_res;
+
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
+
+    void exec()
+    {
+        auto& oval = std::get<0>(this->ovals);
+        const auto& ival = std::get<0>(this->ivals);
+        _func(oval[0], init_res, ival[0]);
+        for (size_t i=1;i<N;i++)
+            _func(oval[i], oval[i-1], ival[i]);
+    }
+};
+
+//! Process constructor for a strict sink process
+/*! This class is used to build a sink process which only has an input.
+ * Its main purpose is to be used in test-benches.
+ */
+template <class T>
+class ssink : public detail::comb_core<ssink<T>,
+                                       std::tuple<>, std::tuple<T>,
+                                       detail::token_policy::strict>
+{
+    typedef detail::comb_core<ssink<T>, std::tuple<>, std::tuple<T>,
+                              detail::token_policy::strict> base;
+    friend base;
+public:
+    SY_in<T> iport1;         ///< port for the input channel
+
+    //! Type of the function to be passed to the process constructor
+    typedef std::function<void(const T&)> functype;
+
+    //! The constructor requires the module name
+    ssink(const sc_module_name& _name,      ///< process name
+          const functype& _func             ///< function to be passed
+         ) : base(_name), iport1("iport1"), _func(_func) {}
+
+    //! Specifying from which process constructor is the module built
+    std::string forsyde_kind() const {return "SY::ssink";}
+
+private:
+    //! The function passed to the process constructor
+    functype _func;
+
+    auto in_ports()  {return std::tie(iport1);}
+    // No outputs: prod() folds over an empty pack and writes nothing.
+    auto out_ports() {return std::tie();}
+
+    void exec() {_func(std::get<0>(this->ivals));}
+};
+
+//! Process constructor for a strict group process
+/*! It groups values into a vector of specified size n, which takes n
+ * cycles. The output is absent on every cycle but the nth.
+ */
+template <class T>
+class sgroup : public detail::comb_core<sgroup<T>,
+                                        std::tuple<std::vector<T>>,
+                                        std::tuple<T>,
+                                        detail::token_policy::strict>
+{
+    typedef detail::comb_core<sgroup<T>, std::tuple<std::vector<T>>,
+                              std::tuple<T>,
+                              detail::token_policy::strict> base;
+    friend base;
+public:
+    SY_in<T> iport1;                           ///< port for the input channel
+    SY_out<std::vector<T>> oport1;             ///< port for the output channel
+
+    //! The constructor requires the module name
+    sgroup(const sc_module_name& _name,      ///< process name
+           const unsigned long& samples       ///< Number of samples in each group
+          ) : base(_name, typename base::no_func_arg{}),
+              iport1("iport1"), oport1("oport1"), samples(samples)
+    {
+#ifdef FORSYDE_INTROSPECTION
+        std::stringstream ss;
+        ss << samples;
+        this->arg_vec.push_back(std::make_tuple("samples", ss.str()));
+#endif
+    }
+
+    //! Specifying from which process constructor is the module built
+    std::string forsyde_kind() const {return "SY::sgroup";}
+
+private:
+    unsigned long samples;      ///< Number of samples in each group
+    unsigned long samples_took;
+
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
+
+    void init()
+    {
+        std::get<0>(this->ovals).resize(samples);
+        samples_took = 0;
+    }
+
+    void exec()
+    {
+        std::get<0>(this->ovals)[samples_took] = std::get<0>(this->ivals);
+        samples_took++;
+    }
+
+    // Not the core's write: this one emits a *present* vector only on the
+    // nth cycle and an absent token on the others, so it cannot go
+    // through the strict policy's unconditional re-wrapping.
+    void prod()
+    {
+        if (samples_took==samples)
+        {
+            write_multiport(oport1, abst_ext<std::vector<T>>(std::get<0>(this->ovals)));
+            samples_took = 0;
+        }
+        else
+            write_multiport(oport1, abst_ext<std::vector<T>>());
+    }
+};
+
+
+// ---------------------------------------------------------------------
+//  Strict variants that are not (yet) folded onto a core.
+//
+//  smoore and smealy are state machines rather than arity variants of a
+//  combinational actor, and their total counterparts above are not on a
+//  core either -- both pairs get folded together in 2c, with scan and
+//  scand. They no longer open-code the presence check; that goes through
+//  detail::read_one under the strict policy like everything else.
+//
+//  sconstant, ssource and svsource have no input port at all, so there
+//  is nothing for a token policy to unwrap: the only thing separating
+//  them from constant, source and vsource is that their arguments are
+//  values rather than absent-extended values. Deriving them from their
+//  counterparts would mean depending on exactly how those call the user
+//  function -- source::exec() passes the same object as both arguments,
+//  and a function that clears its output before reading its input would
+//  see the difference -- so they stay as they are rather than be folded
+//  onto an aliasing convention they would silently inherit.
+// ---------------------------------------------------------------------
+//! Process constructor for a strict Moore machine
+/*! This class is used to build a finite state machine of type Moore.
+ * Given an initial state, a next-state function, and an output decoding
+ * function it creates a Moore process.
+ */
+template <class IT, class ST, class OT>
+class smoore : public sy_process
+{
+public:
+    SY_in<IT>  iport1;        ///< port for the input channel
+    SY_out<OT> oport1;        ///< port for the output channel
+    
+    //! Type of the next-state function to be passed to the process constructor
+    typedef std::function<void(ST&, const ST&, const IT&)> ns_functype;
+    
+    //! Type of the output-decoding function to be passed to the process constructor
+    typedef std::function<void(OT&, const ST&)> od_functype;
+
+    //! The constructor requires the module name
+    /*! It creates an SC_THREAD which reads data from its input port,
+     * applies the user-imlpemented functions to the input and current
+     * state and writes the results using the output port
+     */
+    smoore(const sc_module_name& _name,      ///< process name
+           const ns_functype& _ns_func, ///< The next_state function
+           const od_functype& _od_func, ///< The output-decoding function
+           const ST& init_st  ///< Initial state
+          ) : sy_process(_name), _ns_func(_ns_func), _od_func(_od_func),
+              init_st(init_st)
+    {
+#ifdef FORSYDE_INTROSPECTION
+        std::string func_name = std::string(basename());
+        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
+        arg_vec.push_back(std::make_tuple("_ns_func",func_name+std::string("_ns_func")));
+        arg_vec.push_back(std::make_tuple("_od_func",func_name+std::string("_od_func")));
+        std::stringstream ss;
+        ss << init_st;
+        arg_vec.push_back(std::make_tuple("init_st",ss.str()));
+#endif
+    }
+    
+    //! Specifying from which process constructor is the module built
+    std::string forsyde_kind() const{return "SY::smoore";}
+    
+private:
+    //! The functions passed to the process constructor
+    ns_functype _ns_func;
+    od_functype _od_func;
+    // Initial value
+    ST init_st;
+    
+    bool first_run;
+    
+    // Input, output, current state, and next state variables
+    IT* ival;
+    ST* stval;
+    ST* nsval;
+    OT* oval;
+
+    //Implementing the abstract semantics
+    void init()
+    {
+        ival = new IT;
+        stval = new ST;
+        *stval = init_st;
+        nsval = new ST;
+        oval = new OT;
+        // First evaluation cycle
+        first_run = true;
+    }
+    
+    void prep()
+    {
+        if (!first_run)
+        {
+            detail::read_one<detail::token_policy::strict>(*ival, iport1, name());
+        }
+    }
+    
+    void exec()
+    {
+        if (first_run)
+            first_run = false;
+        else
+        {
+            _ns_func(*nsval, *stval, *ival);
+            *stval = *nsval;
+        }
+        _od_func(*oval, *stval);
+    }
+    
+    void prod()
+    {
+        write_multiport(oport1, abst_ext<OT>(*oval));
+    }
+    
+    void clean()
+    {
+        delete ival;
+        delete stval;
+        delete nsval;
+        delete oval;
+    }
+#ifdef FORSYDE_INTROSPECTION
+    void bindInfo()
+    {
+        boundInChans.resize(1);     // only one input port
+        boundInChans[0].port = &iport1;
+        boundOutChans.resize(1);    // only one output port
+        boundOutChans[0].port = &oport1;
+    }
+#endif
+};
+
+//! Process constructor for a strict Mealy machine
+/*! This class is used to build a finite state machine of type Mealy.
+ * Given an initial state, a next-state function, and an output decoding
+ * function it creates a Mealy process.
+ */
+template <class IT, class ST, class OT>
+class smealy : public sy_process
+{
+public:
+    SY_in<IT>  iport1;        ///< port for the input channel
+    SY_out<OT> oport1;        ///< port for the output channel
+    
+    //! Type of the next-state function to be passed to the process constructor
+    typedef std::function<void(ST&, const ST&, const IT&)> ns_functype;
+    
+    //! Type of the output-decoding function to be passed to the process constructor
+    typedef std::function<void(OT&, const ST&, const IT&)> od_functype;
+    
+    //! The constructor requires the module name
+    /*! It creates an SC_THREAD which reads data from its input port,
+     * applies the user-imlpemented functions to the input and current
+     * state and writes the results using the output port
+     */
+    smealy(const sc_module_name& _name,      ///< process name
+           const ns_functype& _ns_func, ///< The next_state function
+           const od_functype& _od_func, ///< The output-decoding function
+           const ST& init_st  ///< Initial state
+          ) : sy_process(_name), _ns_func(_ns_func), _od_func(_od_func),
+              init_st(init_st)
+    {
+#ifdef FORSYDE_INTROSPECTION
+        std::string func_name = std::string(basename());
+        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
+        arg_vec.push_back(std::make_tuple("_ns_func",func_name+std::string("_ns_func")));
+        arg_vec.push_back(std::make_tuple("_od_func",func_name+std::string("_od_func")));
+        std::stringstream ss;
+        ss << init_st;
+        arg_vec.push_back(std::make_tuple("init_st",ss.str()));
+#endif
+    }
+    
+    //! Specifying from which process constructor is the module built
+    std::string forsyde_kind() const{return "SY::smealy";}
+    
+private:
+    //! The functions passed to the process constructor
+    ns_functype _ns_func;
+    od_functype _od_func;
+    // Initial value
+    ST init_st;
+    
+    // Input, output, current state, and next state variables
+    IT* ival;
+    ST* stval;
+    ST* nsval;
+    OT* oval;
+
+    //Implementing the abstract semantics
+    void init()
+    {
+        ival = new IT;
+        stval = new ST;
+        *stval = init_st;
+        nsval = new ST;
+        oval = new OT;
+    }
+    
+    void prep()
+    {
+        detail::read_one<detail::token_policy::strict>(*ival, iport1, name());
+    }
+    
+    void exec()
+    {
+        _ns_func(*nsval, *stval, *ival);
+        _od_func(*oval, *stval, *ival);
+        *stval = *nsval;
+    }
+    
+    void prod()
+    {
+        write_multiport(oport1, abst_ext<OT>(*oval));
+    }
+    
+    void clean()
+    {
+        delete ival;
+        delete stval;
+        delete nsval;
+        delete oval;
+    }
+#ifdef FORSYDE_INTROSPECTION
+    void bindInfo()
+    {
+        boundInChans.resize(1);     // only one input port
+        boundInChans[0].port = &iport1;
+        boundOutChans.resize(1);    // only one output port
+        boundOutChans[0].port = &oport1;
+    }
+#endif
+};
+
+//! Process constructor for a strict constant source process
+/*! This class is used to build a souce process with constant output.
+ * Its main purpose is to be used in test-benches.
+ * 
+ * This class can directly be instantiated to build a process.
+ */
+template <class T>
+class sconstant : public sy_process
+{
+public:
+    SY_out<T> oport1;            ///< port for the output channel
+
+    //! The constructor requires the module name
+    /*! It creates an SC_THREAD which runs the user-imlpemented function
+     * and writes the result using the output port
+     */
+    sconstant(const sc_module_name& _name,      ///< process name
+              const T& init_val,                ///< The constant output value
+              const unsigned long long& take=0  ///< number of tokens produced (0 for infinite)
+             ) : sy_process(_name), oport1("oport1"),
+                 init_val(init_val), take(take)
+                 
+    {
+#ifdef FORSYDE_INTROSPECTION
+        std::stringstream ss;
+        ss << init_val;
+        arg_vec.push_back(std::make_tuple("init_val", ss.str()));
+        ss.str("");
+        ss << take;
+        arg_vec.push_back(std::make_tuple("take", ss.str()));
+#endif
+    }
+    
+    //! Specifying from which process constructor is the module built
+    std::string forsyde_kind() const {return "SY::sconstant";}
+    
+private:
+    T init_val;
+    unsigned long long take;    // Number of tokens produced
+    
+    unsigned long long tok_cnt;
+    bool infinite;
+    
+    //Implementing the abstract semantics
+    void init()
+    {
+        infinite = take==0 ? true : false;
+        tok_cnt = 0;
+    }
+    
+    void prep() {}
+    
+    void exec() {}
+    
+    void prod()
+    {
+        if (tok_cnt++ < take || infinite)
+            write_multiport(oport1, abst_ext<T>(init_val));
+        else wait();
+    }
+    
+    void clean() {}
+
+#ifdef FORSYDE_INTROSPECTION
+    void bindInfo()
+    {
+        boundOutChans.resize(1);    // only one output port
+        boundOutChans[0].port = &oport1;
+    }
+#endif
+};
+
+//! Process constructor for a strict source process
+/*! This class is used to build a souce process which only has an output.
+ * Given an initial state and a function, the process repeatedly applies
+ * the function to the current state to produce next state, which is
+ * also the process output. It can be used in test-benches.
+ */
+template <class T>
+class ssource : public sy_process
+{
+public:
+    SY_out<T> oport1;        ///< port for the output channel
+    
+    //! Type of the function to be passed to the process constructor
+    typedef std::function<void(T&, const T&)> functype;
+
+    //! The constructor requires the module name
+    /*! It creates an SC_THREAD which runs the user-imlpemented function
+     * and writes the result using the output port
+     */
+    ssource(const sc_module_name& _name,    ///< process name
+            const functype& _func,          ///< function to be passed
+            const T& init_val,              ///< Initial state
+            const unsigned long long& take=0///< number of tokens produced (0 for infinite)
+          ) : sy_process(_name), oport1("oport1"),
+              init_st(init_val), take(take), _func(_func)
+    {
+#ifdef FORSYDE_INTROSPECTION
+        std::string func_name = std::string(basename());
+        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
+        arg_vec.push_back(std::make_tuple("_func",func_name+std::string("_func")));
+        std::stringstream ss;
+        ss << init_val;
+        arg_vec.push_back(std::make_tuple("init_val", ss.str()));
+        ss.str("");
+        ss << take;
+        arg_vec.push_back(std::make_tuple("take", ss.str()));
+#endif
+    }
+    
+    //! Specifying from which process constructor is the module built
+    std::string forsyde_kind() const {return "SY::ssource";}
+    
+private:
+    T init_st;        // The current state
+    unsigned long long take;    // Number of tokens produced
+    
+    T* cur_st;        // The current state of the process
+    unsigned long long tok_cnt;
+    bool infinite;
+    
+    //! The function passed to the process constructor
+    functype _func;
+    
+    //Implementing the abstract semantics
+    void init()
+    {
+        cur_st = new T;
+        *cur_st = init_st;
+        write_multiport(oport1, abst_ext<T>(*cur_st));
+        infinite = take==0 ? true : false;
+        tok_cnt = 1;
+    }
+    
+    void prep() {}
+    
+    void exec()
+    {
+        _func(*cur_st, *cur_st);
+    }
+    
+    void prod()
+    {
+        if (tok_cnt++ < take || infinite)
+            write_multiport(oport1, abst_ext<T>(*cur_st));
+        else wait();
+    }
+    
+    void clean()
+    {
+        delete cur_st;
+    }
+    
+#ifdef FORSYDE_INTROSPECTION
+    void bindInfo()
+    {
+        boundOutChans.resize(1);    // only one output port
+        boundOutChans[0].port = &oport1;
+    }
+#endif
+};
+
+//! Process constructor for a strict source process with vector input
+/*! This class is used to build a souce process which only has an output.
+ * Given the test bench vector, the process iterates over the emenets
+ * of the vector and outputs one value on each evaluation cycle.
+ */
+template <class T>
+class svsource : public sy_process
+{
+public:
+    SY_out<T> oport1;     ///< port for the output channel
+
+    //! The constructor requires the module name
+    /*! It creates an SC_THREAD which writes the result using the output
+     * port.
+     */
+    svsource(const sc_module_name& _name,   ///< process name
+            const std::vector<T>& in_vec    ///< Initial vector
+            ) : sy_process(_name), in_vec(in_vec)
+    {
+#ifdef FORSYDE_INTROSPECTION
+        std::stringstream ss;
+        ss << in_vec;
+        arg_vec.push_back(std::make_tuple("in_vec", ss.str()));
+#endif
+    }
+    
+    //! Specifying from which process constructor is the module built
+    std::string forsyde_kind() const {return "SY::svsource";}
+    
+private:
+    std::vector<T> in_vec;
+    
+    unsigned long tok_cnt;
+
+    //Implementing the abstract semantics
+    void init()
+    {
+        tok_cnt = 0;
+    }
+    
+    void prep() {}
+    
+    void exec() {}
+    
+    void prod()
+    {
+        if (tok_cnt < in_vec.size())
+        {
+            write_multiport(oport1, abst_ext<T>(in_vec[tok_cnt]));
+            tok_cnt++;
+        }
+        else
+            wait();
+    }
+    
+    void clean() {}
+    
+#ifdef FORSYDE_INTROSPECTION
+    void bindInfo()
+    {
+        boundOutChans.resize(1);    // only one output port
+        boundOutChans[0].port = &oport1;
+    }
+#endif
 };
 
 //! The group process with one input and one absent-extended output

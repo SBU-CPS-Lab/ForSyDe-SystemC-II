@@ -1,8 +1,9 @@
-// Force every class touched by 2a to be instantiated, whether or not any
-// example uses it. A class template that nothing names is never compiled,
-// which is how UT::zipsN kept a constructor that named its *output* port
-// "iport1" and a bindInfo() that wrote that output port into
-// boundInChans[0], clobbering the first input.
+// Force every process constructor this phase touches to be instantiated,
+// whether or not any example uses it. A class template that nothing names
+// is never really compiled -- which is how UT::zipsN kept a constructor
+// that named its *output* port "iport1" and a bindInfo() that wrote that
+// output port into boundInChans[0], clobbering the first input, and how
+// SY::sunzip kept a prod() that called std::get<0>() on an abst_ext.
 #include <forsyde.hpp>
 
 using namespace ForSyDe;
@@ -54,6 +55,20 @@ SC_MODULE(all)
         inst<SY::sunzip <int,char>>          ("sy_sunzip");
         inst<SY::sunzipX<int,3>>             ("sy_sunzipX");
         inst<SY::sunzipN<int,char,bool>>     ("sy_sunzipN");
+        inst<SY::sdelay <int>>               ("sy_sdelay", 0);
+        inst<SY::sdelayn<int>>               ("sy_sdelayn", 0, 3u);
+        inst<SY::sdpmap <int,int,4>>         ("sy_sdpmap", [](int&,const int&){});
+        inst<SY::sdpreduce<int,4>>           ("sy_sdpreduce", [](int&,const int&,const int&){});
+        inst<SY::sdpscan<int,int,4>>         ("sy_sdpscan", [](int&,const int&,const int&){}, 0);
+        inst<SY::ssink  <int>>               ("sy_ssink", [](const int&){});
+        inst<SY::sgroup <int>>               ("sy_sgroup", 4ul);
+        inst<SY::smoore <int,int,int>>       ("sy_smoore", [](int&,const int&,const int&){},
+                                              [](int&,const int&){}, 0);
+        inst<SY::smealy <int,int,int>>       ("sy_smealy", [](int&,const int&,const int&){},
+                                              [](int&,const int&,const int&){}, 0);
+        inst<SY::sconstant<int>>             ("sy_sconstant", 1, 3ull);
+        inst<SY::ssource<int>>               ("sy_ssource", [](int&,const int&){}, 0, 3ull);
+        inst<SY::svsource<int>>              ("sy_svsource", std::vector<int>{1,2,3});
 
         // ---- SDF ------------------------------------------------------
         inst<SDF::comb <int,int>>            ("sdf_comb",  [](std::vector<int>&,const std::vector<int>&){}, 1u, 1u);

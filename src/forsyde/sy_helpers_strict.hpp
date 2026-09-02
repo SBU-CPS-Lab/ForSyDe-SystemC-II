@@ -25,9 +25,9 @@
 #include <tuple>
 
 #include "abst_ext.hpp"
-#include "sy_process_constructors_strict.hpp"
+#include "sy_process_constructors.hpp"
 // make_unzipX below builds a plain (non-strict) unzipX -- there is no
-// strict variant of it, sunzipX in sy_process_constructors_strict.hpp
+// strict variant of it, sunzipX in sy_process_constructors.hpp
 // notwithstanding -- so this file needs the non-strict constructors too.
 #include "sy_process_constructors.hpp"
 
