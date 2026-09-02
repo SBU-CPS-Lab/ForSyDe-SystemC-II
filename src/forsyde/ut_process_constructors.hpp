@@ -127,8 +127,13 @@ inline void write_all(Ports&& ports, const Vals& vals)
  * \a EmitsBeforeFirstRead marks the constructors whose first evaluation
  * cycle emits without consuming: scand, moore and mooreMN. For scand
  * that is its whole definition -- Jantsch (3.8) gives scandU as scanU
- * with the initial state prepended -- and for the Moore machines it is
- * the initial output that makes them usable in a feedback loop.
+ * with the initial state prepended. For the Moore machines it is the
+ * initial output that makes them usable in a feedback loop.
+ *
+ * Those two are analogous, not identical, and the difference matters:
+ * a scand emits the initial *state*, a Moore machine emits od(w0), and
+ * the scan family has no output decoder at all. tests/fsm_semantics
+ * pins both, with a non-identity od so that they cannot be confused.
  */
 template <typename Derived, typename OVals, typename IVals, typename ST,
           bool EmitsBeforeFirstRead = false>
@@ -985,17 +990,20 @@ private:
 
     void exec()
     {
-        if (!this->first_run)
-        {
-            _ns_func(this->nsval, this->stval, std::get<0>(this->ivals));
-            _od_func(std::get<0>(this->ovals), this->stval);
-            this->stval = this->nsval;
-        }
+        // Jantsch (3.4): a mooreU process emits f(w_i) and moves to
+        // w_{i+1} = g(w_i, a_i). The first evaluation cycle consumes
+        // nothing and emits f(w_0), so from the second cycle on the
+        // transition has to happen *before* the decode -- otherwise
+        // f(w_0) is emitted a second time and the whole output signal is
+        // one cycle stale. See tests/fsm_semantics.
+        if (this->first_run)
+            this->first_run = false;
         else
         {
-            this->first_run = false;
-            _od_func(std::get<0>(this->ovals), this->stval);
+            _ns_func(this->nsval, this->stval, std::get<0>(this->ivals));
+            this->stval = this->nsval;
         }
+        _od_func(std::get<0>(this->ovals), this->stval);
     }
 
 };
@@ -1079,17 +1087,15 @@ private:
 
     void exec()
     {
-        if (!this->first_run)
-        {
-            _ns_func(this->nsval, this->stval, this->ivals);
-            _od_func(this->ovals, this->stval);
-            this->stval = this->nsval;
-        }
+        // As moore above.
+        if (this->first_run)
+            this->first_run = false;
         else
         {
-            this->first_run = false;
-            _od_func(this->ovals, this->stval);
+            _ns_func(this->nsval, this->stval, this->ivals);
+            this->stval = this->nsval;
         }
+        _od_func(this->ovals, this->stval);
     }
 
 };

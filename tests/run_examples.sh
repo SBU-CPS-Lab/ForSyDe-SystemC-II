@@ -117,6 +117,13 @@ DIRS+=("tests/multi_tu")
 # tests/instantiate/README.md.
 DIRS+=("tests/instantiate")
 
+# tests/fsm_semantics closes the third gap: a constructor can compile and
+# still compute the wrong thing, and no example in this repository uses
+# SY::moore, UT::moore, UT::scan or UT::scand at all. It pins what each
+# state machine emits against Jantsch's definitions. See
+# tests/fsm_semantics/README.md.
+DIRS+=("tests/fsm_semantics")
+
 echo "CXXSTD=$CXXSTD $( [ $SEED = 1 ] && echo '(seed mode)' || echo '(check mode)' )"
 
 # One job per directory. Everything this prints goes to the job's own

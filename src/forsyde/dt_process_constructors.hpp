@@ -132,7 +132,7 @@ protected:
 #ifdef FORSYDE_INTROSPECTION
         std::string func_name = std::string(basename());
         func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        // "_gamma_func", not the scalar variants' old "gamma": the other
+        // "_gamma_func", not the scalar variants' old "_gamma_func": the other
         // two arguments are _ns_func and _od_func, the MN variants and
         // every UT state machine already spell it this way, and the four
         // of them have to agree now that one core registers all of them.
@@ -394,11 +394,11 @@ public:
      * state and writes the results using the output port
      */
     mealy(sc_module_name _name,    ///< The module name
-           gamma_functype gamma,    ///< The input partitioning function
+           gamma_functype _gamma_func,    ///< The input partitioning function
            ns_functype _ns_func,    ///< The next_state function
            od_functype _od_func,    ///< The output-decoding function
            ST init_st               ///< Initial state
-          ) : base(_name, init_st), iport1("iport1"), oport1("oport1"), gamma(gamma), _ns_func(_ns_func),
+          ) : base(_name, init_st), iport1("iport1"), oport1("oport1"), _gamma_func(_gamma_func), _ns_func(_ns_func),
               _od_func(_od_func) {}
     
     //! Specifying from which process constructor is the module built
@@ -406,7 +406,7 @@ public:
     
 private:
     //! The functions passed to the process constructor
-    gamma_functype gamma;
+    gamma_functype _gamma_func;
     ns_functype _ns_func;
     od_functype _od_func;
 
@@ -418,7 +418,7 @@ private:
     std::size_t read_inputs()
     {
         std::size_t itoks;
-        gamma(itoks, this->stval);
+        _gamma_func(itoks, this->stval);
         auto& in = std::get<0>(this->ivals);
         in.resize(itoks);
         for (std::size_t i=0; i<itoks; i++)
@@ -493,7 +493,7 @@ private:
     auto in_ports()  {return std::apply([](auto&... p){return std::tie(p...);}, iport);}
     auto out_ports() {return std::apply([](auto&... p){return std::tie(p...);}, oport);}
 
-    // mealyT, several inputs: gamma gives one time period and every
+    // mealyT, several inputs: _gamma_func gives one time period and every
     // input port is read for it.
     std::size_t read_inputs()
     {
@@ -972,14 +972,14 @@ public:
      * zips them together and writes the results using the output port
      */
     zip(sc_module_name _name,   ///< The module name
-        gamma_functype gamma    ///< The input partitioning function
+        gamma_functype _gamma_func    ///< The input partitioning function
     ): dt_process(_name), iport1("iport1"),
-        iport2("iport2"), iport3("iport3"), oport1("oport1"), gamma(gamma)
+        iport2("iport2"), iport3("iport3"), oport1("oport1"), _gamma_func(_gamma_func)
     {
 #ifdef FORSYDE_INTROSPECTION
         std::string func_name = std::string(basename());
         func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        arg_vec.push_back(std::make_tuple("gamma",func_name+std::string("_gamma")));
+        arg_vec.push_back(std::make_tuple("_gamma_func",func_name+std::string("_gamma_func")));
 #endif
     }
     
@@ -988,7 +988,7 @@ public:
     
 private:
     //! The functions passed to the process constructor
-    gamma_functype gamma;
+    gamma_functype _gamma_func;
 
     // intermediate values
     std::vector<abst_ext<T1>> ival1;
@@ -1005,7 +1005,7 @@ private:
     
     void prep()
     {
-        gamma(itoks, k);
+        _gamma_func(itoks, k);
         ival1.resize(itoks);
         ival2.resize(itoks);
         ival3.resize(itoks);
@@ -1076,13 +1076,13 @@ public:
      * zips them together and writes the results using the output port
      */
     zipN(sc_module_name _name,  ///< The module name
-        gamma_functype gamma    ///< The input partitioning function
-    ):  dt_process(_name), gamma(gamma), iport2("iport2"), oport1("oport1")
+        gamma_functype _gamma_func    ///< The input partitioning function
+    ):  dt_process(_name), _gamma_func(_gamma_func), iport2("iport2"), oport1("oport1")
     {
 #ifdef FORSYDE_INTROSPECTION
         std::string func_name = std::string(basename());
         func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        arg_vec.push_back(std::make_tuple("gamma",func_name+std::string("_gamma")));
+        arg_vec.push_back(std::make_tuple("_gamma_func",func_name+std::string("_gamma_func")));
 #endif
     }
 
@@ -1091,7 +1091,7 @@ public:
 
 private:
    //! The functions passed to the process constructor
-    gamma_functype gamma;
+    gamma_functype _gamma_func;
 
     // intermediate values
     std::tuple<std::vector<abst_ext<ITYPs>>...> ival;
@@ -1107,7 +1107,7 @@ private:
     
     void prep()
     {
-        gamma(itoks, k);
+        _gamma_func(itoks, k);
         std::apply([&](auto&... args) {
             (..., args.resize(itoks));
         }, ival);

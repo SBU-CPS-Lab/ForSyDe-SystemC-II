@@ -373,10 +373,18 @@ private:
  *    and decodes from the state alone;
  *  - a Moore machine here emits od(init_st) before it has read anything,
  *    and so skips the read on its first evaluation cycle. That initial
- *    output is what makes it usable in a feedback loop -- it is the same
- *    device as Jantsch's scandU, which is scanU with the initial state
- *    prepended -- and it is why \a EmitsBeforeFirstRead exists rather
- *    than the two classes each owning a copy of the loop.
+ *    output is what makes it usable in a feedback loop, and it is why
+ *    \a EmitsBeforeFirstRead exists rather than the two classes each
+ *    owning a copy of the loop.
+ *
+ * The initial emission is *analogous* to what Jantsch's scandU (3.8)
+ * does -- both put something on the output before consuming anything --
+ * but they are not the same construct and should not be conflated: a
+ * scand emits the initial state itself, while a Moore machine emits the
+ * output decoding of it, od(w0). A scan family has no output decoder at
+ * all. tests/fsm_semantics keeps the two distinguishable by giving od a
+ * non-identity function, which is the only thing that makes the
+ * difference observable.
  *
  * Everything else -- the state, the next-state/output-decoding argument
  * pair in the introspection XML, the read and write loops, bindInfo --
@@ -959,6 +967,11 @@ private:
 
     void exec()
     {
+        // prep() skipped the read on this cycle, so there is no input to
+        // transition on and ivals holds nothing meaningful -- hence the
+        // second test of first_run here rather than only in the core.
+        // The decode still runs: emitting od(init_st) before consuming
+        // anything is the whole point of the first cycle.
         if (this->first_run)
             this->first_run = false;
         else
@@ -2741,6 +2754,11 @@ private:
 
     void exec()
     {
+        // prep() skipped the read on this cycle, so there is no input to
+        // transition on and ivals holds nothing meaningful -- hence the
+        // second test of first_run here rather than only in the core.
+        // The decode still runs: emitting od(init_st) before consuming
+        // anything is the whole point of the first cycle.
         if (this->first_run)
             this->first_run = false;
         else

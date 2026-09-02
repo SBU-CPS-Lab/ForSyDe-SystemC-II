@@ -69,7 +69,7 @@ template <typename IT, typename ST, typename OT,
            template <class> class IIf,
            template <class> class OIf>
 inline mealy<IT,ST,OT>* make_mealy(std::string pName,
-    typename mealy<IT,ST,OT>::gamma_functype gamma,
+    typename mealy<IT,ST,OT>::gamma_functype _gamma_func,
     typename mealy<IT,ST,OT>::ns_functype _ns_func,
     typename mealy<IT,ST,OT>::od_functype _od_func,
     ST init_st,
@@ -77,7 +77,7 @@ inline mealy<IT,ST,OT>* make_mealy(std::string pName,
     IIf<IT>& inpS
     )
 {
-    auto p = new mealy<IT,ST,OT>(pName.c_str(), gamma, _ns_func, _od_func, init_st);
+    auto p = new mealy<IT,ST,OT>(pName.c_str(), _gamma_func, _ns_func, _od_func, init_st);
     
     (*p).iport1(inpS);
     (*p).oport1(outS);
@@ -206,14 +206,14 @@ template <class T1, template <class> class I1If,
            class TC, template <class> class ICIf,
            template <class> class OIf>
 inline zip<T1,T2,TC>* make_zip(std::string pName,
-    typename zip<T1,T2,TC>::gamma_functype gamma, 
+    typename zip<T1,T2,TC>::gamma_functype _gamma_func, 
     OIf<std::tuple<std::vector<abst_ext<T1>>,std::vector<abst_ext<T2>>>>& outS,
     I1If<T1>& inp1S,
     I2If<T2>& inp2S,
     ICIf<TC>& inp3S
     )
 {
-    auto p = new zip<T1,T2,TC>(pName.c_str(), gamma);
+    auto p = new zip<T1,T2,TC>(pName.c_str(), _gamma_func);
     
     (*p).iport1(inp1S);
     (*p).iport2(inp2S);
@@ -314,7 +314,7 @@ template <typename IT, typename ST, typename OT,
            template <class> class IIf,
            template <class> class OIf>
 inline mealy<IT,ST,OT>* make_mealy(std::string pName,
-    typename mealy<IT,ST,OT>::gamma_functype gamma,
+    typename mealy<IT,ST,OT>::gamma_functype _gamma_func,
     typename mealy<IT,ST,OT>::ns_functype _ns_func,
     typename mealy<IT,ST,OT>::od_functype _od_func,
     ST init_st,
@@ -322,7 +322,7 @@ inline mealy<IT,ST,OT>* make_mealy(std::string pName,
     IIf<IT>& inpS
     )
 {
-    auto p = new mealy<IT,ST,OT>(pName.c_str(), gamma, _ns_func, _od_func, init_st);
+    auto p = new mealy<IT,ST,OT>(pName.c_str(), _gamma_func, _ns_func, _od_func, init_st);
     
     (*p).iport1(inpS);
     (*p).oport1(outS);
@@ -346,7 +346,7 @@ template <typename IT, typename ST, typename OT,
            template <class> class IIf,
            template <class> class OIf>
 inline mealy<IT,ST,OT>* make_mealy(std::string pName,
-    typename mealy<IT,ST,OT>::gamma_functype gamma,
+    typename mealy<IT,ST,OT>::gamma_functype _gamma_func,
     typename mealy<IT,ST,OT>::ns_functype _ns_func,
     typename mealy<IT,ST,OT>::od_functype _od_func,
     ST init_st,
@@ -354,7 +354,7 @@ inline mealy<IT,ST,OT>* make_mealy(std::string pName,
     IIf<IT>& inpS
     )
 {
-    auto p = new mealy<IT,ST,OT>(pName.c_str(), gamma, _ns_func, _od_func, init_st);
+    auto p = new mealy<IT,ST,OT>(pName.c_str(), _gamma_func, _ns_func, _od_func, init_st);
     
     (*p).iport1(inpS);
     (*p).oport1(outS);
@@ -378,7 +378,7 @@ template <typename IT, typename ST, typename OT,
            template <class> class IIf,
            template <class> class OIf>
 inline mealy<IT,ST,OT>* make_mealy(std::string pName,
-    typename mealy<IT,ST,OT>::gamma_functype gamma,
+    typename mealy<IT,ST,OT>::gamma_functype _gamma_func,
     typename mealy<IT,ST,OT>::ns_functype _ns_func,
     typename mealy<IT,ST,OT>::od_functype _od_func,
     ST init_st,
@@ -386,7 +386,7 @@ inline mealy<IT,ST,OT>* make_mealy(std::string pName,
     IIf<IT>& inpS
     )
 {
-    auto p = new mealy<IT,ST,OT>(pName.c_str(), gamma, _ns_func, _od_func, init_st);
+    auto p = new mealy<IT,ST,OT>(pName.c_str(), _gamma_func, _ns_func, _od_func, init_st);
     
     (*p).iport1(inpS);
     (*p).oport1(outS);

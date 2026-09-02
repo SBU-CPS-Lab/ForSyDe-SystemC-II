@@ -1,0 +1,55 @@
+
+        SystemC 3.0.2-Accellera --- <build-date-elided>
+        Copyright (c) 1996-2025 by all Contributors,
+        ALL RIGHTS RESERVED
+SY::moore  0
+UT::moore  0
+UT::scand  0
+SY::moore  10
+SY::moore  20
+SY::moore  30
+SY::moore  40
+SY::moore  50
+SY::moore  60
+SY::moore  70
+SY::moore  80
+SY::mealy  0
+SY::mealy  101
+SY::mealy  202
+SY::mealy  303
+SY::mealy  404
+SY::mealy  505
+SY::mealy  606
+SY::mealy  707
+UT::moore  10
+UT::moore  20
+UT::moore  30
+UT::moore  40
+UT::moore  50
+UT::moore  60
+UT::moore  70
+UT::moore  80
+UT::mealy  0
+UT::mealy  101
+UT::mealy  202
+UT::mealy  303
+UT::mealy  404
+UT::mealy  505
+UT::mealy  606
+UT::mealy  707
+UT::scan   1
+UT::scan   2
+UT::scan   3
+UT::scan   4
+UT::scan   5
+UT::scan   6
+UT::scan   7
+UT::scan   8
+UT::scand  1
+UT::scand  2
+UT::scand  3
+UT::scand  4
+UT::scand  5
+UT::scand  6
+UT::scand  7
+UT::scand  8

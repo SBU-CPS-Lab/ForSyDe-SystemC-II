@@ -77,11 +77,11 @@ public:
      * state and writes the results using the output port
      */
     mealy(sc_module_name _name,    ///< The module name
-           gamma_functype gamma,    ///< The input partitioning function
+           gamma_functype _gamma_func,    ///< The input partitioning function
            ns_functype _ns_func,    ///< The next_state function
            od_functype _od_func,    ///< The output-decoding function
            ST init_st               ///< Initial state
-          ) : base(_name, init_st), iport1("iport1"), oport1("oport1"), gamma(gamma), _ns_func(_ns_func),
+          ) : base(_name, init_st), iport1("iport1"), oport1("oport1"), _gamma_func(_gamma_func), _ns_func(_ns_func),
               _od_func(_od_func) {}
     
     //! Specifying from which process constructor is the module built
@@ -89,7 +89,7 @@ public:
     
 private:
     //! The functions passed to the process constructor
-    gamma_functype gamma;
+    gamma_functype _gamma_func;
     ns_functype _ns_func;
     od_functype _od_func;
 
@@ -102,7 +102,7 @@ private:
     std::size_t read_inputs()
     {
         std::size_t itoks;
-        gamma(itoks, this->stval);
+        _gamma_func(itoks, this->stval);
         auto& in = std::get<0>(this->ivals);
         in.clear();
         std::size_t read{0};
