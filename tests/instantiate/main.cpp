@@ -34,6 +34,12 @@ SC_MODULE(all)
         inst<SY::unzip <int,char>>          ("sy_unzip");
         inst<SY::unzipX<int,3>>             ("sy_unzipX");
         inst<SY::unzipN<int,char,bool>>     ("sy_unzipN");
+        inst<SY::moore <int,int,int>>       ("sy_moore",
+                                             [](int&,const int&,const abst_ext<int>&){},
+                                             [](abst_ext<int>&,const int&){}, 0);
+        inst<SY::mealy <int,int,int>>       ("sy_mealy",
+                                             [](int&,const int&,const abst_ext<int>&){},
+                                             [](abst_ext<int>&,const int&,const abst_ext<int>&){}, 0);
 
         // ---- SY, strict ------------------------------------------------
         // Same cores as above under detail::token_policy::strict. Several

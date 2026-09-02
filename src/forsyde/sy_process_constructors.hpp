@@ -363,6 +363,94 @@ private:
 #endif
 };
 
+//! Shared implementation of the SY state-machine (moore/mealy) family
+/*! moore and mealy differ from the comb family in one way and from each
+ * other in two. Against comb: they carry a state, so init() seeds it
+ * from init_st and exec() advances it. Against each other:
+ *
+ *  - a Mealy machine decodes its output from the current state *and*
+ *    this cycle's input, then advances; a Moore machine advances first
+ *    and decodes from the state alone;
+ *  - a Moore machine here emits od(init_st) before it has read anything,
+ *    and so skips the read on its first evaluation cycle. That initial
+ *    output is what makes it usable in a feedback loop -- it is the same
+ *    device as Jantsch's scandU, which is scanU with the initial state
+ *    prepended -- and it is why \a EmitsBeforeFirstRead exists rather
+ *    than the two classes each owning a copy of the loop.
+ *
+ * Everything else -- the state, the next-state/output-decoding argument
+ * pair in the introspection XML, the read and write loops, bindInfo --
+ * is the same for both, and for their strict counterparts, which differ
+ * only in \a Policy exactly as scomb differs from comb.
+ *
+ * \a Derived supplies in_ports(), out_ports() and exec(); exec() is
+ * where the two functions are called, in the order that distinguishes a
+ * Moore machine from a Mealy one.
+ */
+template <typename Derived, typename OVals, typename IVals, typename ST,
+          token_policy Policy = token_policy::total,
+          bool EmitsBeforeFirstRead = false>
+class fsm_core : public sy_process
+{
+protected:
+    OVals ovals;    ///< output tokens, one per output port
+    IVals ivals;    ///< input tokens, one per input port
+
+    ST stval;       ///< the current state
+    ST nsval;       ///< the next state, as computed by this cycle
+    ST init_st;     ///< the initial state
+
+    //! True until the first evaluation cycle has run
+    /*! Only consulted when \a EmitsBeforeFirstRead; a Mealy machine
+     * reads on every cycle including the first.
+     */
+    bool first_run;
+
+    fsm_core(const sc_module_name& _name,   ///< process name
+             const ST& init_st              ///< initial state
+             ) : sy_process(_name), init_st(init_st)
+    {
+#ifdef FORSYDE_INTROSPECTION
+        std::string func_name = std::string(basename());
+        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
+        arg_vec.push_back(std::make_tuple("_ns_func",func_name+std::string("_ns_func")));
+        arg_vec.push_back(std::make_tuple("_od_func",func_name+std::string("_od_func")));
+        std::stringstream ss;
+        ss << init_st;
+        arg_vec.push_back(std::make_tuple("init_st",ss.str()));
+#endif
+    }
+
+private:
+    Derived& self() {return static_cast<Derived&>(*this);}
+
+    //Implementing the abstract semantics
+    void init()
+    {
+        stval = init_st;
+        first_run = true;
+    }
+
+    void clean() {}
+
+    void prep()
+    {
+        if constexpr (EmitsBeforeFirstRead)
+            if (first_run) return;      // nothing consumed on the first cycle
+        read_all<Policy>(self().in_ports(), ivals, name());
+    }
+
+    void prod() {write_all<Policy>(self().out_ports(), ovals);}
+
+#ifdef FORSYDE_INTROSPECTION
+    void bindInfo()
+    {
+        bind_all(boundInChans, self().in_ports());
+        bind_all(boundOutChans, self().out_ports());
+    }
+#endif
+};
+
 }
 
 //! Process constructor for a combinational process with one input and one output
@@ -826,15 +914,23 @@ private:
  * function it creates a Moore process.
  */
 template <class IT, class ST, class OT>
-class moore : public sy_process
+class moore : public detail::fsm_core<moore<IT,ST,OT>,
+                                      std::tuple<abst_ext<OT>>,
+                                      std::tuple<abst_ext<IT>>,
+                                      ST, detail::token_policy::total, true>
 {
+    typedef detail::fsm_core<moore<IT,ST,OT>,
+                             std::tuple<abst_ext<OT>>,
+                             std::tuple<abst_ext<IT>>,
+                             ST, detail::token_policy::total, true> base;
+    friend base;
 public:
     SY_in<IT>  iport1;        ///< port for the input channel
     SY_out<OT> oport1;        ///< port for the output channel
-    
+
     //! Type of the next-state function to be passed to the process constructor
     typedef std::function<void(ST&, const ST&, const abst_ext<IT>&)> ns_functype;
-    
+
     //! Type of the output-decoding function to be passed to the process constructor
     typedef std::function<void(abst_ext<OT>&, const ST&)> od_functype;
 
@@ -847,89 +943,31 @@ public:
            const ns_functype& _ns_func, ///< The next_state function
            const od_functype& _od_func, ///< The output-decoding function
            const ST& init_st  ///< Initial state
-          ) : sy_process(_name), _ns_func(_ns_func), _od_func(_od_func),
-              init_st(init_st)
-    {
-#ifdef FORSYDE_INTROSPECTION
-        std::string func_name = std::string(basename());
-        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        arg_vec.push_back(std::make_tuple("_ns_func",func_name+std::string("_ns_func")));
-        arg_vec.push_back(std::make_tuple("_od_func",func_name+std::string("_od_func")));
-        std::stringstream ss;
-        ss << init_st;
-        arg_vec.push_back(std::make_tuple("init_st",ss.str()));
-#endif
-    }
-    
+          ) : base(_name, init_st), iport1("iport1"), oport1("oport1"),
+              _ns_func(_ns_func), _od_func(_od_func) {}
+
     //! Specifying from which process constructor is the module built
     std::string forsyde_kind() const{return "SY::moore";}
-    
+
 private:
     //! The functions passed to the process constructor
     ns_functype _ns_func;
     od_functype _od_func;
-    // Initial value
-    ST init_st;
-    
-    bool first_run;
-    
-    // Input, output, current state, and next state variables
-    abst_ext<IT>* ival;
-    ST* stval;
-    ST* nsval;
-    abst_ext<OT>* oval;
 
-    //Implementing the abstract semantics
-    void init()
-    {
-        ival = new abst_ext<IT>;
-        stval = new ST;
-        *stval = init_st;
-        nsval = new ST;
-        oval = new abst_ext<OT>;
-        // First evaluation cycle
-        first_run = true;
-    }
-    
-    void prep()
-    {
-        if (!first_run)
-            *ival = iport1.read();
-    }
-    
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
+
     void exec()
     {
-        if (first_run)
-            first_run = false;
+        if (this->first_run)
+            this->first_run = false;
         else
         {
-            _ns_func(*nsval, *stval, *ival);
-            *stval = *nsval;
+            _ns_func(this->nsval, this->stval, std::get<0>(this->ivals));
+            this->stval = this->nsval;
         }
-        _od_func(*oval, *stval);
+        _od_func(std::get<0>(this->ovals), this->stval);
     }
-    
-    void prod()
-    {
-        write_multiport(oport1, *oval);
-    }
-    
-    void clean()
-    {
-        delete ival;
-        delete stval;
-        delete nsval;
-        delete oval;
-    }
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-    }
-#endif
 };
 
 //! Process constructor for a Mealy machine
@@ -938,20 +976,28 @@ private:
  * function it creates a Mealy process.
  */
 template <class IT, class ST, class OT>
-class mealy : public sy_process
+class mealy : public detail::fsm_core<mealy<IT,ST,OT>,
+                                      std::tuple<abst_ext<OT>>,
+                                      std::tuple<abst_ext<IT>>,
+                                      ST>
 {
+    typedef detail::fsm_core<mealy<IT,ST,OT>,
+                             std::tuple<abst_ext<OT>>,
+                             std::tuple<abst_ext<IT>>,
+                             ST> base;
+    friend base;
 public:
     SY_in<IT>  iport1;        ///< port for the input channel
     SY_out<OT> oport1;        ///< port for the output channel
-    
+
     //! Type of the next-state function to be passed to the process constructor
-    typedef std::function<void(ST&, const ST&, 
+    typedef std::function<void(ST&, const ST&,
                                                 const abst_ext<IT>&)> ns_functype;
-    
+
     //! Type of the output-decoding function to be passed to the process constructor
     typedef std::function<void(abst_ext<OT>&, const ST&,
                                                 const abst_ext<IT>&)> od_functype;
-    
+
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input port,
      * applies the user-imlpemented functions to the input and current
@@ -961,79 +1007,26 @@ public:
            const ns_functype& _ns_func, ///< The next_state function
            const od_functype& _od_func, ///< The output-decoding function
            const ST& init_st  ///< Initial state
-          ) : sy_process(_name), _ns_func(_ns_func), _od_func(_od_func),
-              init_st(init_st)
-    {
-#ifdef FORSYDE_INTROSPECTION
-        std::string func_name = std::string(basename());
-        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        arg_vec.push_back(std::make_tuple("_ns_func",func_name+std::string("_ns_func")));
-        arg_vec.push_back(std::make_tuple("_od_func",func_name+std::string("_od_func")));
-        std::stringstream ss;
-        ss << init_st;
-        arg_vec.push_back(std::make_tuple("init_st",ss.str()));
-#endif
-    }
-    
+          ) : base(_name, init_st), iport1("iport1"), oport1("oport1"),
+              _ns_func(_ns_func), _od_func(_od_func) {}
+
     //! Specifying from which process constructor is the module built
     std::string forsyde_kind() const{return "SY::mealy";}
-    
+
 private:
     //! The functions passed to the process constructor
     ns_functype _ns_func;
     od_functype _od_func;
-    // Initial value
-    ST init_st;
-    
-    // Input, output, current state, and next state variables
-    abst_ext<IT>* ival;
-    ST* stval;
-    ST* nsval;
-    abst_ext<OT>* oval;
 
-    //Implementing the abstract semantics
-    void init()
-    {
-        ival = new abst_ext<IT>;
-        stval = new ST;
-        *stval = init_st;
-        nsval = new ST;
-        oval = new abst_ext<OT>;
-    }
-    
-    void prep()
-    {
-        *ival = iport1.read();
-    }
-    
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
+
     void exec()
     {
-        _od_func(*oval, *stval, *ival);
-        _ns_func(*nsval, *stval, *ival);
-        *stval = *nsval;
+        _od_func(std::get<0>(this->ovals), this->stval, std::get<0>(this->ivals));
+        _ns_func(this->nsval, this->stval, std::get<0>(this->ivals));
+        this->stval = this->nsval;
     }
-    
-    void prod()
-    {
-        write_multiport(oport1, *oval);
-    }
-    
-    void clean()
-    {
-        delete ival;
-        delete stval;
-        delete nsval;
-        delete oval;
-    }
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-    }
-#endif
 };
 
 //! Process constructor for a fill process
@@ -2705,219 +2698,107 @@ private:
 //  onto an aliasing convention they would silently inherit.
 // ---------------------------------------------------------------------
 //! Process constructor for a strict Moore machine
-/*! This class is used to build a finite state machine of type Moore.
- * Given an initial state, a next-state function, and an output decoding
- * function it creates a Moore process.
+/*! The strict counterpart of moore: the functions are handed the values
+ * inside the tokens, and an absent input is an error.
  */
 template <class IT, class ST, class OT>
-class smoore : public sy_process
+class smoore : public detail::fsm_core<smoore<IT,ST,OT>,
+                                       std::tuple<OT>, std::tuple<IT>,
+                                       ST, detail::token_policy::strict, true>
 {
+    typedef detail::fsm_core<smoore<IT,ST,OT>,
+                             std::tuple<OT>, std::tuple<IT>,
+                             ST, detail::token_policy::strict, true> base;
+    friend base;
 public:
     SY_in<IT>  iport1;        ///< port for the input channel
     SY_out<OT> oport1;        ///< port for the output channel
-    
+
     //! Type of the next-state function to be passed to the process constructor
     typedef std::function<void(ST&, const ST&, const IT&)> ns_functype;
-    
+
     //! Type of the output-decoding function to be passed to the process constructor
     typedef std::function<void(OT&, const ST&)> od_functype;
 
     //! The constructor requires the module name
-    /*! It creates an SC_THREAD which reads data from its input port,
-     * applies the user-imlpemented functions to the input and current
-     * state and writes the results using the output port
-     */
-    smoore(const sc_module_name& _name,      ///< process name
+    smoore(const sc_module_name& _name,     ///< process name
            const ns_functype& _ns_func, ///< The next_state function
            const od_functype& _od_func, ///< The output-decoding function
            const ST& init_st  ///< Initial state
-          ) : sy_process(_name), _ns_func(_ns_func), _od_func(_od_func),
-              init_st(init_st)
-    {
-#ifdef FORSYDE_INTROSPECTION
-        std::string func_name = std::string(basename());
-        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        arg_vec.push_back(std::make_tuple("_ns_func",func_name+std::string("_ns_func")));
-        arg_vec.push_back(std::make_tuple("_od_func",func_name+std::string("_od_func")));
-        std::stringstream ss;
-        ss << init_st;
-        arg_vec.push_back(std::make_tuple("init_st",ss.str()));
-#endif
-    }
-    
+          ) : base(_name, init_st), iport1("iport1"), oport1("oport1"),
+              _ns_func(_ns_func), _od_func(_od_func) {}
+
     //! Specifying from which process constructor is the module built
     std::string forsyde_kind() const{return "SY::smoore";}
-    
+
 private:
     //! The functions passed to the process constructor
     ns_functype _ns_func;
     od_functype _od_func;
-    // Initial value
-    ST init_st;
-    
-    bool first_run;
-    
-    // Input, output, current state, and next state variables
-    IT* ival;
-    ST* stval;
-    ST* nsval;
-    OT* oval;
 
-    //Implementing the abstract semantics
-    void init()
-    {
-        ival = new IT;
-        stval = new ST;
-        *stval = init_st;
-        nsval = new ST;
-        oval = new OT;
-        // First evaluation cycle
-        first_run = true;
-    }
-    
-    void prep()
-    {
-        if (!first_run)
-        {
-            detail::read_one<detail::token_policy::strict>(*ival, iport1, name());
-        }
-    }
-    
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
+
     void exec()
     {
-        if (first_run)
-            first_run = false;
+        if (this->first_run)
+            this->first_run = false;
         else
         {
-            _ns_func(*nsval, *stval, *ival);
-            *stval = *nsval;
+            _ns_func(this->nsval, this->stval, std::get<0>(this->ivals));
+            this->stval = this->nsval;
         }
-        _od_func(*oval, *stval);
+        _od_func(std::get<0>(this->ovals), this->stval);
     }
-    
-    void prod()
-    {
-        write_multiport(oport1, abst_ext<OT>(*oval));
-    }
-    
-    void clean()
-    {
-        delete ival;
-        delete stval;
-        delete nsval;
-        delete oval;
-    }
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-    }
-#endif
 };
 
 //! Process constructor for a strict Mealy machine
-/*! This class is used to build a finite state machine of type Mealy.
- * Given an initial state, a next-state function, and an output decoding
- * function it creates a Mealy process.
+/*! The strict counterpart of mealy.
  */
 template <class IT, class ST, class OT>
-class smealy : public sy_process
+class smealy : public detail::fsm_core<smealy<IT,ST,OT>,
+                                       std::tuple<OT>, std::tuple<IT>,
+                                       ST, detail::token_policy::strict>
 {
+    typedef detail::fsm_core<smealy<IT,ST,OT>,
+                             std::tuple<OT>, std::tuple<IT>,
+                             ST, detail::token_policy::strict> base;
+    friend base;
 public:
     SY_in<IT>  iport1;        ///< port for the input channel
     SY_out<OT> oport1;        ///< port for the output channel
-    
+
     //! Type of the next-state function to be passed to the process constructor
     typedef std::function<void(ST&, const ST&, const IT&)> ns_functype;
-    
+
     //! Type of the output-decoding function to be passed to the process constructor
     typedef std::function<void(OT&, const ST&, const IT&)> od_functype;
-    
+
     //! The constructor requires the module name
-    /*! It creates an SC_THREAD which reads data from its input port,
-     * applies the user-imlpemented functions to the input and current
-     * state and writes the results using the output port
-     */
-    smealy(const sc_module_name& _name,      ///< process name
+    smealy(const sc_module_name& _name,     ///< process name
            const ns_functype& _ns_func, ///< The next_state function
            const od_functype& _od_func, ///< The output-decoding function
            const ST& init_st  ///< Initial state
-          ) : sy_process(_name), _ns_func(_ns_func), _od_func(_od_func),
-              init_st(init_st)
-    {
-#ifdef FORSYDE_INTROSPECTION
-        std::string func_name = std::string(basename());
-        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        arg_vec.push_back(std::make_tuple("_ns_func",func_name+std::string("_ns_func")));
-        arg_vec.push_back(std::make_tuple("_od_func",func_name+std::string("_od_func")));
-        std::stringstream ss;
-        ss << init_st;
-        arg_vec.push_back(std::make_tuple("init_st",ss.str()));
-#endif
-    }
-    
+          ) : base(_name, init_st), iport1("iport1"), oport1("oport1"),
+              _ns_func(_ns_func), _od_func(_od_func) {}
+
     //! Specifying from which process constructor is the module built
     std::string forsyde_kind() const{return "SY::smealy";}
-    
+
 private:
     //! The functions passed to the process constructor
     ns_functype _ns_func;
     od_functype _od_func;
-    // Initial value
-    ST init_st;
-    
-    // Input, output, current state, and next state variables
-    IT* ival;
-    ST* stval;
-    ST* nsval;
-    OT* oval;
 
-    //Implementing the abstract semantics
-    void init()
-    {
-        ival = new IT;
-        stval = new ST;
-        *stval = init_st;
-        nsval = new ST;
-        oval = new OT;
-    }
-    
-    void prep()
-    {
-        detail::read_one<detail::token_policy::strict>(*ival, iport1, name());
-    }
-    
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
+
     void exec()
     {
-        _ns_func(*nsval, *stval, *ival);
-        _od_func(*oval, *stval, *ival);
-        *stval = *nsval;
+        _od_func(std::get<0>(this->ovals), this->stval, std::get<0>(this->ivals));
+        _ns_func(this->nsval, this->stval, std::get<0>(this->ivals));
+        this->stval = this->nsval;
     }
-    
-    void prod()
-    {
-        write_multiport(oport1, abst_ext<OT>(*oval));
-    }
-    
-    void clean()
-    {
-        delete ival;
-        delete stval;
-        delete nsval;
-        delete oval;
-    }
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-    }
-#endif
 };
 
 //! Process constructor for a strict constant source process
