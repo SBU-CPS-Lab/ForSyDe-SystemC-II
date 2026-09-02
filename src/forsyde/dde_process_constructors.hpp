@@ -1437,7 +1437,7 @@ private:
         if (get_time(*next_iev2) == tl)
             *cur_ival2 = get_value(*next_iev2);
         else
-            *cur_ival2 = abst_ext<T1>();
+            *cur_ival2 = abst_ext<T2>();
     }
 
     void exec()
@@ -1702,17 +1702,23 @@ private:
 
     void exec()
     {
-        if (is_absent(*in_ev))
+        // in_ev is a ttn_event -- a time tag wrapped around an
+        // absent-extended value -- so the presence test and the
+        // unwrapping both have to go through get_value(), and tl has to
+        // be taken from this event before it is used to stamp the
+        // outputs rather than after.
+        tl = get_time(*in_ev);
+        if (is_absent(get_value(*in_ev)))
         {
             for (size_t i=0; i<N; i++)
                 oevs[i] = ttn_event<T1>(abst_ext<T1>(),tl);
         }
         else
         {
+            const auto& vals = unsafe_from_abst_ext(get_value(*in_ev));
             for (size_t i=0; i<N; i++)
-                oevs[i] = ttn_event<T1>(unsafe_from_abst_ext(*in_ev)[i]);
+                oevs[i] = ttn_event<T1>(vals[i],tl);
         }
-        tl = get_time(*in_ev);
     }
 
     void prod()

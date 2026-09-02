@@ -161,6 +161,33 @@ SC_MODULE(all)
              [](int&,const int&,const std::vector<int>&){},
              [](std::vector<int>&,const int&,const std::vector<int>&){}, 0);
 
+        // ---- DDE ------------------------------------------------------
+        // Distinct types again: DDE::zip<T1,T2> gave its second input an
+        // abst_ext<T1> when no value was available for it, which only
+        // compiles when the two types are the same -- and the one model
+        // that uses it zips int with int.
+        inst<DDE::comb <char,int>>          ("dde_comb",  [](abst_ext<char>&,const int&){});
+        inst<DDE::comb2<char,int,short>>    ("dde_comb2",
+            [](abst_ext<char>&,const abst_ext<int>&,const abst_ext<short>&){});
+        inst<DDE::delay<int>>               ("dde_delay", abst_ext<int>(0), sc_core::sc_time(1,sc_core::SC_NS));
+        inst<DDE::mealy<int,short,char>>
+            ("dde_mealy", [](short&,const short&,const ttn_event<int>&){},
+             [](abst_ext<char>&,const short&,const ttn_event<int>&){},
+             short{0}, sc_core::sc_time(1,sc_core::SC_NS));
+        inst<DDE::zip   <int,char>>         ("dde_zip");
+        inst<DDE::zipX  <int,3>>            ("dde_zipX");
+        inst<DDE::unzip <int,char>>         ("dde_unzip");
+        inst<DDE::unzipX<int,3>>            ("dde_unzipX");
+
+        // ---- CT -------------------------------------------------------
+        // CT is monomorphic on CTTYPE (double), so there are no type
+        // parameters to get wrong here -- only the constructors to compile.
+        inst<CT::comb >                     ("ct_comb",  [](CTTYPE&,const CTTYPE&){});
+        inst<CT::comb2>                     ("ct_comb2", [](CTTYPE&,const CTTYPE&,const CTTYPE&){});
+        inst<CT::combX<3>>                  ("ct_combX", [](CTTYPE&,const std::array<CTTYPE,3>&){});
+        inst<CT::delay>                     ("ct_delay", sc_core::sc_time(1,sc_core::SC_NS));
+        inst<CT::shift>                     ("ct_shift", sc_core::sc_time(1,sc_core::SC_NS));
+
         // ---- SADF -----------------------------------------------------
         // The scenario tables differ in shape per arity: a pair of
         // scalars, an array plus a scalar, then two arrays.
