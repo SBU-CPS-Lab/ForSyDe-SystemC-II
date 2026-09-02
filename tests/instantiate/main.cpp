@@ -174,6 +174,21 @@ SC_MODULE(all)
             ("sadf_kernelMN", [](std::tuple<std::vector<int>,std::vector<int>>&,const int&,
                                  const std::tuple<std::vector<int>,std::vector<int>,std::vector<int>>&){},
              std::map<int,std::tuple<std::array<size_t,3>,std::array<size_t,2>>>{{0,{{1,1,1},{1,1}}}});
+        // Distinct types on purpose: detector is <output, input, scenario>,
+        // and instantiating it with three ints would hide a constructor
+        // that named them in the wrong order -- which is exactly the
+        // mistake the example suite had to catch instead.
+        inst<SADF::detector<char,int,short>>
+            ("sadf_detector", [](short&,const short&,const std::vector<int>&){},
+             [](std::vector<char>&,const short&,const std::vector<int>&){},
+             std::map<short,size_t>{{0,1}}, short{0}, size_t{1});
+        inst<SADF::detectorMN<std::tuple<int,int>,std::tuple<int,int,int>,int>>
+            ("sadf_detectorMN",
+             [](int&,const int&,const std::tuple<std::vector<int>,std::vector<int>,std::vector<int>>&){},
+             [](std::tuple<std::vector<int>,std::vector<int>>&,const int&,
+                const std::tuple<std::vector<int>,std::vector<int>,std::vector<int>>&){},
+             std::map<int,std::array<size_t,2>>{{0,{1,1}}}, 0,
+             std::array<size_t,3>{1,1,1});
     }
 };
 

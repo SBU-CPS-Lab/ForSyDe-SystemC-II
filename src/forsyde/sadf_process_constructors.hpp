@@ -123,6 +123,97 @@ using namespace sc_core;
 namespace detail
 {
 
+//! Shared implementation of the SADF detector family
+/*! A detector is the other half of SADF's adaptivity: where a kernel is
+ * told which scenario to fire in, a detector is what decides. Both do
+ * the same thing per firing -- read a fixed number of tokens, consult a
+ * scenario table, size the outputs from it and apply the user functions
+ * -- and they differ only in how many ports they have and in what shape
+ * the table's entries are. So this is kernel_core's counterpart, and the
+ * SDF read/write/resize/bind helpers do the same work for both.
+ *
+ * The state here is the *current detector scenario*, which is also what
+ * the process emits: cds_func advances it from the tokens just read, its
+ * scenario-table entry gives this firing's production rates, and
+ * kss_func fills the outputs with the control tokens the kernels
+ * downstream will fire in.
+ *
+ * \a Table is the scenario table type and the scenario type \a TS is
+ * read off it as Table::key_type. \a Derived supplies in_ports(),
+ * out_ports(), resize_inputs() -- the consumption rates are fixed at
+ * construction, so that runs once, in init() -- and exec().
+ */
+template <typename Derived, typename OVals, typename IVals, typename Table>
+class detector_core : public SADF_process
+{
+public:
+    typedef typename Table::key_type TS;    ///< the detector scenario type
+
+protected:
+    OVals ovals;    ///< output tokens, one vector per output port
+    IVals ivals;    ///< input tokens, one vector per input port
+
+    TS sc_val;      ///< the current detector scenario
+    TS init_sc;     ///< the initial detector scenario
+
+    //! The table of the detector's scenarios, passed to the process constructor
+    Table scenario_table;
+
+    detector_core(const sc_module_name& _name,  ///< process name
+                  const Table& scenario_table,  ///< the detector scenario table
+                  const TS& init_sc             ///< the initial scenario
+                  ) : SADF_process(_name), sc_val(), init_sc(init_sc),
+                      scenario_table(scenario_table)
+    {
+#ifdef FORSYDE_INTROSPECTION
+        std::string func_name = std::string(basename());
+        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
+        arg_vec.push_back(std::make_tuple("cds_func",func_name+std::string("cds_func")));
+        arg_vec.push_back(std::make_tuple("kss_func",func_name+std::string("kss_func")));
+        std::stringstream ss;
+        ss << scenario_table;
+        arg_vec.push_back(std::make_tuple("scenario_table",ss.str()));
+        ss.clear();
+        ss.str(std::string());
+        ss << init_sc;
+        arg_vec.push_back(std::make_tuple("init_sc",ss.str()));
+#endif
+    }
+
+    //! This firing's production rates, or a raised error if the scenario is unknown (D8)
+    const typename Table::mapped_type& scenario_rates()
+    {
+        return scenario_entry(scenario_table, sc_val, name(),
+                              "detector scenario table");
+    }
+
+private:
+    Derived& self() {return static_cast<Derived&>(*this);}
+
+    //Implementing the abstract semantics
+    void init()
+    {
+        sc_val = init_sc;
+        // Consumption rates are fixed at construction, so the input
+        // vectors are sized once here rather than per firing.
+        self().resize_inputs();
+    }
+
+    void clean() {}
+
+    void prep() {SDF::detail::read_all(self().in_ports(), ivals);}
+
+    void prod() {SDF::detail::write_all(self().out_ports(), ovals);}
+
+#ifdef FORSYDE_INTROSPECTION
+    void bindInfo()
+    {
+        SDF::detail::bind_all(boundInChans, self().in_ports());
+        SDF::detail::bind_all(boundOutChans, self().out_ports());
+    }
+#endif
+};
+
 //! Shared implementation of the SADF kernel family
 /*! kernel, kernel2 and kernelMN all do the same five things per firing:
  * read a scenario from the control port, look that scenario up in the
@@ -512,8 +603,16 @@ private:
  * a current scenario detection function, and a kernel scenario selection function, it creates a detector process.
  */
 template <typename T0, typename T1, typename TS>
-class detector : public SADF_process
+class detector : public detail::detector_core<detector<T0,T1,TS>,
+                                        std::tuple<std::vector<T0>>,
+                                        std::tuple<std::vector<T1>>,
+                                        std::map<TS,size_t>>
 {
+    typedef detail::detector_core<detector<T0,T1,TS>,
+                                        std::tuple<std::vector<T0>>,
+                                        std::tuple<std::vector<T1>>,
+                                        std::map<TS,size_t>> base;
+    friend base;
 public:
     SADF_in<T1> iport1;     ///< port for the input channel
     SADF_out<T0> oport1;    ///< port for the output channel
@@ -545,97 +644,42 @@ public:
           const scenario_table_type& scenario_table,///< the detector scenario table
           const TS& init_sc,                        ///< Initial scenario
           const size_t& i1toks                      ///< consumption rate for the first input
-          ) : SADF_process(_name), iport1("iport1"), oport1("oport1"), i1toks(i1toks),
-               init_sc(init_sc), _cds_func(_cds_func), _kss_func(_kss_func), scenario_table(scenario_table)
+          ) : base(_name, scenario_table, init_sc), iport1("iport1"), oport1("oport1"), i1toks(i1toks), _cds_func(_cds_func), _kss_func(_kss_func)
     {
 #ifdef FORSYDE_INTROSPECTION
-        std::string func_name = std::string(basename());
-        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        arg_vec.push_back(std::make_tuple("cds_func",func_name+std::string("cds_func")));
-        arg_vec.push_back(std::make_tuple("kss_func",func_name+std::string("kss_func")));
-        std::stringstream ss;
-        ss << scenario_table;
-        arg_vec.push_back(std::make_tuple("scenario_table",ss.str()));
-        ss.clear();
-        ss.str(std::string());
-        ss << init_sc;
-        arg_vec.push_back(std::make_tuple("init_sc",ss.str()));
-        arg_vec.push_back(std::make_tuple("i1toks",std::to_string(i1toks)));
+        this->arg_vec.push_back(std::make_tuple("i1toks",std::to_string(i1toks)));
 #endif
     }
     
     //! Specifying from which process constructor is the module built
     std::string forsyde_kind() const {return "SADF::detector";}
 private:
-    // consumption and production rates
+    // consumption rate, fixed at construction
     size_t i1toks;
-    size_t o1toks;
-    
-    // Input, output, current scenario, and previous scenario variables
-    std::vector<T0> o1vals;
-    std::vector<T1> i1vals;
-    TS* sc_val;
-    TS init_sc;
-    
-    //! The function passed to the process constructor
+
+    //! The functions passed to the process constructor
     cds_functype _cds_func;
     kss_functype _kss_func;
 
-    //! The table of kernel's scenarios to be passed to the process constructor
-    scenario_table_type scenario_table;
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
 
-    //Implementing the abstract semantics
-    void init()
-    {
-        i1vals.resize(i1toks);
+    void resize_inputs() {std::get<0>(this->ivals).resize(i1toks);}
 
-        sc_val = new TS;
-        *sc_val = init_sc;
-    }
-    
-    void prep()
-    {
-        // Reading the input port according to the input tokens consumption rate which is passed to the constructor
-        for (auto it=i1vals.begin();it!=i1vals.end();it++)
-            *it = iport1.read();
-    }
-    
     void exec()
     {
+        auto& i1vals = std::get<0>(this->ivals);
         // Applying the current detector scenario function to the previous scenario and input tokens to get the operating scenario
-        _cds_func(*sc_val, *sc_val, i1vals);
-        
-        // Look up the scenario table to get the output tokens production rate
-        o1toks = detail::scenario_entry(scenario_table, *sc_val, name(), "detector scenario table");
+        _cds_func(this->sc_val, this->sc_val, i1vals);
 
-        // Resize the output buffers
-        o1vals.resize(o1toks);
+        // The scenario table gives this firing's output production rate
+        std::get<0>(this->ovals).resize(this->scenario_rates());
 
         /*  Applying the kernel scenario selection function to the current scenario and the input tokens
         *   to determine scenario for each output port (control token for sending to the kernel)
         */
-        _kss_func(o1vals, *sc_val, i1vals);
+        _kss_func(std::get<0>(this->ovals), this->sc_val, i1vals);
     }
-    
-    void prod()
-    {
-        write_vec_multiport(oport1, o1vals);
-    }
-    
-    void clean()
-    {
-        delete sc_val;
-    }
-    
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-    }
-#endif
 };
 
 //! Process constructor for a detector process (actor) with M data inputs and N control outputs
@@ -644,8 +688,16 @@ private:
 template<typename TO_tuple, typename TI_tuple, typename TS> class detectorMN;
 
 template <typename... TOs, typename... TIs, typename TS>
-class detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS> : public SADF_process
+class detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS> : public detail::detector_core<detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>,
+                                          std::tuple<std::vector<TOs>...>,
+                                          std::tuple<std::vector<TIs>...>,
+                                          std::map<TS,std::array<size_t,sizeof...(TOs)>>>
 {
+    typedef detail::detector_core<detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>,
+                                          std::tuple<std::vector<TOs>...>,
+                                          std::tuple<std::vector<TIs>...>,
+                                          std::map<TS,std::array<size_t,sizeof...(TOs)>>> base;
+    friend base;
 public:
     std::tuple<SADF_in<TIs>...>  iport;///< tuple of ports for the input channels
     std::tuple<SADF_out<TOs>...> oport;///< tuple of ports for the output channels
@@ -680,11 +732,11 @@ public:
           const scenario_table_type& scenario_table,///< the detector scenario table
           const TS& init_sc,                        ///< Initial scenario
           const std::array<size_t,sizeof...(TIs)>& itoks    ///< consumption rate for the first input
-          ) : SADF_process(_name), itoks(itoks), init_sc(init_sc),
-          _cds_func(_cds_func), _kss_func(_kss_func), scenario_table(scenario_table),
+          ) : base(_name, scenario_table, init_sc), itoks(itoks),
+          _cds_func(_cds_func), _kss_func(_kss_func),
           report_pipe(nullptr)
     {
-        register_introspection_args(scenario_table, init_sc, itoks);
+        register_rate_args(itoks);
     }
 
     //! As above, additionally reporting each firing to a self-report pipe.
@@ -698,12 +750,12 @@ public:
           const TS& init_sc,                        ///< Initial scenario
           const std::array<size_t,sizeof...(TIs)>& itoks,   ///< consumption rate for the first input
           FILE** _report_pipe                       ///< the report named pipe
-          ) : SADF_process(_name), itoks(itoks), init_sc(init_sc),
-          _cds_func(_cds_func), _kss_func(_kss_func), scenario_table(scenario_table),
+          ) : base(_name, scenario_table, init_sc), itoks(itoks),
+          _cds_func(_cds_func), _kss_func(_kss_func),
           report_pipe(_report_pipe)
     {
         FORSYDE_REQUIRE_SELF_REPORTING(TS, "SADF::detectorMN");
-        register_introspection_args(scenario_table, init_sc, itoks);
+        register_rate_args(itoks);
     }
 
     //! Specifying from which process constructor is the module built
@@ -711,48 +763,25 @@ public:
 private:
     //! Shared by both constructors above, which cannot delegate to one
     //! another: the reporting one carries a static_assert that the
-    //! non-reporting one must not trip.
-    void register_introspection_args(const scenario_table_type& scenario_table,
-                                     const TS& init_sc,
-                                     const std::array<size_t,sizeof...(TIs)>& itoks)
+    //! non-reporting one must not trip. Everything else about this
+    //! process's introspection arguments is registered by the core.
+    void register_rate_args(const std::array<size_t,sizeof...(TIs)>& itoks)
     {
 #ifdef FORSYDE_INTROSPECTION
-        std::string func_name = std::string(basename());
-        func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
-        arg_vec.push_back(std::make_tuple("cds_func",func_name+std::string("cds_func")));
-        arg_vec.push_back(std::make_tuple("kss_func",func_name+std::string("kss_func")));
         std::stringstream ss;
-        ss << scenario_table;
-        arg_vec.push_back(std::make_tuple("scenario_table",ss.str()));
-        ss.clear();
-        ss.str(std::string());
-        ss << init_sc;
-        arg_vec.push_back(std::make_tuple("init_sc",ss.str()));
-        ss.clear();
-        ss.str(std::string());
         ss << itoks;
-        arg_vec.push_back(std::make_tuple("itoks",ss.str()));
+        this->arg_vec.push_back(std::make_tuple("itoks",ss.str()));
 #else
-        (void)scenario_table; (void)init_sc; (void)itoks;
+        (void)itoks;
 #endif
     }
 
-    // consumption and production rates
+    // consumption rates, fixed at construction
     std::array<size_t,sizeof...(TIs)> itoks;
-    std::array<size_t,sizeof...(TOs)> otoks;
 
-    // Input, output, current scenario, and previous scenario variables
-    std::tuple<std::vector<TOs>...> ovals;
-    std::tuple<std::vector<TIs>...> ivals;
-    TS* sc_val;
-    TS init_sc;
-    
-    //! The function passed to the process constructor
+    //! The functions passed to the process constructor
     cds_functype _cds_func;
     kss_functype _kss_func;
-
-    //! The table of kernel's scenarios to be passed to the process constructor
-    scenario_table_type scenario_table;
 
     //! Self-report string, built only when report_pipe is non-null
     std::ostringstream report_str;
@@ -760,102 +789,36 @@ private:
     //! Optional self-report pipe; null unless the constructor was given one
     FILE** report_pipe;
 
-    //Implementing the abstract semantics
-    void init()
-    {
-        std::apply([&](auto&... ival) {
-            std::apply([&](auto&... itok) {
-                (ival.resize(itok), ...);
-            }, itoks);
-        }, ivals);
+    auto in_ports()  {return std::apply([](auto&... p){return std::tie(p...);}, iport);}
+    auto out_ports() {return std::apply([](auto&... p){return std::tie(p...);}, oport);}
 
-        sc_val = new TS;
-        *sc_val = init_sc;
-    }
-    
-    void prep()
-    {
-        // Reading the input ports        
-        std::apply([&](auto&... inport) {
-            std::apply([&](auto&... ival) {
-                (
-                    [&ival,&inport](){
-                        for (auto it=ival.begin();it!=ival.end();it++)
-                            *it = inport.read();
-                    }()
-                , ...);
-            }, ivals);
-        }, iport);
-    }
-    
+    void resize_inputs() {SDF::detail::resize_all(this->ivals, itoks);}
+
     void exec()
     {
         // Applying the current detector scenario function to the previous scenario and input tokens to get the operating scenario
-        _cds_func(*sc_val, *sc_val, ivals);
+        _cds_func(this->sc_val, this->sc_val, this->ivals);
 
-        // Look up the scenario table to get the output tokens production rate
-        otoks = detail::scenario_entry(scenario_table, *sc_val, name(), "detector scenario table");
-
-        // Resize the output buffers
-        std::apply([&](auto&... oval) {
-            std::apply([&](auto&... otok) {
-                (oval.resize(otok), ...);
-            }, otoks);
-        }, ovals);
+        // The scenario table gives this firing's output production rates
+        SDF::detail::resize_all(this->ovals, this->scenario_rates());
 
         /*  Applying the kernel scenario selection function to the current scenario and the input tokens
         *   to determine scenario for each output port (control token for sending to the kernel)
         */
-        _kss_func(ovals, *sc_val, ivals);
-    }
-    
-    void prod()
-    {
-        std::apply([&](auto&&... port){
-            std::apply([&](auto&&... val){
-                (write_vec_multiport(port, val), ...);
-            }, ovals);
-        }, oport);
+        _kss_func(this->ovals, this->sc_val, this->ivals);
 #ifdef FORSYDE_SELF_REPORTING
         if (report_pipe)
         {
             // Write the report to the pipe
-            report_str << "detectorMN" << "  " << basename() << "  " << *sc_val << "  " << detail::scenario_entry(scenario_table, *sc_val, name(), "detector scenario table") << std::endl;
+            report_str << "detectorMN" << "  " << this->basename()
+                                       << "  " << this->sc_val
+                                       << "  " << this->scenario_rates() << std::endl;
             fputs(report_str.str().c_str(), *report_pipe);
             fflush(*report_pipe);
             report_str.str("");
         }
 #endif
     }
-    
-    void clean()
-    {
-        delete sc_val;
-    }
-    
-#ifdef FORSYDE_INTROSPECTION
-    void bindInfo()
-    {
-        boundInChans.resize(sizeof...(TIs));     // input ports
-        std::apply
-        (
-            [&](auto&... ports)
-            {
-                std::size_t n{0};
-                ((boundInChans[n++].port = &ports),...);
-            }, iport
-        );
-        boundOutChans.resize(sizeof...(TOs));    // output ports
-        std::apply
-        (
-            [&](auto&... ports)
-            {
-                std::size_t n{0};
-                ((boundOutChans[n++].port = &ports),...);
-            }, oport
-        );
-    }
-#endif
 };
 
 //! Process constructor for a combinational process with M inputs and N outputs
