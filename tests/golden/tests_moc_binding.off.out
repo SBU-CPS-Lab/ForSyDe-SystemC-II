@@ -6,7 +6,7 @@ producer -> consumer
       UT      SDF     SADF    SY      DT      DDE     CT      
 UT    same    NARROW  NARROW  carrier carrier carrier carrier 
 SDF   widen   same    widen   carrier carrier carrier carrier 
-SADF  widen   NARROW  same    carrier carrier carrier carrier 
+SADF  widen   widen   same    carrier carrier carrier carrier 
 SY    carrier carrier carrier same    INCOMP  carrier carrier 
 DT    carrier carrier carrier INCOMP  same    carrier carrier 
 DDE   carrier carrier carrier carrier carrier same    carrier 

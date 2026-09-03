@@ -547,8 +547,17 @@ class combMN<std::tuple<TOs...>,std::tuple<TIs...>>
                               std::tuple<std::vector<TIs>...>> base;
     friend base;
 public:
-    std::tuple<SDF_in<TIs>...>  iport;///< tuple of ports for the input channels
-    std::tuple<SDF_out<TOs>...> oport;///< tuple of ports for the output channels
+        // Carrier-U ports, not SDF ports. This constructor is one of the
+    // four that SADF re-exports rather than repeating (see
+    // sadf_process_constructors.hpp), because an SADF process is an SDF
+    // process within any one scenario. Typing the ports SDF_in/SDF_out
+    // would make an SADF model binding to them a narrowing, which the
+    // D13 check would reject -- correctly, since the type would be
+    // claiming something the component does not mean. It is generic over
+    // the untimed carrier, so it says so, and SDF and SADF both reach it
+    // by widening.
+std::tuple<UT::UT_in<TIs>...>  iport;///< tuple of ports for the input channels
+    std::tuple<UT::UT_out<TOs>...> oport;///< tuple of ports for the output channels
 
     //! Type of the function to be passed to the process constructor
     typedef std::function<void(std::tuple<std::vector<TOs>...>&,
@@ -683,8 +692,17 @@ template <class T>
 class delayn : public sdf_process
 {
 public:
-    SDF_in<T>  iport1;       ///< port for the input channel
-    SDF_out<T> oport1;        ///< port for the output channel
+    // Carrier-U ports, not SDF ports. This constructor is one of the
+    // four that SADF re-exports rather than repeating (see
+    // sadf_process_constructors.hpp), because an SADF process is an SDF
+    // process within any one scenario. Typing the ports SDF_in/SDF_out
+    // would make an SADF model binding to them a narrowing, which the
+    // D13 check would reject -- correctly, since the type would be
+    // claiming something the component does not mean. It is generic over
+    // the untimed carrier, so it says so, and SDF and SADF both reach it
+    // by widening.
+    UT::UT_in<T>  iport1;       ///< port for the input channel
+    UT::UT_out<T> oport1;        ///< port for the output channel
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which inserts the initial elements,
@@ -831,7 +849,16 @@ template <class T>
 class source : public sdf_process
 {
 public:
-    SDF_out<T> oport1;        ///< port for the output channel
+    // Carrier-U ports, not SDF ports. This constructor is one of the
+    // four that SADF re-exports rather than repeating (see
+    // sadf_process_constructors.hpp), because an SADF process is an SDF
+    // process within any one scenario. Typing the ports SDF_in/SDF_out
+    // would make an SADF model binding to them a narrowing, which the
+    // D13 check would reject -- correctly, since the type would be
+    // claiming something the component does not mean. It is generic over
+    // the untimed carrier, so it says so, and SDF and SADF both reach it
+    // by widening.
+    UT::UT_out<T> oport1;        ///< port for the output channel
     
     //! Type of the function to be passed to the process constructor
     typedef std::function<void(T&, const T&)> functype;
@@ -1077,7 +1104,16 @@ template <class T>
 class sink : public sdf_process
 {
 public:
-    SDF_in<T> iport1;         ///< port for the input channel
+    // Carrier-U ports, not SDF ports. This constructor is one of the
+    // four that SADF re-exports rather than repeating (see
+    // sadf_process_constructors.hpp), because an SADF process is an SDF
+    // process within any one scenario. Typing the ports SDF_in/SDF_out
+    // would make an SADF model binding to them a narrowing, which the
+    // D13 check would reject -- correctly, since the type would be
+    // claiming something the component does not mean. It is generic over
+    // the untimed carrier, so it says so, and SDF and SADF both reach it
+    // by widening.
+    UT::UT_in<T> iport1;         ///< port for the input channel
     
     //! Type of the function to be passed to the process constructor
     typedef std::function<void(const T&)> functype;

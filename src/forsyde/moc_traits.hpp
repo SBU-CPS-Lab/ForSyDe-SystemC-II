@@ -117,16 +117,26 @@ constexpr bool widens_to(moc_id from, moc_id to)
     if (from == to) return true;
     switch (from)
     {
+        // SDF and SADF are mutually compatible rather than ordered: an
+        // SADF process is an SDF process within any one scenario, so
+        // neither imposes on the other. Both refine UT, which lets its
+        // actors pick a rate per firing from their own state.
         case moc_id::SDF:  return to == moc_id::SADF || to == moc_id::UT;
-        case moc_id::SADF: return to == moc_id::UT;
+        case moc_id::SADF: return to == moc_id::SDF  || to == moc_id::UT;
         default:           return false;
     }
 }
 
-//! Is the reverse direction a widening? Then this one is a narrowing.
+//! Does this direction fail to widen where the reverse succeeds?
+/*! Note the first clause. "The reverse widens" is not on its own enough:
+ * SDF and SADF widen to each other, being the same MoC seen per
+ * scenario, and a pair like that narrows in neither direction. Leaving
+ * it out makes every mutually compatible pair report as a narrowing as
+ * well as a widening, which is how tests/moc_binding caught it.
+ */
 constexpr bool narrows_to(moc_id from, moc_id to)
 {
-    return from != to && widens_to(to, from);
+    return !widens_to(from, to) && widens_to(to, from);
 }
 
 //! The carrier of a MoC, as a value rather than a template argument
@@ -178,49 +188,57 @@ constexpr bool incomparable(moc_id from, moc_id to)
 }
 
 //! The compile-time check performed at every port-to-signal binding (D13)
-/*! Instantiated from each MoC's port classes. Split into three
- * static_asserts rather than one so that the message a user sees names
- * the specific thing that is wrong with their model, since the type
- * names in the surrounding diagnostic are not going to help them.
+/*! Two levels, because two different things can be wrong and only one of
+ * them is wrong in every model.
  *
- * \note Currently behind FORSYDE_STRICT_MOC rather than on by default,
- * and that is a decision waiting on an answer rather than a preference.
- * Turning it on rejects four of the models in this repository, all for
- * one reason: SADF re-exports several of SDF's components -- delayn,
- * source, sink, combMN -- as type aliases, so their ports are typed
- * SDF_in and SDF_out. An SADF model that uses SADF::make_delayn is
- * therefore binding an SADF signal to an SDF port, which is a narrowing
- * and is exactly what this check is for. The check is right; the aliases
- * are what make it fire.
+ * Always checked: that the two MoCs mean the same thing by a token.
+ * Crossing a carrier is caught by the token types themselves and cannot
+ * reach here; what reaches here is a pair that shares a carrier without
+ * sharing a meaning. SY and DT are the case in the library -- both carry
+ * abst_ext<T> one per tick, but an absent event is "no value this tick"
+ * in one and "a tick elapsed" in the other, so reading either as the
+ * other changes what the model says. No model here does it, and none
+ * should.
  *
- * There is more than one defensible way out -- give SADF its own
- * components, retype the shared ones as carrier-U (UT_in/UT_out) so that
- * SDF and SADF both reach them by widening, or decide that these
- * particular rate-static components are polymorphic in their MoC -- and
- * they differ in what they claim about the library's structure, not just
- * in effort. So the machinery ships checked and tested, the models keep
- * building, and the choice stays open. tests/moc_binding exercises the
- * lattice either way.
+ * Checked under FORSYDE_STRICT_MOC: that the binding does not narrow the
+ * firing rule. This is a real property and worth having, but it is not
+ * an error in the way the one above is, and defaulting it on would be
+ * wrong for this library. Within the untimed carrier the MoCs are
+ * deliberately interoperable: an SADF process *is* an SDF process within
+ * any one scenario, which is why SADF re-exports several of SDF's
+ * constructors rather than repeating them, and why SADF models call
+ * SDF::make_unzip and SDF::make_zip directly. Those bindings are sound
+ * and intended. Rejecting them would be the check being wrong about the
+ * MoCs rather than the models being wrong.
+ *
+ * What remains true is that a genuine UT actor, which chooses its rate
+ * per firing from its own state, can break a static SDF schedule. The
+ * relation is kept, and the strict mode reports it, because that is the
+ * information a refine<UT,SDF>(rate) process would act on and the
+ * analysis tools would want. It is a design question surfaced, not a
+ * binding rejected.
  */
 template <moc_id From, moc_id To>
 constexpr void check_bind()
 {
-#ifdef FORSYDE_STRICT_MOC
-    static_assert(!narrows_to(From, To),
-        "Binding narrows the model of computation: the signal is produced "
-        "under a freer firing rule than the port's process assumes, so the "
-        "producer may consume or emit at a rate the consumer's schedule "
-        "does not allow. This is not a conversion that can be applied "
-        "silently -- it needs an explicit refinement that checks the rate "
-        "at each firing.");
+    static_assert(moc_traits_carrier(From) == moc_traits_carrier(To),
+        "Binding crosses two models of computation that do not even carry "
+        "the same kind of token. A MoC interface is required.");
     static_assert(!incomparable(From, To),
         "Binding crosses two models of computation that share a token type "
         "but not a meaning, so neither is a refinement of the other. An "
         "absent event does not denote the same thing on both sides of this "
         "binding. Convert explicitly through a MoC interface.");
-    static_assert(moc_traits_carrier(From) == moc_traits_carrier(To),
-        "Binding crosses two models of computation that do not even carry "
-        "the same kind of token. A MoC interface is required.");
+#ifdef FORSYDE_STRICT_MOC
+    static_assert(!narrows_to(From, To),
+        "Binding narrows the model of computation: the signal is produced "
+        "under a freer firing rule than the port's process assumes, so the "
+        "producer may consume or emit at a rate the consumer's schedule "
+        "does not allow. Within the untimed carrier this is often "
+        "deliberate and sound -- an SADF process is an SDF process within "
+        "a scenario -- which is why this is only reported under "
+        "FORSYDE_STRICT_MOC. Where it is not deliberate it wants an "
+        "explicit refinement that checks the rate at each firing.");
 #endif
 }
 

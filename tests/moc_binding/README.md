@@ -34,11 +34,18 @@ meets the stricter contract already meets the looser one, so
 
     SDF -> SADF -> UT
 
-is a *widening*: sound, free, no process, accepted silently. The reverse
-is a *narrowing* and is rejected, because a UT actor's data-dependent
-rate can break the static schedule an SDF consumer is built on and
-nothing at the binding site can know whether it will. That needs a named
-refinement that checks the rate at each firing, not a silent coercion.
+is not quite the whole story, because SDF and SADF are *mutually*
+compatible rather than ordered: an SADF process is an SDF process within
+any one scenario. That is why SADF re-exports several of SDF's
+constructors instead of repeating them, and why SADF models call
+`SDF::make_unzip` and `SDF::make_zip` directly on SADF signals. Both
+widen to UT, which assumes least of its producers.
+
+`UT -> SDF` and `UT -> SADF` are genuine *narrowings*: a UT actor picks
+its rate per firing from its own state, which can break the static
+schedule an SDF consumer is built on, and nothing at the binding site
+can know whether it will. That wants a named refinement checking the
+rate at each firing.
 
 SY and DT share a carrier but neither refines the other: an absent event
 means "no value this tick" in SY and "a tick elapsed" in DT, which is
@@ -54,21 +61,25 @@ rejected cases cannot be exercised from a program that has to compile --
 that is the point of them -- so they are pinned by the `narrows_to` and
 `incomparable` assertions instead.
 
-## Why the assertions are not on by default yet
+## Two levels of check
 
-`check_bind()`'s asserts are behind `FORSYDE_STRICT_MOC`, which this
-test's Makefile defines and nothing else does. Turning them on globally
-rejects four models in this repository, all for one reason: SADF
-re-exports several of SDF's components -- `delayn`, `source`, `sink`,
-`combMN` -- as type aliases, so their ports are typed `SDF_in` and
-`SDF_out`. An SADF model calling `SADF::make_delayn` is therefore binding
-an SADF signal to an SDF port, which is a narrowing, and the check is
-right to say so. The aliases are what make it fire.
+**Always on.** A binding between MoCs that share a carrier but not a
+meaning is rejected outright, as is one crossing carriers (which the
+token types catch first anyway). SY and DT are the case that matters:
+both carry `abst_ext<T>` one per tick, but an absent event is "no value
+this tick" in one and "a tick elapsed" in the other, so reading either
+as the other changes what the model says.
 
-There is more than one defensible way out, and they differ in what they
-claim about the library's structure rather than only in effort: give SADF
-its own components; retype the shared ones as carrier-U (`UT_in`,
-`UT_out`) so SDF and SADF both reach them by widening; or decide these
-particular rate-static components are polymorphic in their MoC. That is a
-design decision, so the machinery ships checked and tested, the models
-keep building, and the choice stays open.
+**Under `FORSYDE_STRICT_MOC`**, which only this test defines: narrowing
+is reported too. That is deliberately not the default. Within the
+untimed carrier the MoCs are meant to interoperate, and a real narrowing
+-- `UT -> SDF` -- is a question about a model rather than a broken
+binding. Keeping the relation available means a future
+`refine<UT,SDF>(rate)` process and the analysis tools have something to
+act on, without the library refusing to compile models that are correct.
+
+Two of the shared components got clearer types along the way.
+`SDF::delayn`, `source`, `sink` and `combMN` -- the four SADF re-exports
+-- now declare carrier-U ports (`UT_in`, `UT_out`) rather than SDF ones,
+because that is what they are: generic over the untimed carrier, not
+specific to SDF. Both SDF and SADF reach them by widening.

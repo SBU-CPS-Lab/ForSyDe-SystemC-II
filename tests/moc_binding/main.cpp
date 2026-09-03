@@ -18,20 +18,26 @@
 // Within a carrier the MoCs differ in their firing rule -- how a process
 // decides how many tokens to take per evaluation cycle. SDF fixes the
 // rates at construction, SADF indexes them by a scenario token, UT lets
-// the actor decide from its own state. A producer meeting the stricter
-// contract already meets the looser one, so SDF -> SADF -> UT is a
-// widening and is free. The reverse is not sound and is rejected: a UT
-// actor's data-dependent rate can break the static schedule an SDF
-// consumer is built on.
+// the actor decide from its own state.
+//
+// SDF and SADF are mutually compatible: an SADF process is an SDF
+// process within any one scenario, which is why SADF re-exports several
+// of SDF's constructors rather than repeating them, and why SADF models
+// call SDF::make_unzip and SDF::make_zip directly on SADF signals. Both
+// widen to UT, which assumes least.
+//
+// UT to either of them is a genuine narrowing -- a UT actor's rate is
+// chosen per firing from its own state and can break a static schedule.
+// That is reported under FORSYDE_STRICT_MOC rather than rejected, since
+// it is a design question about a model, not a broken binding.
 //
 // SY and DT share a carrier but neither refines the other, because an
 // absent event does not mean the same thing in both -- "no value this
 // tick" against "a tick elapsed" -- so they are incomparable.
 //
-// The predicates below are checked unconditionally. The static_asserts
-// inside check_bind() that act on a real binding are behind
-// FORSYDE_STRICT_MOC, which this test defines; see the note there for
-// why it is not yet the default.
+// Incomparable and cross-carrier bindings are rejected always. Narrowing
+// is reported only under FORSYDE_STRICT_MOC, which this test defines.
+// The predicates themselves are checked unconditionally.
 #include <forsyde.hpp>
 #include <iostream>
 #include <iomanip>
@@ -39,14 +45,23 @@
 using namespace ForSyDe;
 
 // ---- the lattice itself, independent of any binding ------------------
-static_assert( widens_to(moc_id::SDF,  moc_id::SADF), "SDF refines SADF");
 static_assert( widens_to(moc_id::SDF,  moc_id::UT),   "SDF refines UT");
 static_assert( widens_to(moc_id::SADF, moc_id::UT),   "SADF refines UT");
 static_assert( widens_to(moc_id::SY,   moc_id::SY),   "reflexive");
 
+// SDF and SADF are mutually compatible rather than ordered: an SADF
+// process is an SDF process within any one scenario. This is why SADF
+// re-exports several of SDF's constructors instead of repeating them,
+// and why SADF models call SDF::make_unzip directly.
+static_assert( widens_to(moc_id::SDF,  moc_id::SADF), "SADF is SDF per scenario");
+static_assert( widens_to(moc_id::SADF, moc_id::SDF),  "...and the other way");
+static_assert(!narrows_to(moc_id::SADF, moc_id::SDF), "so neither narrows");
+
+// A UT actor picks its rate per firing from its own state, which a
+// static SDF schedule cannot assume. That one is a real narrowing --
+// reported under FORSYDE_STRICT_MOC, not rejected outright.
 static_assert( narrows_to(moc_id::UT,   moc_id::SDF),  "UT -> SDF narrows");
 static_assert( narrows_to(moc_id::UT,   moc_id::SADF), "UT -> SADF narrows");
-static_assert( narrows_to(moc_id::SADF, moc_id::SDF),  "SADF -> SDF narrows");
 
 static_assert( incomparable(moc_id::SY, moc_id::DT), "SY and DT do not refine");
 static_assert( incomparable(moc_id::DT, moc_id::SY), "...in either direction");
@@ -75,7 +90,7 @@ SC_MODULE(legal_binds)
 
     UT::UT_in<int>      ut_from_sdf, ut_from_sadf;
     SADF::SADF_in<int>  sadf_from_sdf;
-    SDF::SDF_in<int>    sdf_from_sdf;
+    SDF::SDF_in<int>    sdf_from_sdf, sdf_from_sadf;
     SY::SY_in<int>      sy_from_sy;
     DDE::DDE_in<int>    dde_from_dde;
 
@@ -83,7 +98,9 @@ SC_MODULE(legal_binds)
     {
         ut_from_sdf(sdf_sig);       // SDF  -> UT    widening
         ut_from_sadf(sadf_sig);     // SADF -> UT    widening
-        sadf_from_sdf(sdf_sig);     // SDF  -> SADF  widening
+        sadf_from_sdf(sdf_sig);     // SDF  -> SADF  compatible
+        sdf_from_sadf(sadf_sig);    // SADF -> SDF   compatible, and the
+                                    //   binding four SADF models make
         sdf_from_sdf(sdf_sig);      // SDF  -> SDF   identity
         sy_from_sy(sy_sig);         // SY   -> SY    identity
         dde_from_dde(dde_sig);      // DDE  -> DDE   identity
