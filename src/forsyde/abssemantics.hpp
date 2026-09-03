@@ -83,6 +83,43 @@ void inline write_vec_multiport(If& PORT, const std::vector<T>& VEC)  {
             PORT[WMPi]->write(*WMPit);
 }
 
+//! Advance a process's local time to \a t, refusing to move it backwards
+/*! The timed MoCs synchronise each process's local clock with the kernel
+ * by waiting out the difference between where they are and the time tag
+ * they are acting on. Written directly that is
+ *
+ *      wait(t - sc_time_stamp());
+ *
+ * which is a trap, because sc_time is unsigned and SystemC does not
+ * check: measured against SystemC 3.0.2, sc_time(3,SC_NS) -
+ * sc_time(5,SC_NS) is 18446744073709549616 ps, roughly 213 days of
+ * simulated time. A model that ever presents an event tagged in the past
+ * -- an out-of-order emitter, a MoC interface handing back a stale tag --
+ * therefore does not fail, it appears to hang, with nothing said. That
+ * is the worst available outcome for a mistake that is easy to make and
+ * hard to see.
+ *
+ * Going backwards is a modelling error in every timed MoC here, so it is
+ * reported as one.
+ */
+inline void wait_until(const sc_time& t,        ///< the local time to advance to
+                       const char* process_name ///< reporting process, for the message
+                      )
+{
+    if (t < sc_time_stamp())
+    {
+        std::ostringstream msg;
+        msg << "tried to advance its local time backwards, to " << t
+            << ", but it is already at " << sc_time_stamp()
+            << ". An event has arrived carrying a time tag in this "
+               "process's past, which means something upstream emitted "
+               "out of tag order.";
+        SC_REPORT_ERROR(process_name, msg.str().c_str());
+        return;
+    }
+    sc_core::wait(t - sc_time_stamp());
+}
+
 //! Type of the object bound to a port
 enum bound_type {PORT, CHANNEL};
 

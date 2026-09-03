@@ -35,6 +35,35 @@
 #include "sdf_process.hpp"
 #include "ct_process.hpp"
 #include "dde_process.hpp"
+// NOTE -- the MoC interfaces below wait with a bare
+//     wait(t - sc_time_stamp());
+// rather than through ForSyDe::wait_until(), which is the guarded form
+// the DDE and CT process constructors use and which reports an attempt
+// to move local time backwards instead of letting sc_time wrap.
+//
+// That is not because the interfaces are exempt. It is because routing
+// them through the guard immediately fires in three of the models in
+// this repository:
+//
+//   mi/cruisecontrol   top.plant1.car.de2ct1   to 10 ms, already at 20 ms
+//   ct/cttutorial      top.filter1.ct2de1      to 25 us, already at 100 us
+//   mi/ir_uwb_radar    top1.radar1.adc         to 500 ps, already at 525 ps
+//
+// Each of those is a real backwards wait today, and sc_time is unsigned,
+// so each is really a wait of about 213 days of simulated time -- after
+// which the process never runs again. ct/cttutorial and mi/ir_uwb_radar
+// are the suite's two registered timeouts, so this is a candidate
+// explanation for both, and mi/cruisecontrol passes only because the
+// process that parks had nothing left to contribute.
+//
+// The interfaces read ahead by design -- DDE2CT consumes events until it
+// has the two that bracket an interval, then emits a sub-signal over it
+// -- so the fix is not simply to clamp the wait; it needs the interval
+// reconstruction and the local clock reconciled, which changes what
+// these processes mean. That belongs with the MoC interface work rather
+// than with adding a guard, so the guard is deliberately not applied
+// here yet and this note is the record of what it found.
+
 namespace ForSyDe
 {
 using namespace sc_core;

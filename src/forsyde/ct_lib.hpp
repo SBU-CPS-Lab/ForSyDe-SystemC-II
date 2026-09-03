@@ -383,6 +383,15 @@ inline gaussian* make_gaussian(std::string pName,
 //! Process constructor for implementing a linear filter
 /*! This class is used to build a process which implements a linear
  * in the CT MoC filter based on the numerator and denominator constants.
+ *
+ * Unlike the other entries in this library -- scale, add, mul and the
+ * rest, which are components built out of CT process constructors --
+ * this one is a primitive of the CT MoC: solving a differential equation
+ * is not expressible in terms of the other CT constructors, and a CT
+ * model that cannot integrate cannot do very much. It is only a composite
+ * here because the numerical work is naturally discrete, so it is done in
+ * the DDE MoC and converted at the boundary.
+ *
  * It internally uses a DDE filter together with CT2DDE and DDE2CT MoC
  * interfaces.
  */

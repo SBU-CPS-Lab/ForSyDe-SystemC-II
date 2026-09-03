@@ -21,6 +21,21 @@
 #    END_T of 11000ns in about three minutes: an 8th-order filter
 #    solved twice per 25ps step, 440,000 steps.
 #
+#    Superseded in 2d: it now fails immediately instead, with
+#      top1.ir_channel1.scale123: tried to advance its local time
+#      backwards, to 425 ps, but it is already at 900 ps
+#    from the guard added to the CT and DDE time advance. That is not a
+#    new defect -- the same backwards wait was there before, where an
+#    unsigned sc_time turned it into a wait of ~213 days of simulated
+#    time, parking the process silently for the rest of the run. The
+#    model reaches its end time either way, which is why the three-minute
+#    reading above was accurate; what it does not say is that a process
+#    dropped out along the way. Something upstream of scale123 emits
+#    sub-signals whose intervals go backwards, most likely the parallel
+#    CT::shift branches in ir_channel, whose different delays put the
+#    branches on different interval grids. Diagnosing that is CT
+#    interval-alignment work, not a harness matter.
+#
 # Both now finish; both exceed this harness's 30s per-example budget, so
 # they stay registered. Raising TIMEOUT would let them pass at the cost
 # of making ir_uwb_radar the critical path of the whole suite (~3min vs

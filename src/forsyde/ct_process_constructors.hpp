@@ -88,6 +88,15 @@ private:
         ival1 = iport1.read();
     }
     
+    // The output sub-signal is a closure over the input's, not a
+    // resampling of it: a CT signal is a function of time, and composing
+    // f with it keeps that exact rather than committing to sample points
+    // a downstream solver may not want. The nesting this builds up along
+    // a chain of processes is deliberate and bounded in practice --
+    // a feedback loop needs a solver, and a solver partitions the signal,
+    // which ends the chain. Once the process network is a first-class
+    // object (phase 3) the chain can also be collapsed before simulation
+    // starts rather than walked per evaluation.
     void exec()
     {
         sub_signal iv1 = ival1;
@@ -104,7 +113,7 @@ private:
     void prod()
     {
         write_multiport(oport1, oval);
-        wait(get_end_time(oval) - sc_time_stamp());
+        wait_until(get_end_time(oval), name());
     }
     
     void clean(){}
@@ -211,7 +220,7 @@ private:
     void prod()
     {
         write_multiport(oport1, oss);
-        wait(tl - sc_time_stamp());
+        wait_until(tl, name());
     }
     
     void clean(){}
@@ -315,7 +324,7 @@ private:
     void prod()
     {
         write_multiport(oport1, oss);
-        wait(tl - sc_time_stamp());
+        wait_until(tl, name());
     }
     
     void clean(){}
@@ -336,8 +345,21 @@ private:
 /*! This class is used to build a process which delays the input CT signal.
  * It operates by adding the specified delay value to the start and end
  * times for ranges of every sub-signal element.
- * 
+ *
  * The resulting process does not buffer anything from the signal.
+ *
+ * \warning This is *not* the constructor you want if you are looking for
+ * the CT equivalent of SY::delay, SDF::delay, UT::delay or DDE::delay.
+ * Those all move the signal itself: DDE::delay adds the delay to an
+ * event's time tag, so the value that was at t comes out at t+d. This one
+ * moves each sub-signal's *interval* by d and leaves its function alone,
+ * so the value at t after the delay is f(t), not f(t-d). The shape of the
+ * signal does not move; only the window it is said to cover does.
+ *
+ * The constructor that moves the shape is CT::shift, and it is what every
+ * model in this repository uses. Reach for that one unless you
+ * specifically want the interval relabelling, which is kept because it
+ * costs nothing and does not buffer.
  */
 class delay : public ct_process
 {
@@ -400,7 +422,7 @@ private:
     void prod()
     {
         write_multiport(oport1, val);
-        wait(get_end_time(val) - sc_time_stamp());
+        wait_until(get_end_time(val), name());
     }
     
     void clean(){}
@@ -418,7 +440,11 @@ private:
 
 //! Process constructor for a shift element
 /*! This class is used to build a process which shifts the shape of the
- * input signal by a given value to the right.
+ * input signal by a given value to the right: the value that was at t
+ * comes out at t+d.
+ *
+ * This is the CT counterpart of SY::delay and DDE::delay, despite the
+ * name -- see the warning on CT::delay, which is a different operation.
  */
 class shift : public ct_process
 {
@@ -486,7 +512,7 @@ private:
     void prod()
     {
         write_multiport(oport1, val);
-        wait(get_end_time(val) - sc_time_stamp());
+        wait_until(get_end_time(val), name());
     }
     
     void clean() {}
@@ -548,7 +574,7 @@ private:
                         [this](const sc_time& t){return init_val;}
                   );
         write_multiport(oport1, ss);
-        wait(get_end_time(ss) - sc_time_stamp());
+        wait_until(get_end_time(ss), name());
     }
     
     void prep() {}
@@ -627,7 +653,7 @@ private:
                                 }
                             );
         write_multiport(oport1, ss);
-        wait(get_end_time(ss) - sc_time_stamp());
+        wait_until(get_end_time(ss), name());
     }
     
     void prep() {}
@@ -848,7 +874,7 @@ private:
     void prod()
     {
         write_multiport(oport1, *val);
-        wait(get_end_time(*val) - sc_time_stamp());
+        wait_until(get_end_time(*val), name());
     }
     
     void clean()
