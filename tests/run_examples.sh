@@ -124,6 +124,12 @@ DIRS+=("tests/instantiate")
 # tests/fsm_semantics/README.md.
 DIRS+=("tests/fsm_semantics")
 
+# tests/moc_binding pins the D13 rule: which models of computation may be
+# bound to which, and why. It is also the only place that compiles with
+# FORSYDE_STRICT_MOC, which turns the binding assertions on. See
+# tests/moc_binding/README.md.
+DIRS+=("tests/moc_binding")
+
 echo "CXXSTD=$CXXSTD $( [ $SEED = 1 ] && echo '(seed mode)' || echo '(check mode)' )"
 
 # One job per directory. Everything this prints goes to the job's own

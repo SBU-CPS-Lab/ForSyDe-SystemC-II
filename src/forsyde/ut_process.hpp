@@ -21,6 +21,7 @@
  */
 
 #include <systemc>
+#include "moc_traits.hpp"
 #include "abssemantics.hpp"
 
 namespace ForSyDe
@@ -36,6 +37,9 @@ template <typename T>
 class UT2UT: public ForSyDe::signal<T,T>
 {
 public:
+    //! The model of computation this signal belongs to (D13)
+    static constexpr ForSyDe::moc_id moc_tag = ForSyDe::moc_id::UT;
+
     UT2UT() : ForSyDe::signal<T,T>() {}
     UT2UT(sc_module_name name, unsigned size) : ForSyDe::signal<T,T>(name, size) {}
 #ifdef FORSYDE_INTROSPECTION
@@ -56,6 +60,21 @@ template <typename T>
 class UT_in: public ForSyDe::in_port<T,T,signal<T>>
 {
 public:
+    //! The model of computation this port belongs to (D13)
+    static constexpr ForSyDe::moc_id moc_tag = ForSyDe::moc_id::UT;
+
+    //! Bind, having first checked that the two MoCs are compatible
+    /*! The carrier boundary is enforced by the token types already; this
+     * is what catches a binding *within* a carrier, where the types
+     * coincide but the models of computation do not.
+     */
+    template <typename Other>
+    void operator()(Other& other)
+    {
+        ForSyDe::check_bind<Other::moc_tag, moc_tag>();
+        ForSyDe::in_port<T,T,signal<T>>::operator()(other);
+    }
+
     UT_in() : ForSyDe::in_port<T,T,signal<T>>(){}
     UT_in(const char* name) : ForSyDe::in_port<T,T,signal<T>>(name){}
 #ifdef FORSYDE_INTROSPECTION
@@ -76,6 +95,21 @@ template <typename T>
 class UT_out: public ForSyDe::out_port<T,T,signal<T>>
 {
 public:
+    //! The model of computation this port belongs to (D13)
+    static constexpr ForSyDe::moc_id moc_tag = ForSyDe::moc_id::UT;
+
+    //! Bind, having first checked that the two MoCs are compatible
+    /*! The carrier boundary is enforced by the token types already; this
+     * is what catches a binding *within* a carrier, where the types
+     * coincide but the models of computation do not.
+     */
+    template <typename Other>
+    void operator()(Other& other)
+    {
+        ForSyDe::check_bind<Other::moc_tag, moc_tag>();
+        ForSyDe::out_port<T,T,signal<T>>::operator()(other);
+    }
+
     UT_out() : ForSyDe::out_port<T,T,signal<T>>(){}
     UT_out(const char* name) : ForSyDe::out_port<T,T,signal<T>>(name){}
 #ifdef FORSYDE_INTROSPECTION

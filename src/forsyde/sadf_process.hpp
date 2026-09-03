@@ -21,6 +21,7 @@
  */
 
 #include <systemc>
+#include "moc_traits.hpp"
 #include "abssemantics.hpp"
 // SADF is built directly on top of UT's types (SADF2SADF : UT::UT2UT<T>,
 // and likewise for SADF_in/SADF_out below), the same relationship SDF
@@ -40,6 +41,9 @@ template <typename T>
 class SADF2SADF: public UT::UT2UT<T>
 {
 public:
+    //! The model of computation this signal belongs to (D13)
+    static constexpr ForSyDe::moc_id moc_tag = ForSyDe::moc_id::SADF;
+
     SADF2SADF() : UT::UT2UT<T>() {}
     SADF2SADF(sc_module_name name, unsigned size) : UT::UT2UT<T>(name, size) {}
 #ifdef FORSYDE_INTROSPECTION
@@ -60,6 +64,21 @@ template <typename T>
 class SADF_in: public ForSyDe::UT::UT_in<T>
 {
 public:
+    //! The model of computation this port belongs to (D13)
+    static constexpr ForSyDe::moc_id moc_tag = ForSyDe::moc_id::SADF;
+
+    //! Bind, having first checked that the two MoCs are compatible
+    /*! The carrier boundary is enforced by the token types already; this
+     * is what catches a binding *within* a carrier, where the types
+     * coincide but the models of computation do not.
+     */
+    template <typename Other>
+    void operator()(Other& other)
+    {
+        ForSyDe::check_bind<Other::moc_tag, moc_tag>();
+        ForSyDe::UT::UT_in<T>::operator()(other);
+    }
+
     SADF_in() : ForSyDe::UT::UT_in<T>(){}
     SADF_in(const char* name) : ForSyDe::UT::UT_in<T>(name){}
 #ifdef FORSYDE_INTROSPECTION
@@ -80,6 +99,21 @@ template <typename T>
 class SADF_out: public ForSyDe::UT::UT_out<T>
 {
 public:
+    //! The model of computation this port belongs to (D13)
+    static constexpr ForSyDe::moc_id moc_tag = ForSyDe::moc_id::SADF;
+
+    //! Bind, having first checked that the two MoCs are compatible
+    /*! The carrier boundary is enforced by the token types already; this
+     * is what catches a binding *within* a carrier, where the types
+     * coincide but the models of computation do not.
+     */
+    template <typename Other>
+    void operator()(Other& other)
+    {
+        ForSyDe::check_bind<Other::moc_tag, moc_tag>();
+        ForSyDe::UT::UT_out<T>::operator()(other);
+    }
+
     SADF_out() : ForSyDe::UT::UT_out<T>(){}
     SADF_out(const char* name) : ForSyDe::UT::UT_out<T>(name){}
 #ifdef FORSYDE_INTROSPECTION

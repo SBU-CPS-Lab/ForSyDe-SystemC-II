@@ -22,6 +22,7 @@
 
 #include <systemc>
 #include "abst_ext.hpp"
+#include "moc_traits.hpp"
 #include "abssemantics.hpp"
 
 namespace ForSyDe
@@ -37,6 +38,9 @@ template <typename T>
 class SY2SY: public ForSyDe::signal<T,abst_ext<T>>
 {
 public:
+    //! The model of computation this signal belongs to (D13)
+    static constexpr ForSyDe::moc_id moc_tag = ForSyDe::moc_id::SY;
+
     SY2SY() : ForSyDe::signal<T,abst_ext<T>>() {}
     SY2SY(sc_module_name name, unsigned size) : ForSyDe::signal<T,abst_ext<T>>(name, size) {}
 #ifdef FORSYDE_INTROSPECTION
@@ -57,6 +61,21 @@ template <typename T>
 class SY_in: public ForSyDe::in_port<T,abst_ext<T>,signal<T>>
 {
 public:
+    //! The model of computation this port belongs to (D13)
+    static constexpr ForSyDe::moc_id moc_tag = ForSyDe::moc_id::SY;
+
+    //! Bind, having first checked that the two MoCs are compatible
+    /*! The carrier boundary is enforced by the token types already; this
+     * is what catches a binding *within* a carrier, where the types
+     * coincide but the models of computation do not.
+     */
+    template <typename Other>
+    void operator()(Other& other)
+    {
+        ForSyDe::check_bind<Other::moc_tag, moc_tag>();
+        ForSyDe::in_port<T,abst_ext<T>,signal<T>>::operator()(other);
+    }
+
     SY_in() : ForSyDe::in_port<T,abst_ext<T>,signal<T>>(){}
     SY_in(const char* name) : ForSyDe::in_port<T,abst_ext<T>,signal<T>>(name){}
 #ifdef FORSYDE_INTROSPECTION
@@ -77,6 +96,21 @@ template <typename T>
 class SY_out: public ForSyDe::out_port<T,abst_ext<T>,signal<T>>
 {
 public:
+    //! The model of computation this port belongs to (D13)
+    static constexpr ForSyDe::moc_id moc_tag = ForSyDe::moc_id::SY;
+
+    //! Bind, having first checked that the two MoCs are compatible
+    /*! The carrier boundary is enforced by the token types already; this
+     * is what catches a binding *within* a carrier, where the types
+     * coincide but the models of computation do not.
+     */
+    template <typename Other>
+    void operator()(Other& other)
+    {
+        ForSyDe::check_bind<Other::moc_tag, moc_tag>();
+        ForSyDe::out_port<T,abst_ext<T>,signal<T>>::operator()(other);
+    }
+
     SY_out() : ForSyDe::out_port<T,abst_ext<T>,signal<T>>(){}
     SY_out(const char* name) : ForSyDe::out_port<T,abst_ext<T>,signal<T>>(name){}
 #ifdef FORSYDE_INTROSPECTION

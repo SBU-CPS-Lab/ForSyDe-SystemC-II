@@ -22,6 +22,7 @@
 
 #include <systemc>
 #include "sub_signal.hpp"
+#include "moc_traits.hpp"
 #include "abssemantics.hpp"
 
 namespace ForSyDe
@@ -36,6 +37,9 @@ using namespace sc_core;
 class CT2CT: public ForSyDe::signal<double,sub_signal>
 {
 public:
+    //! The model of computation this signal belongs to (D13)
+    static constexpr ForSyDe::moc_id moc_tag = ForSyDe::moc_id::CT;
+
     CT2CT() : ForSyDe::signal<double,sub_signal>() {}
     CT2CT(sc_module_name name, unsigned size) : ForSyDe::signal<double,sub_signal>(name, size) {}
 #ifdef FORSYDE_INTROSPECTION
