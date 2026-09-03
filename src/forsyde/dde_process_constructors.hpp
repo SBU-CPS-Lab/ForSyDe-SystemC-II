@@ -301,6 +301,8 @@ private:
     // Initial value and the delay time
     abst_ext<T> init_val;
     sc_time delay_time;
+    // Tag of the event consumed this firing, before delay_time is added
+    sc_time in_time;
 
     // Inputs and output variables
     ttn_event<T>* ev;
@@ -321,13 +323,21 @@ private:
 
     void exec()
     {
+        in_time = get_time(*ev);
         set_time(*ev, get_time(*ev)+delay_time);
     }
 
     void prod()
     {
         write_multiport(oport1, *ev);
-        wait_until(get_time(*ev), name());
+        // A DDE process advances its local clock to the latest time for
+        // which it has complete input information -- for one input, the
+        // tag it has just consumed.
+        // This used to advance to get_time(*ev), which exec() has just
+        // moved forward by delay_time -- the tag of the event being
+        // emitted rather than the one consumed. A delay knows about its
+        // input up to in_time and no further.
+        wait_until(in_time, name());
     }
 
     void clean()
@@ -434,6 +444,12 @@ private:
     void prod()
     {
         write_multiport(oport1, ttn_event<OT>(*oval,get_time(*itok)+delay_time));
+        // A DDE process advances its local clock to the latest time for
+        // which it has complete input information -- for one input, the
+        // tag it has just consumed.
+        // The tag it emits is later than that, by delay_time; what the
+        // process knows about is still only up to the input.
+        wait_until(get_time(*itok), name());
     }
 
     void clean()
@@ -835,7 +851,15 @@ private:
         _func(*val);
     }
 
-    void prod() {}
+    void prod()
+    {
+        // A DDE process advances its local clock to the latest time for
+        // which it has complete input information -- for one input, the
+        // tag it has just consumed.
+        // Having no output does not exempt it: a sink that reports using
+        // sc_time_stamp() would otherwise read a clock that never moves.
+        wait_until(get_time(*val), name());
+    }
 
     void clean()
     {
@@ -1281,6 +1305,10 @@ private:
     void prod()
     {
         write_multiport(oport1, *val);
+        // A DDE process advances its local clock to the latest time for
+        // which it has complete input information -- for one input, the
+        // tag it has just consumed.
+        wait_until(get_time(*val), name());
     }
 
     void clean()

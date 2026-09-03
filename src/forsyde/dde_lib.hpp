@@ -237,6 +237,18 @@ private:
         }
     }
 
+    // NOTE -- this is the one DDE process that does not advance its local
+    // clock. Every other one now ends its firing with wait_until() on the
+    // latest time it has complete input information for, which for a
+    // one-input process is the tag it just consumed. This one consumes
+    // *two* events per firing, at t and t2, and also keeps its own
+    // sampling clock in samplingTimeTag, which the adaptive step moves
+    // independently of either. So there are three defensible answers
+    // here -- t, t2, or samplingTimeTag -- and they are not the same
+    // number once the step adapts. Picking one is a decision about what
+    // a solver's local time means, not a consistency fix, and it changes
+    // the timing of every model that filters, so it is left alone and
+    // recorded instead.
     void prod()
     {
         write_multiport(oport2, ttn_event<unsigned int>(0, samplingTimeTag+step/2));

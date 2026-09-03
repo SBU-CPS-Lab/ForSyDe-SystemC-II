@@ -30,6 +30,72 @@
 #include "sub_signal.hpp"
 #include "ct_process.hpp"
 
+// OPEN DESIGN QUESTION -- interval alignment in the CT MoC.
+//
+// A CT signal here is a stream of sub_signals, each a function paired
+// with the half-open interval it is claimed to describe. Two facts about
+// that follow, and only the first is handled:
+//
+//   comb2 aligns its inputs. It reads one sub_signal per input, sets its
+//   local time to the earlier of the two end times and emits over
+//   [tl, tn), which is a Chandy-Misra merge over interval boundaries
+//   rather than time tags. That is the right shape.
+//
+//   comb does not, because with one input there is nothing to merge --
+//   it forwards its input's interval unchanged. So a process network in
+//   which two branches acquire *different* interval grids has no
+//   mechanism to put them back on a common one, and nothing detects it.
+//   examples/mi/ir_uwb_radar is such a network: its ir_channel runs a
+//   fan of CT::shift processes with different delays, and its scale123
+//   ends up being handed a sub_signal whose interval lies behind where
+//   the process already is. Before the wait_until() guard that was a
+//   backwards wait, i.e. a silent 213-day park; now it is an error, but
+//   the underlying misalignment is unaddressed.
+//
+//   Nor is evaluation checked against coverage: comb2 evaluates both
+//   inputs over [tl, tn) without establishing that either covers it, and
+//   sub_signal::operator() answers an out-of-range request with
+//   SC_REPORT_ERROR and then returns -1, so with a non-throwing report
+//   handler a wrong value enters the signal.
+//
+// How the functional-programming world avoids this is instructive,
+// because the common thread is that none of them put the grid on the
+// signal:
+//
+//   Classic FRP (Fran, Elliott and Hudak) makes a behaviour denotatively
+//   Time -> a, a total function defined everywhere. Combining two is
+//   pointwise application, so there is no alignment question at all. The
+//   price is that piecewise structure cannot be represented, with the
+//   space and time leaks that follow.
+//
+//   Arrowized FRP (Yampa) keeps that denotation but steps the entire
+//   signal-function network in lockstep on one dt. Alignment holds by
+//   construction; it is the perfectly synchronous discipline applied to
+//   continuous time.
+//
+//   Functional Hybrid Modelling (Nilsson et al.) and Zelus (Benveniste,
+//   Bourke, Caillaud, Pouzet) both handle genuine ODEs by separating the
+//   discrete part, which is synchronous, from the continuous part, which
+//   is handed to a single numerical solver with zero-crossing detection.
+//   One solver owns one time grid. Modelica and SystemC-AMS's ELN and
+//   LSF are equation-based and do the same.
+//
+// So the field's answer is either "signals are total functions of time"
+// or "one global solver owns the grid", and ForSyDe takes neither: it
+// distributes the grid across the signals so that processes stay
+// independent, which is what makes a process network rather than an
+// equation system. That is a deliberate trade and not obviously wrong --
+// it is what allows CT processes to be distributed and, later, merged
+// before simulation -- but it does mean alignment has to become an
+// explicit part of the MoC rather than an assumption.
+//
+// The direction that fits ForSyDe is to finish what comb2 starts: treat
+// interval boundaries as first-class the way DDE treats time tags, so
+// that every constructor re-aligns rather than only the merging ones,
+// and make out-of-range evaluation impossible rather than -1. That is
+// not a small change and it overlaps the MoC-typing work, so it is
+// marked here and deferred rather than half-done.
+
 namespace ForSyDe
 {
 
