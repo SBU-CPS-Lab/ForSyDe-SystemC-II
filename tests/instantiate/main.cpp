@@ -178,6 +178,8 @@ SC_MODULE(all)
         inst<DDE::zipX  <int,3>>            ("dde_zipX");
         inst<DDE::unzip <int,char>>         ("dde_unzip");
         inst<DDE::unzipX<int,3>>            ("dde_unzipX");
+        inst<DDE::zipN  <int,char,bool>>    ("dde_zipN");
+        inst<DDE::unzipN<int,char,bool>>    ("dde_unzipN");
 
         // ---- CT -------------------------------------------------------
         // CT is monomorphic on CTTYPE (double), so there are no type

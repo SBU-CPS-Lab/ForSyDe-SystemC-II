@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <tuple>
 #include <deque>
+#include <utility>
 #include <boost/numeric/ublas/matrix.hpp>
 
 // Streams a std::vector under FORSYDE_INTROSPECTION (e.g. "ss << offsets"
@@ -1257,6 +1258,187 @@ private:
 #endif
 };
 
+
+//! The zipN process with a variable number of inputs and one output
+/*! The heterogeneous counterpart of zipX: where that one takes N inputs
+ * of a single type and emits an array, this takes one input per type and
+ * emits a tuple. The merge is the same Chandy-Misra one -- read a channel
+ * only when its clock has caught up with the local one, then advance the
+ * local clock to the earliest of the channel clocks and emit whichever
+ * inputs are tagged with it, the rest absent.
+ */
+template <class... Ts>
+class zipN : public dde_process
+{
+public:
+    std::tuple<DDE_in<Ts>...> iport;                    ///< tuple of ports for the input channels
+    DDE_out<std::tuple<abst_ext<Ts>...>> oport1;        ///< port for the output channel
+
+    //! The constructor requires the module name
+    zipN(sc_module_name _name      ///< process name
+        ) : dde_process(_name), oport1("oport1") {}
+
+    //! Specifying from which process constructor is the module built
+    std::string forsyde_kind() const {return "DDE::zipN";}
+
+private:
+    static constexpr std::size_t N = sizeof...(Ts);
+
+    std::tuple<ttn_event<Ts>...> next_ievs;
+    std::tuple<abst_ext<Ts>...>  cur_ivals;
+    abst_ext<std::tuple<abst_ext<Ts>...>> oval;
+
+    sc_time tl;                     ///< local clock
+    std::array<sc_time,N> insT;     ///< channel clocks, one per input
+
+    void init()
+    {
+        insT.fill(SC_ZERO_TIME);
+        tl = SC_ZERO_TIME;
+    }
+
+    void prep()
+    {
+        // Read only the channels the local clock has caught up with
+        std::size_t n{0};
+        std::apply([&](auto&... port){
+            std::apply([&](auto&... ev){
+                ([&](auto& p, auto& e){
+                    if (insT[n] == tl)
+                    {
+                        e = p.read();
+                        insT[n] = get_time(e);
+                    }
+                    n++;
+                }(port, ev), ...);
+            }, next_ievs);
+        }, iport);
+
+        tl = *std::min_element(insT.begin(), insT.end());
+
+        // Whatever is tagged with the new local time is present this
+        // cycle; everything else is absent for it
+        std::apply([&](auto&... ev){
+            std::apply([&](auto&... val){
+                ((val = (get_time(ev) == tl)
+                        ? get_value(ev)
+                        : std::decay_t<decltype(val)>()), ...);
+            }, cur_ivals);
+        }, next_ievs);
+    }
+
+    void exec()
+    {
+        const bool all_absent = std::apply(
+            [](auto&... val){return (is_absent(val) && ...);}, cur_ivals);
+        if (all_absent)
+            oval.set_abst();
+        else
+            oval = abst_ext<std::tuple<abst_ext<Ts>...>>(cur_ivals);
+    }
+
+    void prod()
+    {
+        write_multiport(oport1, ttn_event<std::tuple<abst_ext<Ts>...>>(oval, tl));
+        wait_until(tl, name());
+    }
+
+    void clean() {}
+
+#ifdef FORSYDE_INTROSPECTION
+    void bindInfo()
+    {
+        boundInChans.resize(N);
+        std::apply
+        (
+            [&](auto&... ports)
+            {
+                std::size_t n{0};
+                ((boundInChans[n++].port = &ports),...);
+            }, iport
+        );
+        boundOutChans.resize(1);    // only one output port
+        boundOutChans[0].port = &oport1;
+    }
+#endif
+};
+
+//! The unzipN process with one input and a variable number of outputs
+/*! The heterogeneous counterpart of unzipX, and the inverse of zipN: it
+ * reads one tuple-valued event and writes each element to its own
+ * output, all carrying the tag the event arrived with. An absent input
+ * makes every output absent at that tag.
+ */
+template <class... Ts>
+class unzipN : public dde_process
+{
+public:
+    DDE_in<std::tuple<abst_ext<Ts>...>> iport1;     ///< port for the input channel
+    std::tuple<DDE_out<Ts>...> oport;               ///< tuple of ports for the output channels
+
+    //! The constructor requires the module name
+    unzipN(sc_module_name _name      ///< process name
+          ) : dde_process(_name), iport1("iport1") {}
+
+    //! Specifying from which process constructor is the module built
+    std::string forsyde_kind() const {return "DDE::unzipN";}
+
+private:
+    static constexpr std::size_t N = sizeof...(Ts);
+
+    ttn_event<std::tuple<abst_ext<Ts>...>> in_ev;
+    std::tuple<abst_ext<Ts>...> out_vals;
+    sc_time tl;
+
+    void init() {tl = SC_ZERO_TIME;}
+
+    void prep() {in_ev = iport1.read();}
+
+    void exec()
+    {
+        tl = get_time(in_ev);
+        if (is_absent(get_value(in_ev)))
+            out_vals = std::tuple<abst_ext<Ts>...>();
+        else
+            out_vals = unsafe_from_abst_ext(get_value(in_ev));
+    }
+
+    // Indexed rather than std::apply'd, because each output needs the
+    // *element* type Ts to name its ttn_event, and abst_ext does not
+    // carry the value type as a member typedef to recover it from.
+    template <std::size_t... Is>
+    void write_outputs(std::index_sequence<Is...>)
+    {
+        (write_multiport(std::get<Is>(oport),
+            ttn_event<std::tuple_element_t<Is, std::tuple<Ts...>>>(
+                std::get<Is>(out_vals), tl)), ...);
+    }
+
+    void prod()
+    {
+        write_outputs(std::index_sequence_for<Ts...>{});
+        wait_until(tl, name());
+    }
+
+    void clean() {}
+
+#ifdef FORSYDE_INTROSPECTION
+    void bindInfo()
+    {
+        boundInChans.resize(1);     // only one input port
+        boundInChans[0].port = &iport1;
+        boundOutChans.resize(N);
+        std::apply
+        (
+            [&](auto&... ports)
+            {
+                std::size_t n{0};
+                ((boundOutChans[n++].port = &ports),...);
+            }, oport
+        );
+    }
+#endif
+};
 
 //! Process constructor for a fan-out process with one input and one output
 /*! This class is used to build a fanout processes with one input
