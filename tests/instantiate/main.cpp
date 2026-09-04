@@ -203,6 +203,15 @@ SC_MODULE(all)
                            sc_core::sc_time(1,sc_core::SC_MS));
         inst<CT::pif>     ("ct_pif", 1.0, 1.0, sc_core::sc_time(1,sc_core::SC_MS));
 
+        // Function adaptivity's own process constructor, in
+        // adaptivity.hpp -- a leaf process, but declared directly
+        // against sc_module with its own SC_THREAD rather than through
+        // any of the abstract-semantics cores, and so also missed by
+        // both the class-that-already-has-ports check and the
+        // deriving-from-a-process-base check earlier passes used to
+        // find what needed bindable.
+        inst<SY::apply<int,int>>("sy_apply");
+
         // ---- SADF -----------------------------------------------------
         // The scenario tables differ in shape per arity: a pair of
         // scalars, an array plus a scalar, then two arrays.

@@ -39,15 +39,26 @@ using namespace sc_core;
  * data-types.
  */
 template <class ITYP, class OTYP>
-class apply : public sc_module
+class apply : public sc_module,
+              public ForSyDe::detail::bindable<apply<ITYP,OTYP>>
 {
 public:
+    //! Bind signals positionally: outputs first, then inputs
+    /*! fport is bound separately, by name -- like SADF::kernel's
+     * cport1, it is a third kind of channel outside the two this
+     * carries, so it is not part of in_ports()/out_ports().
+     */
+    using ForSyDe::detail::bindable<apply<ITYP,OTYP>>::operator();
+
     SY_in<ITYP>  iport;        ///< port for the input channel
     SY_out<OTYP> oport;        ///< port for the output channel
     
     //! Type of the function to be passed to the process constructor
     typedef std::function<abst_ext<OTYP>(const abst_ext<ITYP>&)> functype;
     SY_in<functype> fport;     ///< port for the function channel
+
+    auto in_ports()  {return std::tie(iport);}
+    auto out_ports() {return std::tie(oport);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input port,
