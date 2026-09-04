@@ -1,4 +1,4 @@
-# tests/moc_binding -- which MoCs may be bound to which (D13)
+# tests/moc_binding -- which MoCs bind directly, and which need an interface
 
 Every ForSyDe signal and port now carries its model of computation as a
 compile-time tag, and `moc_traits.hpp` turns those tags into a rule about
@@ -83,3 +83,35 @@ Two of the shared components got clearer types along the way.
 -- now declare carrier-U ports (`UT_in`, `UT_out`) rather than SDF ones,
 because that is what they are: generic over the untimed carrier, not
 specific to SDF. Both SDF and SADF reach them by widening.
+
+## And when an interface *is* needed
+
+Crossing a carrier needs a conversion, and Jantsch's chapter 6 organises
+those by what they do to timing information rather than by which two
+MoCs they sit between. Table 6-1 lists six interfaces over three timing
+regimes, and the definitions then collapse them: `stripS2U` is defined
+as *being* `stripT2U` (6.2), and both `insertU2T` and `insertS2T` as
+being `insertU2S` (6.5, 6.6). Two operations are left, plus `stripT2S`,
+which groups events and is not implemented here yet.
+
+| | does | Jantsch |
+|---|---|---|
+| `MI::strip<From,To>` | drops absent events, keeps the rest in order | 6.1, 6.2 |
+| `MI::insert<From,To>(lambda)` | emits the event, then `lambda-1` absent ones | 6.4-6.6 |
+
+Both are written over a *pair of MoCs* rather than a pair of names, so
+every combination exists. `{SY, DT}` to `{UT, SDF, SADF}` is six
+interfaces from one class and six more back from the other, where the
+library previously had exactly one hand-written pair, SY to SDF. This is
+the gap where UT, DT and SADF had no MoC interfaces at all: they never
+needed their own, they needed these.
+
+`main.cpp` runs both and the golden pins what they emit:
+
+    1 _ 2 _ _ 3   --strip-->    1 2 3
+    7 8           --insert(3)-> 7 _ _ 8 _ _
+
+`SY2SDF` and `SDF2SY` remain as names, now aliases. The hand-written
+`SY2SDF` looped correctly over absent events and then wrote a member it
+had never assigned, so every token it emitted was an uninitialised
+value. No model used it, so nothing found out.

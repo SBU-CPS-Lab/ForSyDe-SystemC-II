@@ -83,10 +83,12 @@ static_assert(moc_traits_carrier(moc_id::CT)  == carrier::continuous,  "");
 // the narrows_to/incomparable assertions above instead.
 SC_MODULE(legal_binds)
 {
-    SDF::SDF2SDF<int>   sdf_sig;
-    SADF::SADF2SADF<int> sadf_sig;
-    SY::SY2SY<int>      sy_sig;
-    DDE::DDE2DDE<int>   dde_sig;
+    // One signal per binding: an sc_fifo admits a single reader, and
+    // these are only ever elaborated, never run.
+    SDF::SDF2SDF<int>    sdf_a, sdf_b, sdf_c;
+    SADF::SADF2SADF<int> sadf_a, sadf_b;
+    SY::SY2SY<int>       sy_sig;
+    DDE::DDE2DDE<int>    dde_sig;
 
     UT::UT_in<int>      ut_from_sdf, ut_from_sadf;
     SADF::SADF_in<int>  sadf_from_sdf;
@@ -96,12 +98,12 @@ SC_MODULE(legal_binds)
 
     SC_CTOR(legal_binds)
     {
-        ut_from_sdf(sdf_sig);       // SDF  -> UT    widening
-        ut_from_sadf(sadf_sig);     // SADF -> UT    widening
-        sadf_from_sdf(sdf_sig);     // SDF  -> SADF  compatible
-        sdf_from_sadf(sadf_sig);    // SADF -> SDF   compatible, and the
+        ut_from_sdf(sdf_a);         // SDF  -> UT    widening
+        ut_from_sadf(sadf_a);       // SADF -> UT    widening
+        sadf_from_sdf(sdf_b);       // SDF  -> SADF  compatible
+        sdf_from_sadf(sadf_b);      // SADF -> SDF   compatible, and the
                                     //   binding four SADF models make
-        sdf_from_sdf(sdf_sig);      // SDF  -> SDF   identity
+        sdf_from_sdf(sdf_c);        // SDF  -> SDF   identity
         sy_from_sy(sy_sig);         // SY   -> SY    identity
         dde_from_dde(dde_sig);      // DDE  -> DDE   identity
     }
@@ -115,6 +117,43 @@ static const char* verdict(moc_id from, moc_id to)
     if (narrows_to(from, to))                               return "NARROW";
     return "INCOMP";
 }
+
+// ---- and what needs an interface, once bound through one ------------
+// Jantsch chapter 6 organises MoC interfaces by what they do to timing
+// information. Table 6-1 has six entries; the definitions then collapse
+// them, since stripS2U is defined as being stripT2U (6.2) and both
+// insertU2T and insertS2T as being insertU2S (6.5, 6.6). Two operations
+// are left, and both are checked here:
+//
+//   strip   drop the absent events, keep the rest in order  (6.1, 6.2)
+//   insert  emit the event, then lambda-1 absent ones       (6.4-6.6)
+//
+// Neither of these MoC pairs had an interface before: only SY <-> SDF
+// was written by hand, and these are written over a pair of MoCs.
+SC_MODULE(through_an_interface)
+{
+    SY::signal<int> sy_src, sy_out;
+    UT::signal<int> ut_mid, ut_src;
+
+    SC_CTOR(through_an_interface)
+    {
+        // 1 _ 2 _ _ 3  ->  1 2 3
+        SY::make_vsource("s", {abst_ext<int>(1), abst_ext<int>(),
+                               abst_ext<int>(2), abst_ext<int>(),
+                               abst_ext<int>(), abst_ext<int>(3)}, sy_src);
+        auto st = new MI::strip<moc_id::SY, moc_id::UT, int>("strip1");
+        st->iport1(sy_src); st->oport1(ut_mid);
+        UT::make_sink("ru", [](const int& v)
+            {std::cout << "strip  " << v << "\n";}, ut_mid);
+
+        // 7 8  at lambda = 3  ->  7 _ _ 8 _ _
+        UT::make_vsource("t", {7,8}, ut_src);
+        auto ins = new MI::insert<moc_id::UT, moc_id::SY, int>("insert1", 3);
+        ins->iport1(ut_src); ins->oport1(sy_out);
+        SY::make_sink("rs", [](const abst_ext<int>& v)
+            {std::cout << "insert " << v << "\n";}, sy_out);
+    }
+};
 
 int sc_main(int, char*[])
 {
@@ -134,5 +173,8 @@ int sc_main(int, char*[])
 
     legal_binds lb("lb");
     std::cout << "legal bindings elaborated\n";
+
+    through_an_interface ti("ti");
+    sc_core::sc_start();
     return 0;
 }

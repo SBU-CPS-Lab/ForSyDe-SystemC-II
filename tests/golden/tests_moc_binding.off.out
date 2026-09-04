@@ -12,3 +12,12 @@ DT    carrier carrier carrier INCOMP  same    carrier carrier
 DDE   carrier carrier carrier carrier carrier same    carrier 
 CT    carrier carrier carrier carrier carrier carrier same    
 legal bindings elaborated
+strip  1
+strip  2
+strip  3
+insert 7
+insert _
+insert _
+insert 8
+insert _
+insert _
