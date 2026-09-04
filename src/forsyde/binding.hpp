@@ -76,11 +76,21 @@ inline void record_ports(std::vector<PortInfo>& chans, Ports&& ports)
  * own template arguments from the signature of the user's function.
  */
 template <typename Tok> struct token_value {typedef Tok type;};
-template <typename T> struct token_value<std::vector<T>>
-    {typedef typename token_value<T>::type type;};
-template <typename T> struct token_value<abst_ext<T>>
-    {typedef typename token_value<T>::type type;};
-// ttn_event<T> is tt_event<abst_ext<T>>, so DDE unwraps in two steps
+template <typename T> struct token_value<std::vector<T>> {typedef T type;};
+template <typename T> struct token_value<abst_ext<T>>     {typedef T type;};
+// ttn_event<T> is tt_event<abst_ext<T>>, so DDE names both layers rather
+// than chaining two single-level unwraps automatically. Chaining them --
+// as an earlier version of this template did, by having each
+// specialization recurse into token_value<T> instead of naming T
+// directly -- looked like it handled every case with one rule, but it
+// is wrong for SY: a synchronous signal's own value type is free to be
+// a std::vector<X> (the modeller's choice, nothing to do with a MoC's
+// rate mechanism), and a recursive unwrap cannot tell that apart from
+// SDF or UT's std::vector<T>, which *is* purely a rate wrapper. Found
+// by SY::comb deducing T0 = complex<double> instead of
+// vector<complex<double>> for a function returning
+// abst_ext<vector<complex<double>>> -- the vector was real, and the
+// generic rule stripped it anyway.
 template <typename VT, typename TT> struct token_value<tt_event<VT,TT>>
     {typedef typename token_value<VT>::type type;};
 

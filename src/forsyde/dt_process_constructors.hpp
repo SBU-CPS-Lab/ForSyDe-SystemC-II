@@ -1446,19 +1446,24 @@ private:
 };
 
 //! Deduction guides: the template arguments, from the constructor call
-/*! DT carries abst_ext<T>, like SY, so the same arg_t reasoning applies.
- * mealy's state comes from the initial value; its input and output
- * types come from ns_functype's third parameter and od_functype's
- * first, each arriving wrapped in a vector of abst_ext that arg_t sees
- * through. zip and zips take no argument that mentions a single token
- * type, so they keep their template arguments explicit -- as do the
- * _p/_s/_t mealy variants, which this file does not declare.
+/*! DT carries abst_ext<T>, like SY, so the same arg_t reasoning applies
+ * to delay and sink. mealy's IT and OT are one layer deeper: ns_functype
+ * and od_functype carry them as std::vector<abst_ext<T>>, a whole tick's
+ * worth of events rather than one, so getting to T needs arg_t's single
+ * unwrap and then one more -- token_value is deliberately not recursive
+ * (see its definition in binding.hpp for why), so the second layer is
+ * named here rather than assumed away. mealy's state comes from the
+ * initial value directly. zip and zips take no argument that mentions a
+ * single token type, so they keep their template arguments explicit --
+ * as do the _p/_s/_t mealy variants, which this file does not declare.
  */
 template <class T> delay(sc_module_name, abst_ext<T>) -> delay<T>;
 template <class F> sink(sc_module_name, F) -> sink<ForSyDe::detail::arg_t<0,F>>;
 template <class G, class NS, class OD, class ST>
 mealy(sc_module_name, G, NS, OD, ST)
-    -> mealy<ForSyDe::detail::arg_t<2,NS>, ST, ForSyDe::detail::arg_t<0,OD>>;
+    -> mealy<typename ForSyDe::detail::token_value<ForSyDe::detail::arg_t<2,NS>>::type,
+             ST,
+             typename ForSyDe::detail::token_value<ForSyDe::detail::arg_t<0,OD>>::type>;
 
 }
 }
