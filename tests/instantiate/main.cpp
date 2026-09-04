@@ -190,6 +190,19 @@ SC_MODULE(all)
         inst<CT::delay>                     ("ct_delay", sc_core::sc_time(1,sc_core::SC_NS));
         inst<CT::shift>                     ("ct_shift", sc_core::sc_time(1,sc_core::SC_NS));
 
+        // The library's own composite processes -- built from other CT
+        // constructors rather than being one themselves, and previously
+        // the one place in ct_lib.hpp that predated ForSyDe::composite:
+        // plain SC_MODULEs with no operator() of their own, so binding
+        // one positionally silently fell through to SystemC's own
+        // same-named positional bind instead of failing to compile.
+        inst<CT::gaussian>("ct_gaussian", 0.01, 0.0, sc_core::sc_time(1,sc_core::SC_MS));
+        inst<CT::filter>  ("ct_filter", std::vector<CTTYPE>{1.0}, std::vector<CTTYPE>{1.0,0.0},
+                           sc_core::sc_time(1,sc_core::SC_MS));
+        inst<CT::filterf> ("ct_filterf", std::vector<CTTYPE>{1.0}, std::vector<CTTYPE>{1.0,0.0},
+                           sc_core::sc_time(1,sc_core::SC_MS));
+        inst<CT::pif>     ("ct_pif", 1.0, 1.0, sc_core::sc_time(1,sc_core::SC_MS));
+
         // ---- SADF -----------------------------------------------------
         // The scenario tables differ in shape per arity: a pair of
         // scalars, an array plus a scalar, then two arrays.

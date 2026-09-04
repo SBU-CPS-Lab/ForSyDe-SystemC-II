@@ -332,7 +332,7 @@ inline mul* make_mul(std::string pName,
 /*! This class is used to create a continuous-time signal source which
  * produces a Random signal based on the Gaussian distribution
  */
-SC_MODULE(gaussian)
+struct gaussian : ForSyDe::composite
 {
     CT_out oport1;          ///< port for the output channel
 
@@ -348,7 +348,7 @@ SC_MODULE(gaussian)
               const double& gaussVar,       ///< The variance
               const double& gaussMean,      ///< The mean value
               sc_time sample_period          ///< sampling period
-          ) : sc_module(_name), gaussian1("gaussian1", gaussVar, gaussMean),
+          ) : composite(_name), gaussian1("gaussian1", gaussVar, gaussMean),
               sy2ct1("sy2ct1", sample_period, HOLD)
     {
         gaussian1.oport1(out_sig);
@@ -395,7 +395,7 @@ inline gaussian* make_gaussian(std::string pName,
  * It internally uses a DDE filter together with CT2DDE and DDE2CT MoC
  * interfaces.
  */
-SC_MODULE(filter)
+struct filter : ForSyDe::composite
 {
     CT_in iport1;           ///< port for the input channel
     CT_out oport1;          ///< port for the output channel;
@@ -416,7 +416,7 @@ SC_MODULE(filter)
            sc_time sample_period,           ///< sampling period
            sc_time min_step=sc_time(0.05,SC_NS),///< Minimum time step
            double tol_error=1e-5            ///< Tolerated error
-          ) : sc_module(_name), ct2de1("ct2de1"),
+          ) : composite(_name), ct2de1("ct2de1"),
               filter1("filter1", numerators, denominators, sample_period, min_step, tol_error),
               de2ct1("de2ct1", HOLD)
     {
@@ -464,7 +464,7 @@ inline filter* make_filter(std::string pName,
  * It internally uses a DDE filter together with CT2DDEf and DDE2CT
  * MoC interfaces.
  */
-SC_MODULE(filterf)
+struct filterf : ForSyDe::composite
 {
     CT_in iport1;           ///< port for the input channel
     CT_out oport1;          ///< port for the output channel;
@@ -482,7 +482,7 @@ SC_MODULE(filterf)
            std::vector<CTTYPE> numerators,  ///< Numerator constants
            std::vector<CTTYPE> denominators,///< Denominator constants
            sc_time sample_period             ///< sampling period
-          ) : sc_module(_name), ct2de1("ct2de1", sample_period),
+          ) : composite(_name), ct2de1("ct2de1", sample_period),
               filter1("filter1", numerators, denominators),
               de2ct1("de2ct1", HOLD)
     {
@@ -576,7 +576,7 @@ inline filterf* make_integratorf(std::string pName,
  * based on the proportional and integral gain parameters.
  * It internally uses a scale, an integrator and an adder.
  */
-SC_MODULE(pif)
+struct pif : ForSyDe::composite
 {
     CT_in iport1;           ///< port for the input channel
     CT_out oport1;          ///< port for the output channel;
@@ -584,7 +584,8 @@ SC_MODULE(pif)
     fanout fanout1;
     scale scale1;
     filterf integrator1;
-    add add1;
+    ForSyDe::CT::add add1;   ///< qualified: composite::add (the ownership
+                             ///< helper) would otherwise shadow this class
 
     signal fan2p, fan2i, p2add, i2add;
 
@@ -595,7 +596,7 @@ SC_MODULE(pif)
            const CTTYPE& kp,        ///< Numerator constants
            const CTTYPE& ki,        ///< Denominator constants
            sc_time sample_period    ///< sampling period
-          ) : sc_module(_name), fanout1("fanout1"), scale1("scale1", kp),
+          ) : composite(_name), fanout1("fanout1"), scale1("scale1", kp),
               integrator1("integrator1", {ki}, {1,0}, sample_period),
               add1("add1")
     {
