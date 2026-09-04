@@ -43,6 +43,8 @@
 #include "types.hpp"
 #endif
 
+#include "binding.hpp"
+
 
 namespace ForSyDe
 {

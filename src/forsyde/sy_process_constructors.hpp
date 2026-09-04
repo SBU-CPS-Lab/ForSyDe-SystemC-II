@@ -175,8 +175,13 @@ inline void write_all(Ports&& ports, const Vals& vals)
  */
 template <typename Derived, typename OVals, typename IVals,
           token_policy Policy = token_policy::total>
-class comb_core : public sy_process
+class comb_core : public sy_process,
+                  public ForSyDe::detail::bindable<Derived>
 {
+public:
+    //! Hides sc_module's positional binding; see bindable
+    using ForSyDe::detail::bindable<Derived>::operator();
+
 protected:
     OVals ovals;    ///< output tokens, one per output port
     IVals ivals;    ///< input tokens, one per input port
@@ -252,10 +257,18 @@ private:
  */
 template <typename Derived, typename Pack, bool PropagatesAbsence,
           token_policy Policy = token_policy::total>
-class zip_core : public sy_process
+class zip_core : public sy_process,
+                  public ForSyDe::detail::bindable<Derived>
 {
 public:
+    //! Hides sc_module's positional binding; see bindable
+    using ForSyDe::detail::bindable<Derived>::operator();
+
+public:
     SY_out<Pack> oport1;    ///< port for the output channel
+
+    //! Supplied here because the port is declared here; Derived has the rest
+    auto out_ports() {return std::tie(oport1);}
 
 protected:
     Pack ivals;             ///< input tokens, one per input port
@@ -306,10 +319,18 @@ private:
  */
 template <typename Derived, typename Pack,
           token_policy Policy = token_policy::total>
-class unzip_core : public sy_process
+class unzip_core : public sy_process,
+                  public ForSyDe::detail::bindable<Derived>
 {
 public:
+    //! Hides sc_module's positional binding; see bindable
+    using ForSyDe::detail::bindable<Derived>::operator();
+
+public:
     SY_in<Pack> iport1;     ///< port for the input channel
+
+    //! Supplied here because the port is declared here; Derived has the rest
+    auto in_ports() {return std::tie(iport1);}
 
 protected:
     //! The token read from iport1
@@ -398,8 +419,13 @@ private:
 template <typename Derived, typename OVals, typename IVals, typename ST,
           token_policy Policy = token_policy::total,
           bool EmitsBeforeFirstRead = false>
-class fsm_core : public sy_process
+class fsm_core : public sy_process,
+                  public ForSyDe::detail::bindable<Derived>
 {
+public:
+    //! Hides sc_module's positional binding; see bindable
+    using ForSyDe::detail::bindable<Derived>::operator();
+
 protected:
     OVals ovals;    ///< output tokens, one per output port
     IVals ivals;    ///< input tokens, one per input port
@@ -494,8 +520,11 @@ private:
     //! The function passed to the process constructor
     functype _func;
 
+public:
     auto in_ports()  {return std::tie(iport1);}
     auto out_ports() {return std::tie(oport1);}
+
+private:
 
     void exec() {_func(std::get<0>(this->ovals), std::get<0>(this->ivals));}
 };
@@ -534,8 +563,11 @@ private:
     //! The function passed to the process constructor
     functype _func;
 
+public:
     auto in_ports()  {return std::tie(iport1,iport2);}
     auto out_ports() {return std::tie(oport1);}
+
+private:
 
     void exec()
     {
@@ -580,8 +612,11 @@ private:
     //! The function passed to the process constructor
     functype _func;
 
+public:
     auto in_ports()  {return std::tie(iport1,iport2,iport3);}
     auto out_ports() {return std::tie(oport1);}
+
+private:
 
     void exec()
     {
@@ -629,8 +664,11 @@ private:
     //! The function passed to the process constructor
     functype _func;
 
+public:
     auto in_ports()  {return std::tie(iport1,iport2,iport3,iport4);}
     auto out_ports() {return std::tie(oport1);}
+
+private:
 
     void exec()
     {
@@ -673,8 +711,11 @@ private:
 
     template <std::size_t... Is>
     auto in_ports(std::index_sequence<Is...>) {return std::tie(iport[Is]...);}
+public:
     auto in_ports()  {return in_ports(std::make_index_sequence<N>{});}
     auto out_ports() {return std::tie(oport1);}
+
+private:
 
     void exec() {_func(std::get<0>(this->ovals), this->ivals);}
 };
@@ -710,8 +751,11 @@ private:
     //! The function passed to the process constructor
     functype _func;
 
+public:
     auto in_ports()  {return std::apply([](auto&... p){return std::tie(p...);}, iport);}
     auto out_ports() {return std::tie(oport1);}
+
+private:
 
     void exec() {_func(std::get<0>(this->ovals), this->ivals);}
 };
@@ -750,8 +794,11 @@ private:
     //! The function passed to the process constructor
     functype _func;
 
+public:
     auto in_ports()  {return std::apply([](auto&... p){return std::tie(p...);}, iport);}
     auto out_ports() {return std::apply([](auto&... p){return std::tie(p...);}, oport);}
+
+private:
 
     void exec() {_func(this->ovals, this->ivals);}
 };
@@ -962,8 +1009,11 @@ private:
     ns_functype _ns_func;
     od_functype _od_func;
 
+public:
     auto in_ports()  {return std::tie(iport1);}
     auto out_ports() {return std::tie(oport1);}
+
+private:
 
     void exec()
     {
@@ -1031,8 +1081,11 @@ private:
     ns_functype _ns_func;
     od_functype _od_func;
 
+public:
     auto in_ports()  {return std::tie(iport1);}
     auto out_ports() {return std::tie(oport1);}
+
+private:
 
     void exec()
     {
@@ -1700,7 +1753,10 @@ public:
     std::string forsyde_kind() const {return "SY::zip";}
 
 private:
+public:
     auto in_ports() {return std::tie(iport1,iport2);}
+
+private:
 };
 
 //! The zipX process with an array of inputs and one output
@@ -1727,7 +1783,10 @@ public:
 private:
     template <std::size_t... Is>
     auto in_ports(std::index_sequence<Is...>) {return std::tie(iport[Is]...);}
+public:
     auto in_ports() {return in_ports(std::make_index_sequence<N>{});}
+
+private:
 };
 
 //! The zip process with variable number of inputs and one output
@@ -1755,7 +1814,10 @@ public:
     std::string forsyde_kind() const {return "SY::zipN";}
 
 private:
+public:
     auto in_ports() {return std::apply([](auto&... p){return std::tie(p...);}, iport);}
+
+private:
 };
 
 //! The unzip process with one input and two outputs
@@ -1783,7 +1845,10 @@ public:
     std::string forsyde_kind() const {return "SY::unzip";}
 
 private:
+public:
     auto out_ports() {return std::tie(oport1,oport2);}
+
+private:
 };
 
 //! The unzipX process with one input and an array of outputs
@@ -1810,7 +1875,10 @@ public:
 private:
     template <std::size_t... Is>
     auto out_ports(std::index_sequence<Is...>) {return std::tie(oport[Is]...);}
+public:
     auto out_ports() {return out_ports(std::make_index_sequence<N>{});}
+
+private:
 };
 
 //! The unzip process with one input and variable number of outputs
@@ -1835,7 +1903,10 @@ public:
     std::string forsyde_kind() const {return "SY::unzipN";}
 
 private:
+public:
     auto out_ports() {return std::apply([](auto&... p){return std::tie(p...);}, oport);}
+
+private:
 };
 
 // ---------------------------------------------------------------------
@@ -1888,8 +1959,11 @@ private:
     //! The function passed to the process constructor
     functype _func;
 
+public:
     auto in_ports()  {return std::tie(iport1);}
     auto out_ports() {return std::tie(oport1);}
+
+private:
 
     void exec() {_func(std::get<0>(this->ovals), std::get<0>(this->ivals));}
 };
@@ -1929,8 +2003,11 @@ private:
     //! The function passed to the process constructor
     functype _func;
 
+public:
     auto in_ports()  {return std::tie(iport1,iport2);}
     auto out_ports() {return std::tie(oport1);}
+
+private:
 
     void exec()
     {
@@ -1975,8 +2052,11 @@ private:
     //! The function passed to the process constructor
     functype _func;
 
+public:
     auto in_ports()  {return std::tie(iport1,iport2,iport3);}
     auto out_ports() {return std::tie(oport1);}
+
+private:
 
     void exec()
     {
@@ -2023,8 +2103,11 @@ private:
     //! The function passed to the process constructor
     functype _func;
 
+public:
     auto in_ports()  {return std::tie(iport1,iport2,iport3,iport4);}
     auto out_ports() {return std::tie(oport1);}
+
+private:
 
     void exec()
     {
@@ -2069,8 +2152,11 @@ private:
 
     template <std::size_t... Is>
     auto in_ports(std::index_sequence<Is...>) {return std::tie(iport[Is]...);}
+public:
     auto in_ports()  {return in_ports(std::make_index_sequence<N>{});}
     auto out_ports() {return std::tie(oport1);}
+
+private:
 
     void exec() {_func(std::get<0>(this->ovals), this->ivals);}
 };
@@ -2108,8 +2194,11 @@ private:
     //! The function passed to the process constructor
     functype _func;
 
+public:
     auto in_ports()  {return std::apply([](auto&... p){return std::tie(p...);}, iport);}
     auto out_ports() {return std::tie(oport1);}
+
+private:
 
     void exec() {_func(std::get<0>(this->ovals), this->ivals);}
 };
@@ -2150,8 +2239,11 @@ private:
     //! The function passed to the process constructor
     functype _func;
 
+public:
     auto in_ports()  {return std::apply([](auto&... p){return std::tie(p...);}, iport);}
     auto out_ports() {return std::apply([](auto&... p){return std::tie(p...);}, oport);}
+
+private:
 
     void exec() {_func(this->ovals, this->ivals);}
 };
@@ -2178,7 +2270,10 @@ public:
     std::string forsyde_kind() const {return "SY::szip";}
 
 private:
+public:
     auto in_ports() {return std::tie(iport1,iport2);}
+
+private:
 };
 
 //! The strict zipX process with an array of inputs and one output
@@ -2204,7 +2299,10 @@ public:
 private:
     template <std::size_t... Is>
     auto in_ports(std::index_sequence<Is...>) {return std::tie(iport[Is]...);}
+public:
     auto in_ports() {return in_ports(std::make_index_sequence<N>{});}
+
+private:
 };
 
 //! The strict zip process with variable number of inputs and one output
@@ -2228,7 +2326,10 @@ public:
     std::string forsyde_kind() const {return "SY::szipN";}
 
 private:
+public:
     auto in_ports() {return std::apply([](auto&... p){return std::tie(p...);}, iport);}
+
+private:
 };
 
 //! The strict unzip process with one input and two outputs
@@ -2253,7 +2354,10 @@ public:
     std::string forsyde_kind() const {return "SY::sunzip";}
 
 private:
+public:
     auto out_ports() {return std::tie(oport1,oport2);}
+
+private:
 };
 
 //! The strict unzipX process with one input and an array of outputs
@@ -2279,7 +2383,10 @@ public:
 private:
     template <std::size_t... Is>
     auto out_ports(std::index_sequence<Is...>) {return std::tie(oport[Is]...);}
+public:
     auto out_ports() {return out_ports(std::make_index_sequence<N>{});}
+
+private:
 };
 
 //! The strict unzip process with one input and variable number of outputs
@@ -2303,7 +2410,10 @@ public:
     std::string forsyde_kind() const {return "SY::sunzipN";}
 
 private:
+public:
     auto out_ports() {return std::apply([](auto&... p){return std::tie(p...);}, oport);}
+
+private:
 };
 
 //! Process constructor for a strict delay element
@@ -2348,8 +2458,11 @@ private:
     //! Initial value
     T init_val;
 
+public:
     auto in_ports()  {return std::tie(iport1);}
     auto out_ports() {return std::tie(oport1);}
+
+private:
 
     void init() {write_multiport(oport1, abst_ext<T>(init_val));}
 
@@ -2395,8 +2508,11 @@ private:
     T init_val;             ///< Initial value
     unsigned int ns;        ///< Number of delay elements
 
+public:
     auto in_ports()  {return std::tie(iport1);}
     auto out_ports() {return std::tie(oport1);}
+
+private:
 
     void init()
     {
@@ -2441,8 +2557,11 @@ private:
     //! The function passed to the process constructor
     functype _func;
 
+public:
     auto in_ports()  {return std::tie(iport1);}
     auto out_ports() {return std::tie(oport1);}
+
+private:
 
     void exec()
     {
@@ -2492,8 +2611,11 @@ private:
     //! The function passed to the process constructor
     functype _func;
 
+public:
     auto in_ports()  {return std::tie(iport1);}
     auto out_ports() {return std::tie(oport1);}
+
+private:
 
     void exec()
     {
@@ -2572,8 +2694,11 @@ private:
     //! Initial value for the running result
     T0 init_res;
 
+public:
     auto in_ports()  {return std::tie(iport1);}
     auto out_ports() {return std::tie(oport1);}
+
+private:
 
     void exec()
     {
@@ -2615,9 +2740,15 @@ private:
     //! The function passed to the process constructor
     functype _func;
 
+public:
     auto in_ports()  {return std::tie(iport1);}
+
+private:
     // No outputs: prod() folds over an empty pack and writes nothing.
+public:
     auto out_ports() {return std::tie();}
+
+private:
 
     void exec() {_func(std::get<0>(this->ivals));}
 };
@@ -2660,8 +2791,11 @@ private:
     unsigned long samples;      ///< Number of samples in each group
     unsigned long samples_took;
 
+public:
     auto in_ports()  {return std::tie(iport1);}
     auto out_ports() {return std::tie(oport1);}
+
+private:
 
     void init()
     {
@@ -2749,8 +2883,11 @@ private:
     ns_functype _ns_func;
     od_functype _od_func;
 
+public:
     auto in_ports()  {return std::tie(iport1);}
     auto out_ports() {return std::tie(oport1);}
+
+private:
 
     void exec()
     {
@@ -2808,8 +2945,11 @@ private:
     ns_functype _ns_func;
     od_functype _od_func;
 
+public:
     auto in_ports()  {return std::tie(iport1);}
     auto out_ports() {return std::tie(oport1);}
+
+private:
 
     void exec()
     {
