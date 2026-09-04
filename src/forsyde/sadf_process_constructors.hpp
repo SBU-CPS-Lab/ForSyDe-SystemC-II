@@ -144,8 +144,13 @@ namespace detail
  * construction, so that runs once, in init() -- and exec().
  */
 template <typename Derived, typename OVals, typename IVals, typename Table>
-class detector_core : public SADF_process
+class detector_core : public SADF_process,
+                      public ForSyDe::detail::bindable<Derived>
 {
+public:
+    //! Hides sc_module's positional binding; see bindable
+    using ForSyDe::detail::bindable<Derived>::operator();
+
 public:
     typedef typename Table::key_type TS;    ///< the detector scenario type
 
@@ -247,8 +252,13 @@ private:
  */
 template <typename Derived, typename OVals, typename IVals, typename Table,
           bool ClearsAfterFiring>
-class kernel_core : public SADF_process
+class kernel_core : public SADF_process,
+                    public ForSyDe::detail::bindable<Derived>
 {
+public:
+    //! Hides sc_module's positional binding; see bindable
+    using ForSyDe::detail::bindable<Derived>::operator();
+
 public:
     typedef typename Table::key_type TC;    ///< the scenario type
 
@@ -388,8 +398,10 @@ private:
     //! The function passed to the process constructor
     functype _func;
 
+public:
     auto in_ports()  {return std::tie(iport1);}
     auto out_ports() {return std::tie(oport1);}
+private:
 
     // (consumption rate, production rate), both scalars for this arity
     void resize_vectors()
@@ -460,8 +472,10 @@ private:
     //! The function passed to the process constructor
     functype _func;
 
+public:
     auto in_ports()  {return std::tie(iport1,iport2);}
     auto out_ports() {return std::tie(oport1);}
+private:
 
     // (consumption rates as a 2-array, production rate as a scalar)
     void resize_vectors()
@@ -567,8 +581,10 @@ private:
     //! Optional self-report pipe; null unless the constructor was given one
     FILE** report_pipe;
 
+public:
     auto in_ports()  {return std::apply([](auto&... p){return std::tie(p...);}, iport);}
     auto out_ports() {return std::apply([](auto&... p){return std::tie(p...);}, oport);}
+private:
 
     // (consumption rates, production rates), both arrays for this arity
     void resize_vectors()
@@ -661,8 +677,10 @@ private:
     cds_functype _cds_func;
     kss_functype _kss_func;
 
+public:
     auto in_ports()  {return std::tie(iport1);}
     auto out_ports() {return std::tie(oport1);}
+private:
 
     void resize_inputs() {std::get<0>(this->ivals).resize(i1toks);}
 
@@ -789,8 +807,10 @@ private:
     //! Optional self-report pipe; null unless the constructor was given one
     FILE** report_pipe;
 
+public:
     auto in_ports()  {return std::apply([](auto&... p){return std::tie(p...);}, iport);}
     auto out_ports() {return std::apply([](auto&... p){return std::tie(p...);}, oport);}
+private:
 
     void resize_inputs() {SDF::detail::resize_all(this->ivals, itoks);}
 

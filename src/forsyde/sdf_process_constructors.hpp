@@ -128,8 +128,13 @@ inline void write_all(Ports&& ports, const Vals& vals)
  * given one.
  */
 template <typename Derived, typename OVals, typename IVals>
-class comb_core : public sdf_process
+class comb_core : public sdf_process,
+                  public ForSyDe::detail::bindable<Derived>
 {
+public:
+    //! Hides sc_module's positional binding; see bindable
+    using ForSyDe::detail::bindable<Derived>::operator();
+
 protected:
     static constexpr std::size_t n_outs = std::tuple_size<OVals>::value;
     static constexpr std::size_t n_ins  = std::tuple_size<IVals>::value;
@@ -186,8 +191,13 @@ private:
  * in_ports() and its own rate arguments for arg_vec.
  */
 template <typename Derived, typename Pack>
-class zip_core : public sdf_process
+class zip_core : public sdf_process,
+                 public ForSyDe::detail::bindable<Derived>
 {
+public:
+    //! Hides sc_module's positional binding; see bindable
+    using ForSyDe::detail::bindable<Derived>::operator();
+
 public:
     SDF_out<Pack> oport1;   ///< port for the output channel
 
@@ -245,8 +255,13 @@ private:
  * or report) rather than a silent change of behaviour here.
  */
 template <typename Derived, typename Pack>
-class unzip_core : public sdf_process
+class unzip_core : public sdf_process,
+                   public ForSyDe::detail::bindable<Derived>
 {
+public:
+    //! Hides sc_module's positional binding; see bindable
+    using ForSyDe::detail::bindable<Derived>::operator();
+
 public:
     SDF_in<Pack> iport1;    ///< port for the input channel
 
@@ -329,8 +344,10 @@ private:
     //! The function passed to the process constructor
     functype _func;
 
+public:
     auto in_ports()  {return std::tie(iport1);}
     auto out_ports() {return std::tie(oport1);}
+private:
 
     void exec() {_func(std::get<0>(this->ovals), std::get<0>(this->ivals));}
 };
@@ -385,8 +402,10 @@ private:
     //! The function passed to the process constructor
     functype _func;
 
+public:
     auto in_ports()  {return std::tie(iport1,iport2);}
     auto out_ports() {return std::tie(oport1);}
+private:
 
     void exec()
     {
@@ -450,8 +469,10 @@ private:
     //! The function passed to the process constructor
     functype _func;
 
+public:
     auto in_ports()  {return std::tie(iport1,iport2,iport3);}
     auto out_ports() {return std::tie(oport1);}
+private:
 
     void exec()
     {
@@ -520,8 +541,10 @@ private:
     //! The function passed to the process constructor
     functype _func;
 
+public:
     auto in_ports()  {return std::tie(iport1,iport2,iport3,iport4);}
     auto out_ports() {return std::tie(oport1);}
+private:
 
     void exec()
     {
@@ -596,8 +619,10 @@ private:
     //! The function passed to the process constructor
     functype _func;
 
+public:
     auto in_ports()  {return std::apply([](auto&... p){return std::tie(p...);}, iport);}
     auto out_ports() {return std::apply([](auto&... p){return std::tie(p...);}, oport);}
+private:
 
     void exec() {_func(this->ovals, this->ivals);}
 };
@@ -1381,7 +1406,9 @@ public:
     std::string forsyde_kind() const {return "SDF::zip";}
 
 private:
+public:
     auto in_ports() {return std::tie(iport1,iport2);}
+private:
 };
 
 //! The zip process with variable number of inputs and one output
@@ -1414,7 +1441,9 @@ public:
     std::string forsyde_kind() const {return "SDF::zipN";}
 
 private:
+public:
     auto in_ports() {return std::apply([](auto&... p){return std::tie(p...);}, iport);}
+private:
 };
 
 //! The unzip process with one input and two outputs
@@ -1450,7 +1479,9 @@ public:
     std::string forsyde_kind() const {return "SDF::unzip";}
 
 private:
+public:
     auto out_ports() {return std::tie(oport1,oport2);}
+private:
 };
 
 //! The unzip process with one input and variable number of outputs
@@ -1483,7 +1514,9 @@ public:
     std::string forsyde_kind() const {return "SDF::unzipN";}
 
 private:
+public:
     auto out_ports() {return std::apply([](auto&... p){return std::tie(p...);}, oport);}
+private:
 };
 
 //! Process constructor for a fan-out process with one input and one output

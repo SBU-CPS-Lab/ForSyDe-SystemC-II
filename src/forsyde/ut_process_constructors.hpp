@@ -137,8 +137,13 @@ inline void write_all(Ports&& ports, const Vals& vals)
  */
 template <typename Derived, typename OVals, typename IVals, typename ST,
           bool EmitsBeforeFirstRead = false>
-class fsm_core : public ut_process
+class fsm_core : public ut_process,
+                 public ForSyDe::detail::bindable<Derived>
 {
+public:
+    //! Hides sc_module's positional binding; see bindable
+    using ForSyDe::detail::bindable<Derived>::operator();
+
 protected:
     OVals ovals;    ///< output tokens, one vector per output port
     IVals ivals;    ///< input tokens, one vector per input port
@@ -225,8 +230,13 @@ private:
  * own consumption rates to arg_vec.
  */
 template <typename Derived, typename OVals, typename IVals>
-class comb_core : public ut_process
+class comb_core : public ut_process,
+                  public ForSyDe::detail::bindable<Derived>
 {
+public:
+    //! Hides sc_module's positional binding; see bindable
+    using ForSyDe::detail::bindable<Derived>::operator();
+
 protected:
     static constexpr std::size_t n_ins = std::tuple_size<IVals>::value;
 
@@ -279,8 +289,13 @@ private:
  * port's token type, so the output port lives here.
  */
 template <typename Derived, typename Pack>
-class zips_core : public ut_process
+class zips_core : public ut_process,
+                  public ForSyDe::detail::bindable<Derived>
 {
+public:
+    //! Hides sc_module's positional binding; see bindable
+    using ForSyDe::detail::bindable<Derived>::operator();
+
 public:
     UT_out<Pack> oport1;    ///< port for the output channel
 
@@ -324,8 +339,13 @@ private:
  * rates: an untimed unzip simply forwards whatever lengths it was given.
  */
 template <typename Derived, typename Pack>
-class unzip_core : public ut_process
+class unzip_core : public ut_process,
+                   public ForSyDe::detail::bindable<Derived>
 {
+public:
+    //! Hides sc_module's positional binding; see bindable
+    using ForSyDe::detail::bindable<Derived>::operator();
+
 public:
     UT_in<Pack> iport1;     ///< port for the input channel
 
@@ -405,8 +425,10 @@ private:
     //! The function passed to the process constructor
     functype _func;
 
+public:
     auto in_ports()  {return std::tie(iport1);}
     auto out_ports() {return std::tie(oport1);}
+private:
 
     void exec() {_func(std::get<0>(this->ovals), std::get<0>(this->ivals));}
 };
@@ -459,8 +481,10 @@ private:
     //! The function passed to the process constructor
     functype _func;
 
+public:
     auto in_ports()  {return std::tie(iport1,iport2);}
     auto out_ports() {return std::tie(oport1);}
+private:
 
     void exec()
     {
@@ -522,8 +546,10 @@ private:
     //! The function passed to the process constructor
     functype _func;
 
+public:
     auto in_ports()  {return std::tie(iport1,iport2,iport3);}
     auto out_ports() {return std::tie(oport1);}
+private:
 
     void exec()
     {
@@ -590,8 +616,10 @@ private:
     //! The function passed to the process constructor
     functype _func;
 
+public:
     auto in_ports()  {return std::tie(iport1,iport2,iport3,iport4);}
     auto out_ports() {return std::tie(oport1);}
+private:
 
     void exec()
     {
@@ -821,8 +849,10 @@ private:
     gamma_functype _gamma_func;
     ns_functype _ns_func;
 
+public:
     auto in_ports()  {return std::tie(iport1);}
     auto out_ports() {return std::tie(oport1);}
+private:
 
     void resize_inputs()
     {
@@ -897,8 +927,10 @@ private:
     gamma_functype _gamma_func;
     ns_functype _ns_func;
 
+public:
     auto in_ports()  {return std::tie(iport1);}
     auto out_ports() {return std::tie(oport1);}
+private:
 
     void resize_inputs()
     {
@@ -986,8 +1018,10 @@ private:
     ns_functype _ns_func;
     od_functype _od_func;
 
+public:
     auto in_ports()  {return std::tie(iport1);}
     auto out_ports() {return std::tie(oport1);}
+private:
 
     void resize_inputs()
     {
@@ -1083,8 +1117,10 @@ private:
     ns_functype _ns_func;
     od_functype _od_func;
 
+public:
     auto in_ports()  {return std::apply([](auto&... p){return std::tie(p...);}, iport);}
     auto out_ports() {return std::apply([](auto&... p){return std::tie(p...);}, oport);}
+private:
 
     void resize_inputs()
     {
@@ -1170,8 +1206,10 @@ private:
     ns_functype _ns_func;
     od_functype _od_func;
 
+public:
     auto in_ports()  {return std::tie(iport1);}
     auto out_ports() {return std::tie(oport1);}
+private:
 
     void resize_inputs()
     {
@@ -1257,8 +1295,10 @@ private:
     ns_functype _ns_func;
     od_functype _od_func;
 
+public:
     auto in_ports()  {return std::apply([](auto&... p){return std::tie(p...);}, iport);}
     auto out_ports() {return std::apply([](auto&... p){return std::tie(p...);}, oport);}
+private:
 
     void resize_inputs()
     {
@@ -1587,7 +1627,9 @@ public:
     std::string forsyde_kind() const {return "UT::zips";}
 
 private:
+public:
     auto in_ports() {return std::tie(iport1,iport2);}
+private:
 };
 
 //! The zips process with variable number of inputs and one output
@@ -1620,7 +1662,9 @@ public:
     std::string forsyde_kind() const {return "UT::zipsN";}
 
 private:
+public:
     auto in_ports() {return std::apply([](auto&... p){return std::tie(p...);}, iport);}
+private:
 };
 
 //! The unzip process with one input and two outputs
@@ -1648,7 +1692,9 @@ public:
     std::string forsyde_kind() const {return "UT::unzip";}
 
 private:
+public:
     auto out_ports() {return std::tie(oport1,oport2);}
+private:
 };
 
 //! The unzip process with one input and variable number of outputs
@@ -1673,7 +1719,9 @@ public:
     std::string forsyde_kind() const {return "UT::unzipN";}
 
 private:
+public:
     auto out_ports() {return std::apply([](auto&... p){return std::tie(p...);}, oport);}
+private:
 };
 
 //! Process constructor for a fan-out process with one input and one output

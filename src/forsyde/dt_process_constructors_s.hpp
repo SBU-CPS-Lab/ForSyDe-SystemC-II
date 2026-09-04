@@ -93,8 +93,10 @@ private:
     ns_functype _ns_func;
     od_functype _od_func;
 
+public:
     auto in_ports()  {return std::tie(iport1);}
     auto out_ports() {return std::tie(oport1);}
+private:
 
     // mealyST: gamma is a number of *nonabsent* events, so keep reading
     // until that many have arrived. An absent event costs a token but

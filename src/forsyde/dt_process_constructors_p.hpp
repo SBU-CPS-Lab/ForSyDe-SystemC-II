@@ -93,8 +93,10 @@ private:
     ns_functype _ns_func;
     od_functype _od_func;
 
+public:
     auto in_ports()  {return std::tie(iport1);}
     auto out_ports() {return std::tie(oport1);}
+private:
 
     // mealyPT: gamma is a time period; the interface strips the absent
     // events out of it, so the functions only ever see present values.
@@ -177,8 +179,10 @@ private:
     ns_functype _ns_func;
     od_functype _od_func;
 
+public:
     auto in_ports()  {return std::apply([](auto&... p){return std::tie(p...);}, iport);}
     auto out_ports() {return std::apply([](auto&... p){return std::tie(p...);}, oport);}
+private:
 
     // mealyPT, several inputs: as P, per input port.
     std::size_t read_inputs()

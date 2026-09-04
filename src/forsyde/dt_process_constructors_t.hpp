@@ -101,8 +101,10 @@ private:
     od_functype _od_func;
     std::size_t timeout;
 
+public:
     auto in_ports()  {return std::tie(iport1);}
     auto out_ports() {return std::tie(oport1);}
+private:
 
     // mealyTT: as S, but gamma also gives a time period after which the
     // process fires whatever the count has reached.

@@ -109,8 +109,13 @@ template <typename T> struct token_of<abst_ext<T>> {typedef T type;};
  * they can express.
  */
 template <typename Derived, typename OVals, typename IVals, typename ST>
-class fsm_core : public dt_process
+class fsm_core : public dt_process,
+                 public ForSyDe::detail::bindable<Derived>
 {
+public:
+    //! Hides sc_module's positional binding; see bindable
+    using ForSyDe::detail::bindable<Derived>::operator();
+
 protected:
     static constexpr std::size_t n_outs = std::tuple_size<OVals>::value;
 
@@ -418,8 +423,10 @@ private:
     ns_functype _ns_func;
     od_functype _od_func;
 
+public:
     auto in_ports()  {return std::tie(iport1);}
     auto out_ports() {return std::tie(oport1);}
+private:
 
     // mealyT: gamma is a time period, and the functions see every token
     // of it, absent events included.
@@ -498,8 +505,10 @@ private:
     ns_functype _ns_func;
     od_functype _od_func;
 
+public:
     auto in_ports()  {return std::apply([](auto&... p){return std::tie(p...);}, iport);}
     auto out_ports() {return std::apply([](auto&... p){return std::tie(p...);}, oport);}
+private:
 
     // mealyT, several inputs: _gamma_func gives one time period and every
     // input port is read for it.
