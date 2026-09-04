@@ -1792,6 +1792,45 @@ private:
 #endif
 };
 
+//! Deduction guides: the template arguments, from the constructor call
+/*! Same idea as SDF's. comb's family carries std::vector<T>, like SDF;
+ * source and sink carry T bare. scan/scand/moore/mealy take ST from the
+ * initial value directly and IT/OT from the functions that mention them
+ * -- ns_functype's third parameter is IT (through the vector it arrives
+ * in), od_functype's first is OT. zips and unzip take no argument that
+ * mentions a single token type, so they keep their template arguments
+ * explicit.
+ */
+template <class F> comb(sc_module_name, F, unsigned int)
+    -> comb<ForSyDe::detail::arg_t<0,F>, ForSyDe::detail::arg_t<1,F>>;
+template <class F> comb2(sc_module_name, F, unsigned int, unsigned int)
+    -> comb2<ForSyDe::detail::arg_t<0,F>, ForSyDe::detail::arg_t<1,F>,
+             ForSyDe::detail::arg_t<2,F>>;
+template <class F> comb3(sc_module_name, F, unsigned int, unsigned int, unsigned int)
+    -> comb3<ForSyDe::detail::arg_t<0,F>, ForSyDe::detail::arg_t<1,F>,
+             ForSyDe::detail::arg_t<2,F>, ForSyDe::detail::arg_t<3,F>>;
+template <class F> comb4(sc_module_name, F, unsigned int, unsigned int, unsigned int, unsigned int)
+    -> comb4<ForSyDe::detail::arg_t<0,F>, ForSyDe::detail::arg_t<1,F>,
+             ForSyDe::detail::arg_t<2,F>, ForSyDe::detail::arg_t<3,F>,
+             ForSyDe::detail::arg_t<4,F>>;
+
+template <class T> delay(sc_module_name, const T&) -> delay<T>;
+template <class T> delayn(sc_module_name, const T&, unsigned int) -> delayn<T>;
+template <class T> constant(sc_module_name, const T&, unsigned long long = 0) -> constant<T>;
+template <class F, class T> source(sc_module_name, F, const T&, unsigned long long = 0)
+    -> source<T>;
+template <class T> vsource(sc_module_name, const std::vector<T>&) -> vsource<T>;
+template <class F> sink(sc_module_name, F) -> sink<ForSyDe::detail::arg_t<0,F>>;
+
+template <class G, class NS, class ST> scan(sc_module_name, G, NS, const ST&)
+    -> scan<ForSyDe::detail::arg_t<2,NS>, ST>;
+template <class G, class NS, class ST> scand(sc_module_name, G, NS, const ST&)
+    -> scand<ForSyDe::detail::arg_t<2,NS>, ST>;
+template <class G, class NS, class OD, class ST> moore(sc_module_name, G, NS, OD, const ST&)
+    -> moore<ForSyDe::detail::arg_t<2,NS>, ST, ForSyDe::detail::arg_t<0,OD>>;
+template <class G, class NS, class OD, class ST> mealy(sc_module_name, G, NS, OD, const ST&)
+    -> mealy<ForSyDe::detail::arg_t<2,NS>, ST, ForSyDe::detail::arg_t<0,OD>>;
+
 }
 }
 

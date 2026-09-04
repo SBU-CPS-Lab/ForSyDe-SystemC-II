@@ -1587,6 +1587,37 @@ private:
 #endif
 };
 
+//! Deduction guides: the template arguments, from the constructor call
+/*! Same idea as SY's, in binding.hpp -- ForSyDe::detail::arg_t reads a
+ * parameter's value type through whatever the MoC wraps it in, and here
+ * that is std::vector<T> rather than abst_ext<T>. Not every constructor
+ * gets one: zip, unzip, fanout and combMN take no argument that mentions
+ * a single token type (fanout takes none at all; combMN's ports arrive
+ * as a whole tuple), so those keep their template arguments explicit.
+ */
+template <class F> comb(sc_module_name, F, unsigned int, unsigned int)
+    -> comb<ForSyDe::detail::arg_t<0,F>, ForSyDe::detail::arg_t<1,F>>;
+template <class F> comb2(sc_module_name, F, unsigned int, unsigned int, unsigned int)
+    -> comb2<ForSyDe::detail::arg_t<0,F>, ForSyDe::detail::arg_t<1,F>,
+             ForSyDe::detail::arg_t<2,F>>;
+template <class F> comb3(sc_module_name, F, unsigned int, unsigned int, unsigned int, unsigned int)
+    -> comb3<ForSyDe::detail::arg_t<0,F>, ForSyDe::detail::arg_t<1,F>,
+             ForSyDe::detail::arg_t<2,F>, ForSyDe::detail::arg_t<3,F>>;
+template <class F> comb4(sc_module_name, F, unsigned int, unsigned int, unsigned int, unsigned int, unsigned int)
+    -> comb4<ForSyDe::detail::arg_t<0,F>, ForSyDe::detail::arg_t<1,F>,
+             ForSyDe::detail::arg_t<2,F>, ForSyDe::detail::arg_t<3,F>,
+             ForSyDe::detail::arg_t<4,F>>;
+
+template <class T> delay(sc_module_name, T) -> delay<T>;
+template <class T> delayn(sc_module_name, T, unsigned int) -> delayn<T>;
+template <class T> constant(sc_module_name, T, unsigned long long = 0) -> constant<T>;
+template <class F, class T> source(sc_module_name, F, T, unsigned long long = 0) -> source<T>;
+template <class T> vsource(sc_module_name, const std::vector<T>&) -> vsource<T>;
+template <class F> sink(sc_module_name, F) -> sink<ForSyDe::detail::arg_t<0,F>>;
+template <class F, class T> file_source(sc_module_name, F, T) -> file_source<T>;
+template <class F> file_sink(sc_module_name, F, std::string)
+    -> file_sink<ForSyDe::detail::arg_t<1,F>>;
+
 }
 }
 

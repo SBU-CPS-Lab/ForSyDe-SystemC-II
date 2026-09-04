@@ -875,6 +875,27 @@ using sink = SDF::sink<T>;
 template <class T>
 using delayn = SDF::delayn<T>;
 
+//! Deduction guides: the template arguments, from the constructor call
+/*! kernel and kernel2 carry std::vector<T>, like SDF, and the scenario
+ * type TC sits bare in the middle of the function's parameter list, so
+ * arg_t needs no unwrapping to see it either. detector is the same
+ * shape one level further out: its kss_functype gives the token types,
+ * and the scenario type TS is read off the initial-scenario argument
+ * directly, the way a state machine's ST comes off its initial state.
+ * kernelMN and detectorMN take their ports as a whole tuple rather than
+ * one parameter per port, so those keep their template arguments
+ * explicit -- as do source, sink and delayn, which are aliases for
+ * SDF's own and would need alias-template deduction (C++20) to reach
+ * the guides above; write out the one template argument they take.
+ */
+template <class F, class TC>
+kernel(sc_module_name, F, const std::map<TC,std::tuple<size_t,size_t>>&)
+    -> kernel<ForSyDe::detail::arg_t<0,F>, TC, ForSyDe::detail::arg_t<2,F>>;
+
+template <class CDS, class KSS, class Table, class TS>
+detector(sc_module_name, CDS, KSS, Table, const TS&, size_t)
+    -> detector<ForSyDe::detail::arg_t<0,KSS>, ForSyDe::detail::arg_t<2,KSS>, TS>;
+
 }
 }
 

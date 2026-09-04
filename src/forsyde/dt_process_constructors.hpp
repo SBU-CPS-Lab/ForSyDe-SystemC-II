@@ -1445,6 +1445,21 @@ private:
 #endif
 };
 
+//! Deduction guides: the template arguments, from the constructor call
+/*! DT carries abst_ext<T>, like SY, so the same arg_t reasoning applies.
+ * mealy's state comes from the initial value; its input and output
+ * types come from ns_functype's third parameter and od_functype's
+ * first, each arriving wrapped in a vector of abst_ext that arg_t sees
+ * through. zip and zips take no argument that mentions a single token
+ * type, so they keep their template arguments explicit -- as do the
+ * _p/_s/_t mealy variants, which this file does not declare.
+ */
+template <class T> delay(sc_module_name, abst_ext<T>) -> delay<T>;
+template <class F> sink(sc_module_name, F) -> sink<ForSyDe::detail::arg_t<0,F>>;
+template <class G, class NS, class OD, class ST>
+mealy(sc_module_name, G, NS, OD, ST)
+    -> mealy<ForSyDe::detail::arg_t<2,NS>, ST, ForSyDe::detail::arg_t<0,OD>>;
+
 }
 }
 

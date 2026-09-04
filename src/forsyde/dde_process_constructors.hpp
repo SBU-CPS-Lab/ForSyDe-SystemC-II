@@ -1540,6 +1540,38 @@ private:
 #endif
 };
 
+//! Deduction guides: the template arguments, from the constructor call
+/*! DDE carries ttn_event<T> = tt_event<abst_ext<T>>; arg_t in binding.hpp
+ * unwraps both layers, so a function argument typed ttn_event<T> or
+ * abst_ext<T> yields T either way -- and comb's functype leaves its
+ * single input unwrapped already, which arg_t's no-wrapper base case
+ * covers without any special handling. mealy(2)'s state comes from the
+ * initial value; its inputs and output come from ns_functype's trailing
+ * parameters and od_functype's first. fanout, zip(X) and unzip(X) take
+ * no argument that mentions a single token type, so they keep their
+ * template arguments explicit, as do zipN and unzipN, which take one
+ * signal per type rather than one per parameter.
+ */
+template <class F> comb(sc_module_name, F)
+    -> comb<ForSyDe::detail::arg_t<0,F>, ForSyDe::detail::arg_t<1,F>>;
+template <class F> comb2(sc_module_name, F)
+    -> comb2<ForSyDe::detail::arg_t<0,F>, ForSyDe::detail::arg_t<1,F>,
+             ForSyDe::detail::arg_t<2,F>>;
+
+template <class T> delay(sc_module_name, abst_ext<T>, sc_time) -> delay<T>;
+
+template <class NS, class OD, class ST> mealy(sc_module_name, NS, OD, ST, sc_time)
+    -> mealy<ForSyDe::detail::arg_t<2,NS>, ST, ForSyDe::detail::arg_t<0,OD>>;
+template <class NS, class OD, class ST> mealy2(sc_module_name, NS, OD, ST, sc_time)
+    -> mealy2<ForSyDe::detail::arg_t<2,NS>, ForSyDe::detail::arg_t<3,NS>,
+              ST, ForSyDe::detail::arg_t<0,OD>>;
+
+template <class F, class T> source(sc_module_name, F, ttn_event<T>, unsigned long long = 0)
+    -> source<T>;
+template <class T> vsource(sc_module_name, const std::vector<T>&, const std::vector<sc_time>&)
+    -> vsource<T>;
+template <class F> sink(sc_module_name, F) -> sink<ForSyDe::detail::arg_t<0,F>>;
+
 }
 }
 
