@@ -125,7 +125,7 @@ protected:
     std::array<std::size_t, n_outs> touts;    ///< T_o, one per output port
     std::array<std::size_t, n_outs> ks;       ///< K_i, one per output port
 
-    fsm_core(const sc_module_name& _name,   ///< process name
+    fsm_core(sc_module_name _name,   ///< process name
              const ST& init_st              ///< initial state
              ) : dt_process(_name), init_st(init_st)
     {
@@ -210,11 +210,17 @@ private:
  * loops since combinational loops are forbidden in ForSyDe.
  */
 template <class T>
-class delay : public dt_process
+class delay : public dt_process,
+              public ForSyDe::detail::bindable<delay<T>>
 {
 public:
     DT_in<T>  iport1;       ///< port for the input channel
     DT_out<T> oport1;        ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<delay<T>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which inserts the initial element, reads
@@ -269,10 +275,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -286,11 +290,17 @@ private:
  * parameterized for its input/output data-type.
  */
 template <class T>
-class delayn : public dt_process
+class delayn : public dt_process,
+               public ForSyDe::detail::bindable<delayn<T>>
 {
 public:
     DT_in<T>  iport1;       ///< port for the input channel
     DT_out<T> oport1;        ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<delayn<T>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which inserts the initial elements,
@@ -349,10 +359,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -473,7 +481,7 @@ public:
      * applies the user-imlpemented functions to the input and current
      * state and writes the results using the output port
      */
-    mealyMN(const sc_module_name& _name,        ///< The module name
+    mealyMN(sc_module_name _name,        ///< The module name
             const gamma_functype& _gamma_func,  ///< The partitioning function
             const ns_functype& _ns_func,        ///< The next_state function
             const od_functype& _od_func,        ///< The output-decoding function
@@ -526,10 +534,15 @@ private:
  * This class can directly be instantiated to build a process.
  */
 template <class T>
-class constant : public dt_process
+class constant : public dt_process,
+                 public ForSyDe::detail::bindable<constant<T>>
 {
 public:
     DT_out<T> oport1;            ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<constant<T>>::operator();
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which runs the user-imlpemented function
@@ -585,9 +598,7 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-        boundOutChans[0].portType = typeid(T).name();
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -599,10 +610,15 @@ private:
  * also the process output. It can be used in test-benches.
  */
 template <class T>
-class source : public dt_process
+class source : public dt_process,
+               public ForSyDe::detail::bindable<source<T>>
 {
 public:
     DT_out<T> oport1;        ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<source<T>>::operator();
+    auto out_ports() {return std::tie(oport1);}
     
     //! Type of the function to be passed to the process constructor
     typedef std::function<void(abst_ext<T>&, const abst_ext<T>&)> functype;
@@ -677,9 +693,7 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-        boundOutChans[0].portType = typeid(T).name();
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -691,10 +705,15 @@ private:
  * otherwise.
  */
 template <class T>
-class vsource : public dt_process
+class vsource : public dt_process,
+                public ForSyDe::detail::bindable<vsource<T>>
 {
 public:
     DT_out<T> oport1;     ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<vsource<T>>::operator();
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which writes the result using the output
@@ -749,8 +768,7 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -761,10 +779,15 @@ private:
  * applies a given function to the current input.
  */
 template <class T>
-class sink : public dt_process
+class sink : public dt_process,
+             public ForSyDe::detail::bindable<sink<T>>
 {
 public:
     DT_in<T> iport1;         ///< port for the input channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<sink<T>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
     
     //! Type of the function to be passed to the process constructor
     typedef std::function<void(const abst_ext<T>&)> functype;
@@ -820,9 +843,7 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);    // only one output port
-        boundInChans[0].port = &iport1;
-        boundInChans[0].portType = typeid(T).name();
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
     }
 #endif
 };
@@ -835,10 +856,15 @@ private:
  * standard output.
  */
 template <class ITYP>
-class printSigs : public sc_module
+class printSigs : public sc_module,
+                  public ForSyDe::detail::bindable<printSigs<ITYP>>
 {
 public:
     sc_fifo_in<ITYP> iport;         ///< multi-port for the input channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<printSigs<ITYP>>::operator();
+    auto in_ports()  {return std::tie(iport);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which runs the user-imlpemented function
@@ -851,7 +877,6 @@ public:
     }
 
 private:
-    SC_HAS_PROCESS(printSigs);
 
     //! The main and only execution thread of the module
     void worker()
@@ -878,12 +903,18 @@ private:
 /*! This process "zips" two incoming signals into one signal of tuples.
  */
 template <class T1, class T2>
-class zips : public dt_process
+class zips : public dt_process,
+             public ForSyDe::detail::bindable<zips<T1,T2>>
 {
 public:
     DT_in<T1> iport1;        ///< port for the input channel 1
     DT_in<T2> iport2;        ///< port for the input channel 2
     DT_out<std::tuple<std::vector<abst_ext<T1>>,std::vector<abst_ext<T2>>>> oport1;///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<zips<T1,T2>>::operator();
+    auto in_ports()  {return std::tie(iport1,iport2);}
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input port,
@@ -940,14 +971,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(2);     // two input ports
-        boundInChans[0].port = &iport1;
-        boundInChans[0].portType = typeid(T1).name();
-        boundInChans[1].port = &iport2;
-        boundInChans[1].portType = typeid(T2).name();
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-        boundOutChans[0].portType = typeid(std::tuple<T1,T2>).name();
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -956,13 +981,19 @@ private:
 /*! This process "zips" two incoming signals into one signal of tuples.
  */
 template <class T1, class T2, class TC>
-class zip : public dt_process
+class zip : public dt_process,
+            public ForSyDe::detail::bindable<zip<T1,T2,TC>>
 {
 public:
     DT_in<T1> iport1;       ///< port for the input channel 1
     DT_in<T2> iport2;       ///< port for the input channel 2
     DT_in<TC> iport3;   ///< port for the control channel
     DT_out<std::tuple<std::vector<abst_ext<T1>>,std::vector<abst_ext<T2>>>> oport1;///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<zip<T1,T2,TC>>::operator();
+    auto in_ports()  {return std::tie(iport1,iport2,iport3);}
+    auto out_ports() {return std::tie(oport1);}
 
     //! Type of the partitioning function to be passed to the process constructor
     typedef std::function<void(size_t&, const TC&)> gamma_functype;
@@ -1043,16 +1074,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(3);     // two input ports
-        boundInChans[0].port = &iport1;
-        boundInChans[0].portType = typeid(T1).name();
-        boundInChans[1].port = &iport2;
-        boundInChans[1].portType = typeid(T2).name();
-        boundInChans[2].port = &iport3;
-        boundInChans[2].portType = typeid(TC).name();
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-        boundOutChans[0].portType = typeid(std::tuple<T1,T2>).name();
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -1061,12 +1084,18 @@ private:
 /*! This process "zips" the incoming signals into one signal of tuples.
  */
 template <class TC, class... ITYPs>
-class zipN : public dt_process
+class zipN : public dt_process,
+             public ForSyDe::detail::bindable<zipN<TC,ITYPs...>>
 {
 public:
     std::tuple<DT_in<ITYPs>...> iport;  ///< tuple of ports for the input channels
     DT_in<TC> iport2;               ///< port for the control channel
     DT_out<std::tuple<ITYPs...> > oport1;///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<zipN<TC,ITYPs...>>::operator();
+    auto in_ports()  {return std::tie(iport,iport2);}
+    auto out_ports() {return std::tie(oport1);}
 
     //! Type of the partitioning function to be passed to the process constructor
     typedef std::function<void(size_t&, const TC&)> gamma_functype;
@@ -1137,23 +1166,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(sizeof...(ITYPs));     // input ports
-        std::apply
-        (
-            [&](auto&... ports)
-            {
-                std::size_t n{0};
-                ((boundInChans[n++].port = &ports),...);
-            }, iport
-        );
-        [&]()
-        {
-            std::size_t n{0};
-            ((boundInChans[n++].portType = typeid(ITYPs).name()),...);
-        }();
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-        boundOutChans[0].portType = typeid(std::tuple<ITYPs...>).name();
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -1162,18 +1176,24 @@ private:
 /*! This process "unzips" a signal of tuples into two separate signals
  */
 template <class T1, class T2>
-class unzip : public dt_process
+class unzip : public dt_process,
+              public ForSyDe::detail::bindable<unzip<T1,T2>>
 {
 public:
     DT_in<std::tuple<abst_ext<T1>,abst_ext<T2>>> iport1;///< port for the input channel
     DT_out<T1> oport1;        ///< port for the output channel 1
     DT_out<T2> oport2;        ///< port for the output channel 2
 
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<unzip<T1,T2>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1,oport2);}
+
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input ports,
      * unzips them and writes the results using the output ports
      */
-    unzip(const sc_module_name& _name      ///< process name
+    unzip(sc_module_name _name      ///< process name
         ): dt_process(_name), iport1("iport1"), oport1("oport1"), oport2("oport2")
     {}
     
@@ -1217,14 +1237,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundInChans[0].portType = typeid(std::tuple<T1,T2>).name();
-        boundOutChans.resize(2);    // two output ports
-        boundOutChans[0].port = &oport1;
-        boundOutChans[0].portType = typeid(T1).name();
-        boundOutChans[1].port = &oport2;
-        boundOutChans[1].portType = typeid(T2).name();
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -1233,11 +1247,17 @@ private:
 /*! This process "unzips" the incoming signal into a tuple of signals.
  */
 template <class... Ts>
-class unzipN : public dt_process
+class unzipN : public dt_process,
+               public ForSyDe::detail::bindable<unzipN<Ts...>>
 {
 public:
     DT_in<std::tuple<abst_ext<Ts>...>> iport1;///< port for the input channel
     std::tuple<DT_out<Ts>...> oport;///< tuple of ports for the output channels
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<unzipN<Ts...>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::apply([](auto&... p){return std::tie(p...);}, oport);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input port,
@@ -1314,11 +1334,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundInChans[0].portType = typeid(int).name();
-        boundOutChans.resize(sizeof...(Ts));    // two output ports
-        register_ports(boundOutChans, oport);
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
     
     template<size_t N, class T>
@@ -1362,11 +1379,17 @@ private:
  * port of a module to the input channels of multiple processes (modules).
  */
 template <class T>
-class fanout : public dt_process
+class fanout : public dt_process,
+               public ForSyDe::detail::bindable<fanout<T>>
 {
 public:
     DT_in<T> iport1;        ///< port for the input channel
     DT_out<T> oport1;       ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<fanout<T>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input port,
@@ -1407,12 +1430,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundInChans[0].portType = typeid(T).name();
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
-        boundOutChans[0].portType = typeid(T).name();
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };

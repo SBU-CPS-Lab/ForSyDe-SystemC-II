@@ -133,11 +133,17 @@ template <typename T> struct port_of<moc_id::DT,T>
  * exactly the thing this class removes.
  */
 template <moc_id From, moc_id To, typename T>
-class strip : public process
+class strip : public process,
+              public ForSyDe::detail::bindable<strip<From,To,T>>
 {
 public:
     typename port_of<From,T>::in  iport1;   ///< port for the input channel
     typename port_of<To,T>::out   oport1;   ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<strip<From,To,T>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     strip(sc_module_name _name      ///< process name
@@ -194,10 +200,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -224,11 +228,17 @@ private:
  * the wire and this interface is exactly what separates them.
  */
 template <moc_id From, moc_id To, typename T>
-class insert : public process
+class insert : public process,
+               public ForSyDe::detail::bindable<insert<From,To,T>>
 {
 public:
     typename port_of<From,T>::in  iport1;   ///< port for the input channel
     typename port_of<To,T>::out   oport1;   ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<insert<From,To,T>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name and the event ratio
     insert(sc_module_name _name,        ///< process name
@@ -290,10 +300,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -327,11 +335,17 @@ private:
  * kind of interface that chapter 6 does not describe.
  */
 template <moc_id From, moc_id To, typename T>
-class group : public process
+class group : public process,
+              public ForSyDe::detail::bindable<group<From,To,T>>
 {
 public:
     typename port_of<From,T>::in  iport1;   ///< port for the input channel
     typename port_of<To,T>::out   oport1;   ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<group<From,To,T>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name and the event ratio
     group(sc_module_name _name,         ///< process name
@@ -385,10 +399,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -408,10 +420,15 @@ enum A2DMode {LINEAR, HOLD};
  * - sample and hold
  * - linear interpolation
  */
-class SY2CT : public process
+class SY2CT : public process,
+              public ForSyDe::detail::bindable<SY2CT>
 {
 public:
     SY::SY_in<CTTYPE> iport1;      ///< port for the input channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<SY2CT>::operator();
+    auto in_ports()  {return std::tie(iport1);}
 	CT::CT_out oport1;              ///< port for the output channel
 
     //! The constructor requires the module name
@@ -497,10 +514,7 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
     }
 #endif
 };
@@ -510,11 +524,17 @@ private:
  * signal to a SY one with fixed sampling rate. It can be used to implement 
  * analog-to-digital converters.
  */
-class CT2SY : public process
+class CT2SY : public process,
+              public ForSyDe::detail::bindable<CT2SY>
 {
 public:
     CT::CT_in iport1;           ///< port for the input channel
     SY::SY_out<CTTYPE> oport1; ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<CT2SY>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input port,
@@ -576,10 +596,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -590,12 +608,18 @@ private:
  * implement analog-to-digital converters with adaptive sampling rates.
  */
 template<class T>
-class CT2DDE : public process
+class CT2DDE : public process,
+               public ForSyDe::detail::bindable<CT2DDE<T>>
 {
 public:
     CT::CT_in iport1;               ///< port for the input channel
     DDE::DDE_in<unsigned int> iport2; ///< port for the sampling channel
     DDE::DDE_out<T> oport1;           ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<CT2DDE<T>>::operator();
+    auto in_ports()  {return std::tie(iport1,iport2);}
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input port,
@@ -715,11 +739,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(2);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundInChans[1].port = &iport2;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -730,11 +751,17 @@ private:
  * implement analog-to-digital converters with fixed sampling rates.
  */
 template<class T>
-class CT2DDEf : public process
+class CT2DDEf : public process,
+                public ForSyDe::detail::bindable<CT2DDEf<T>>
 {
 public:
     CT::CT_in iport1;               ///< port for the input channel
     DDE::DDE_out<T> oport1;           ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<CT2DDEf<T>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input port,
@@ -788,10 +815,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -805,10 +830,15 @@ private:
  * - linear interpolation
  */
 template<class T>
-class DDE2CT : public process
+class DDE2CT : public process,
+               public ForSyDe::detail::bindable<DDE2CT<T>>
 {
 public:
     DDE::DDE_in<T> iport1;        ///< port for the input channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<DDE2CT<T>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
 	CT::CT_out oport1;          ///< port for the output channel
 
     //! The constructor requires the module name
@@ -891,10 +921,7 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
     }
 #endif
 };
@@ -942,10 +969,15 @@ using DT2SY = MI::group<moc_id::DT, moc_id::SY, T>;
  * signal to a DDE one.
  */
 template<class T>
-class SY2DDE : public process
+class SY2DDE : public process,
+               public ForSyDe::detail::bindable<SY2DDE<T>>
 {
 public:
     SY::SY_in<T> iport1;        ///< port for the input channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<SY2DDE<T>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
 	DDE::DDE_out<T> oport1;       ///< port for the output channel
 
     //! The constructor requires the module name
@@ -1009,10 +1041,7 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
     }
 #endif
 };
@@ -1022,11 +1051,17 @@ private:
  * signal to an SY one.
  */
 template<class T>
-class DDE2SY : public process
+class DDE2SY : public process,
+               public ForSyDe::detail::bindable<DDE2SY<T>>
 {
 public:
     DDE::DDE_in<T> iport1;  ///< port for the input channel
     SY::SY_out<T> oport1;   ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<DDE2SY<T>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input port,
@@ -1087,10 +1122,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };

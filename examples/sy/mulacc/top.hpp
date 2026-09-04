@@ -17,22 +17,22 @@
 
 using namespace ForSyDe;
 
-SC_MODULE(top)
+struct top : ForSyDe::composite
 {
     SY::signal<int> srca, srcb, result;
     
     SC_CTOR(top)
     {
-        SY::make_sconstant("constant1", 3, 10, srca);
+        add(new SY::sconstant("constant1", 3, 10))(srca);
         
-        SY::make_ssource("siggen1", siggen_func, 1, 10, srcb);
+        add(new SY::ssource("siggen1", siggen_func, 1, 10))(srcb);
         
-        auto mulacc1 = new mulacc("mulacc1");
-        mulacc1->a(srca);
-        mulacc1->b(srcb);
-        mulacc1->result(result);
+        auto& mulacc1 = add(new mulacc("mulacc1"));
+        mulacc1.a(srca);
+        mulacc1.b(srcb);
+        mulacc1.result(result);
         
-        SY::make_ssink("report1", report_func, result);
+        add(new SY::ssink("report1", report_func))(result);
     }
 #ifdef FORSYDE_INTROSPECTION
     void start_of_simulation()

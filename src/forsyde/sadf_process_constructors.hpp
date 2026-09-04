@@ -159,7 +159,7 @@ protected:
     //! The table of the detector's scenarios, passed to the process constructor
     Table scenario_table;
 
-    detector_core(const sc_module_name& _name,  ///< process name
+    detector_core(sc_module_name _name,  ///< process name
                   const Table& scenario_table,  ///< the detector scenario table
                   const TS& init_sc             ///< the initial scenario
                   ) : SADF_process(_name), sc_val(), init_sc(init_sc),
@@ -262,7 +262,7 @@ protected:
     //! The table of the kernel's scenarios, passed to the process constructor
     Table scenario_table;
 
-    kernel_core(const sc_module_name& _name,    ///< process name
+    kernel_core(sc_module_name _name,    ///< process name
                 const Table& scenario_table     ///< the kernel scenario table
                 ) : SADF_process(_name), cport1("cport1"), cval1(),
                     scenario_table(scenario_table)

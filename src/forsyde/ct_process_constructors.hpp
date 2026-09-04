@@ -109,11 +109,17 @@ using namespace sc_core;
  * and one output. The class is parameterized for input and output
  * data-types.
  */
-class comb : public ct_process
+class comb : public ct_process,
+             public ForSyDe::detail::bindable<comb>
 {
 public:
     CT_in  iport1;       ///< port for the input channel
     CT_out oport1;       ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<comb>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
     
     //! Type of the function to be passed to the process constructor
     typedef std::function<void(CTTYPE&,const CTTYPE&)> functype;
@@ -187,10 +193,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -198,12 +202,18 @@ private:
 //! Process constructor for a combinational process with two inputs and one output
 /*! similar to comb with two inputs
  */
-class comb2 : public ct_process
+class comb2 : public ct_process,
+              public ForSyDe::detail::bindable<comb2>
 {
 public:
     CT_in iport1;        ///< port for the input channel 1
     CT_in iport2;        ///< port for the input channel 2
     CT_out oport1;        ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<comb2>::operator();
+    auto in_ports()  {return std::tie(iport1,iport2);}
+    auto out_ports() {return std::tie(oport1);}
     
     //! Type of the function to be passed to the process constructor
     typedef std::function<void(CTTYPE&, const CTTYPE&,
@@ -294,11 +304,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(2);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundInChans[1].port = &iport2;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -307,11 +314,17 @@ private:
 /*! similar to comb but with an array of inputs
  */
 template <std::size_t N>
-class combX : public ct_process
+class combX : public ct_process,
+              public ForSyDe::detail::bindable<combX<N>>
 {
 public:
     std::array<CT_in,N> iport;  ///< port for the input channel array
     CT_out oport1;              ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<combX<N>>::operator();
+    auto in_ports()  {return std::apply([](auto&... p){return std::tie(p...);}, iport);}
+    auto out_ports() {return std::tie(oport1);}
     
     //! Type of the function to be passed to the process constructor
     typedef std::function<void(CTTYPE&, const std::array<CTTYPE,N>&)> functype;
@@ -398,11 +411,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(N);     // N input ports
-        for (size_t i=0;i<N;i++)
-            boundInChans[i].port = &iport[i];
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -427,11 +437,17 @@ private:
  * specifically want the interval relabelling, which is kept because it
  * costs nothing and does not buffer.
  */
-class delay : public ct_process
+class delay : public ct_process,
+              public ForSyDe::detail::bindable<delay>
 {
 public:
     CT_in  iport1;        ///< port for the input channel
     CT_out oport1;        ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<delay>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which inserts the initial element, reads
@@ -496,10 +512,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -512,11 +526,17 @@ private:
  * This is the CT counterpart of SY::delay and DDE::delay, despite the
  * name -- see the warning on CT::delay, which is a different operation.
  */
-class shift : public ct_process
+class shift : public ct_process,
+              public ForSyDe::detail::bindable<shift>
 {
 public:
     CT_in  iport1;       ///< port for the input channel
     CT_out oport1;       ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<shift>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which inserts the initial element, reads
@@ -586,10 +606,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -600,10 +618,15 @@ private:
  * 
  * This class can directly be instantiated to build a process.
  */
-class constant : public ct_process
+class constant : public ct_process,
+                 public ForSyDe::detail::bindable<constant>
 {
 public:
     CT_out oport1;            ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<constant>::operator();
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which runs the user-imlpemented function
@@ -657,8 +680,7 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -670,10 +692,15 @@ private:
  * start and end times of the signals should aso be mentioned.
  * 
  */
-class source : public ct_process
+class source : public ct_process,
+               public ForSyDe::detail::bindable<source>
 {
 public:
     CT_out oport1;        ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<source>::operator();
+    auto out_ports() {return std::tie(oport1);}
     
     //! Type of the function to be passed to the process constructor
     typedef std::function<void(CTTYPE&, const sc_time&)> functype;
@@ -736,8 +763,7 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -747,10 +773,15 @@ private:
  * Its main purpose is to be used in test-benches. The process repeatedly
  * applies a given function to the current input using a sampling time.
  */
-class sink : public ct_process
+class sink : public ct_process,
+             public ForSyDe::detail::bindable<sink>
 {
 public:
     CT_in iport1;         ///< port for the input channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<sink>::operator();
+    auto in_ports()  {return std::tie(iport1);}
     
     //! Type of the function to be passed to the process constructor
     typedef std::function<void(const CTTYPE&)> functype;
@@ -810,8 +841,7 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);    // only one output port
-        boundInChans[0].port = &iport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
     }
 #endif
 };
@@ -823,10 +853,15 @@ private:
  * The resulting process prints the sampled data as a trace in an output
  * ".dat" file which can be plotted using gaw or gwave.
  */
-class traceSig : public ct_process
+class traceSig : public ct_process,
+                 public ForSyDe::detail::bindable<traceSig>
 {
 public:
     CT_in  iport1;       ///< port for the input channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<traceSig>::operator();
+    auto in_ports()  {return std::tie(iport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which runs the user-imlpemented function
@@ -888,8 +923,7 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
     }
 #endif
 };
@@ -904,11 +938,17 @@ private:
  * designs). It will be used when it is needed to connect an input
  * port of a module to the input channels of multiple processes (modules).
  */
-class fanout : public ct_process
+class fanout : public ct_process,
+               public ForSyDe::detail::bindable<fanout>
 {
 public:
     CT_in iport1;        ///< port for the input channel
     CT_out oport1;       ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<fanout>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input port,
@@ -950,10 +990,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };

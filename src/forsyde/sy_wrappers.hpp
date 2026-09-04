@@ -52,11 +52,17 @@ using namespace sc_core;
  * output data-types.
  */
 template <typename T0, typename T1>
-class gdbwrap : public sy_process
+class gdbwrap : public sy_process,
+                public ForSyDe::detail::bindable<gdbwrap<T0,T1>>
 {
 public:
     SY_in<T1>  iport1;       ///< port for the input channel
     SY_out<T0> oport1;        ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<gdbwrap<T0,T1>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input port,
@@ -64,7 +70,7 @@ public:
      * external model, collects the produced outputs and writes them
      * using the output port
      */
-    gdbwrap(const sc_module_name& _name,      ///< process name
+    gdbwrap(sc_module_name _name,      ///< process name
          const std::string& exec_name         ///< name of the executable file
          ) : sy_process(_name), iport1("iport1"), oport1("oport1"),
              exec_name(exec_name)
@@ -171,10 +177,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -186,18 +190,24 @@ private:
  * data-types.
  */
 template <typename T0, typename T1>
-class pipewrap : public sy_process
+class pipewrap : public sy_process,
+                 public ForSyDe::detail::bindable<pipewrap<T0,T1>>
 {
 public:
     SY_in<T1>  iport1;       ///< port for the input channel
     SY_out<T0> oport1;        ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<pipewrap<T0,T1>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input port,
      * provides it to the external model, collects the produced outputs
      * and writes them using the output port
      */
-    pipewrap(const sc_module_name& _name,     ///< process name
+    pipewrap(sc_module_name _name,     ///< process name
          const int& offset,                   ///< The offset between the input and output. Positive: read from the model first. Negative: write to the model first.
          const std::string& pipe_path         ///< name of the folder containing forsyde_in1 and forsyde_out pipes
          ) : sy_process(_name), iport1("iport1"), oport1("oport1"),
@@ -324,10 +334,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -339,19 +347,25 @@ private:
  * data-types.
  */
 template <typename T0, typename T1, typename T2>
-class pipewrap2 : public sy_process
+class pipewrap2 : public sy_process,
+                  public ForSyDe::detail::bindable<pipewrap2<T0,T1,T2>>
 {
 public:
     SY_in<T1>  iport1;       ///< port for the input channel
     SY_in<T2>  iport2;       ///< port for the second channel
     SY_out<T0> oport1;        ///< port for the output channel
 
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<pipewrap2<T0,T1,T2>>::operator();
+    auto in_ports()  {return std::tie(iport1,iport2);}
+    auto out_ports() {return std::tie(oport1);}
+
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input port,
      * provides it to the external model, collects the produced outputs
      * and writes them using the output port
      */
-    pipewrap2(const sc_module_name& _name,    ///< process name
+    pipewrap2(sc_module_name _name,    ///< process name
          const int& offset,                   ///< The offset between the input and output. Positive: read from the model first. Negative: write to the model first.
          const std::string& pipe_path         ///< name of the folder containing forsyde_in1 and forsyde_out pipes
          ) : sy_process(_name), iport1("iport1"), iport2("iport2"), 
@@ -491,11 +505,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(2);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundInChans[1].port = &iport2;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };

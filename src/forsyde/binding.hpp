@@ -27,10 +27,14 @@
 namespace ForSyDe
 {
 
-//! Forward declarations, so that the traits below can see through the
-//! MoCs' token wrappers without this header depending on any of them
+//! Forward declarations, so that the helpers below can be written here
+//! without this header depending on any of the MoCs, or on abssemantics
+
 template <typename T> class abst_ext;      // abst_ext.hpp
 template <typename VT, typename TT> struct tt_event;   // tt_event.hpp
+#ifdef FORSYDE_INTROSPECTION
+struct PortInfo;                                       // abssemantics.hpp
+#endif
 
 namespace detail
 {
@@ -41,6 +45,29 @@ inline void bind_positional(Ports& ports, Sigs sigs, std::index_sequence<I...>)
 {
     (std::get<I>(ports)(std::get<I>(sigs)), ...);
 }
+
+#ifdef FORSYDE_INTROSPECTION
+//! Record a tuple of port references in one of a process's bound-channel vectors
+/*! The other half of what the two port accessors buy. bindInfo() needs
+ * exactly what the binder needs -- the input ports in order, the output
+ * ports in order -- and it was written out by hand in 102 places, one of
+ * which (SADF::detectorMN) was silently wrong because nothing
+ * instantiated it. From here every one of them is the same line.
+ */
+template <typename Ports>
+inline void record_ports(std::vector<PortInfo>& chans, Ports&& ports)
+{
+    chans.resize(std::tuple_size<typename std::decay<Ports>::type>::value);
+    std::apply
+    (
+        [&](auto&... port)
+        {
+            std::size_t n{0};
+            ((chans[n++].port = &port),...);
+        }, ports
+    );
+}
+#endif
 
 //! The token a MoC puts on the wire, back to the value the modeller means
 /*! Every MoC wraps the modeller's type before it reaches a channel --
@@ -79,6 +106,18 @@ template <typename VT, typename TT> struct token_value<tt_event<VT,TT>>
  * in_port and out_port override. A model bound the SystemC way would
  * elaborate perfectly and then emit XML with no channels recorded in it.
  */
+//! Does \a P declare the accessor at all?
+/*! A few process constructors have only inputs (sink, printSigs) or only
+ * outputs (source, constant), so the binder has to ask rather than
+ * assume both are there.
+ */
+template <typename P, typename = void> struct has_in_ports : std::false_type {};
+template <typename P> struct has_in_ports<P,
+    std::void_t<decltype(std::declval<P&>().in_ports())>> : std::true_type {};
+template <typename P, typename = void> struct has_out_ports : std::false_type {};
+template <typename P> struct has_out_ports<P,
+    std::void_t<decltype(std::declval<P&>().out_ports())>> : std::true_type {};
+
 template <typename Derived>
 class bindable
 {
@@ -98,13 +137,25 @@ public:
     Derived& operator()(Sigs&... sigs)
     {
         auto& self = static_cast<Derived&>(*this);
-        auto ports = std::tuple_cat(self.out_ports(), self.in_ports());
+        auto ports = all_ports(self);
         static_assert(sizeof...(Sigs) == std::tuple_size<decltype(ports)>::value,
             "Wrong number of signals bound to this process. Give one per "
             "port: the outputs first, in order, then the inputs.");
         bind_positional(ports, std::tie(sigs...),
                         std::index_sequence_for<Sigs...>{});
         return self;
+    }
+
+private:
+    //! Outputs then inputs, skipping whichever half this process lacks
+    static auto all_ports(Derived& self)
+    {
+        if constexpr (has_out_ports<Derived>::value && has_in_ports<Derived>::value)
+            return std::tuple_cat(self.out_ports(), self.in_ports());
+        else if constexpr (has_out_ports<Derived>::value)
+            return self.out_ports();
+        else
+            return self.in_ports();
     }
 };
 

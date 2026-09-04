@@ -60,7 +60,6 @@ public:
         SC_THREAD(worker);
     }
 private:
-    SC_HAS_PROCESS(apply);
 
     //! The main and only execution thread of the module
     void worker()

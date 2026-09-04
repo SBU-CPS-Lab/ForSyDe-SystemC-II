@@ -49,11 +49,17 @@ using namespace sc_core;
  * co-simulation mode to communicate with a Functional Mock-up Unit (FMU)
  * which includes a numeric solver or interfaces to a solver tool.
  */
-class fmi2cswrap : public ct_process
+class fmi2cswrap : public ct_process,
+                   public ForSyDe::detail::bindable<fmi2cswrap>
 {
 public:
     CT_in  iport1;       ///< port for the input channel
     CT_out oport1;       ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<fmi2cswrap>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input port,
@@ -230,10 +236,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };

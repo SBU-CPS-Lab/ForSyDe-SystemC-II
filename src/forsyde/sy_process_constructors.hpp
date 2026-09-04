@@ -199,7 +199,7 @@ protected:
      * applies the user-implemented function to them and writes the
      * results using the output ports.
      */
-    comb_core(const sc_module_name& _name) : sy_process(_name)
+    comb_core(sc_module_name _name) : sy_process(_name)
     {
 #ifdef FORSYDE_INTROSPECTION
         std::string func_name = std::string(basename());
@@ -209,7 +209,7 @@ protected:
     }
 
     //! As above, for a process that takes no user function
-    comb_core(const sc_module_name& _name, no_func_arg) : sy_process(_name) {}
+    comb_core(sc_module_name _name, no_func_arg) : sy_process(_name) {}
 
 private:
     Derived& self() {return static_cast<Derived&>(*this);}
@@ -273,7 +273,7 @@ public:
 protected:
     Pack ivals;             ///< input tokens, one per input port
 
-    zip_core(const sc_module_name& _name) : sy_process(_name), oport1("oport1") {}
+    zip_core(sc_module_name _name) : sy_process(_name), oport1("oport1") {}
 
 private:
     Derived& self() {return static_cast<Derived&>(*this);}
@@ -344,7 +344,7 @@ protected:
 
     Pack ovals;             ///< output tokens, one per output port
 
-    unzip_core(const sc_module_name& _name) : sy_process(_name), iport1("iport1") {}
+    unzip_core(sc_module_name _name) : sy_process(_name), iport1("iport1") {}
 
 private:
     Derived& self() {return static_cast<Derived&>(*this);}
@@ -440,7 +440,7 @@ protected:
      */
     bool first_run;
 
-    fsm_core(const sc_module_name& _name,   ///< process name
+    fsm_core(sc_module_name _name,   ///< process name
              const ST& init_st              ///< initial state
              ) : sy_process(_name), init_st(init_st)
     {
@@ -485,7 +485,8 @@ private:
 #endif
 };
 
-}
+} // namespace detail
+
 
 //! Process constructor for a combinational process with one input and one output
 /*! This class is used to build combinational processes with one input
@@ -509,7 +510,7 @@ public:
     typedef std::function<void(abst_ext<T0>&,const abst_ext<T1>&)> functype;
 
     //! The constructor requires the module name
-    comb(const sc_module_name& _name,      ///< process name
+    comb(sc_module_name _name,      ///< process name
          const functype& _func             ///< function to be passed
          ) : base(_name), iport1("iport1"), oport1("oport1"), _func(_func) {}
 
@@ -551,7 +552,7 @@ public:
                                               const abst_ext<T2>&)> functype;
 
     //! The constructor requires the module name
-    comb2(const sc_module_name& _name,      ///< process name
+    comb2(sc_module_name _name,      ///< process name
            const functype& _func             ///< function to be passed
           ) : base(_name), iport1("iport1"), iport2("iport2"), oport1("oport1"),
               _func(_func) {}
@@ -600,7 +601,7 @@ public:
                                               const abst_ext<T3>&)> functype;
 
     //! The constructor requires the module name
-    comb3(const sc_module_name& _name,      ///< process name
+    comb3(sc_module_name _name,      ///< process name
            const functype& _func             ///< function to be passed
           ) : base(_name), iport1("iport1"), iport2("iport2"), iport3("iport3"),
               oport1("oport1"), _func(_func) {}
@@ -652,7 +653,7 @@ public:
                                              const abst_ext<T4>&)> functype;
 
     //! The constructor requires the module name
-    comb4(const sc_module_name& _name,      ///< process name
+    comb4(sc_module_name _name,      ///< process name
            const functype& _func             ///< function to be passed
           ) : base(_name), iport1("iport1"), iport2("iport2"),
               iport3("iport3"), iport4("iport4"), _func(_func) {}
@@ -698,7 +699,7 @@ public:
     typedef std::function<void(abst_ext<T0>&, const std::array<abst_ext<T1>,N>&)> functype;
 
     //! The constructor requires the module name
-    combX(const sc_module_name& _name,      ///< process name
+    combX(sc_module_name _name,      ///< process name
            const functype& _func             ///< function to be passed
           ) : base(_name), _func(_func) {}
 
@@ -740,7 +741,7 @@ public:
     typedef std::function<void(abst_ext<T0>&, const std::tuple<abst_ext<Ts>...>&)> functype;
 
     //! The constructor requires the module name
-    combN(const sc_module_name& _name,      ///< process name
+    combN(sc_module_name _name,      ///< process name
            const functype& _func             ///< function to be passed
           ) : base(_name), oport1("oport1"), _func(_func) {}
 
@@ -783,7 +784,7 @@ public:
     typedef std::function<void(std::tuple<abst_ext<TOs>...>&, const std::tuple<abst_ext<TIs>...>&)> functype;
 
     //! The constructor requires the module name
-    combMN(const sc_module_name& _name,      ///< process name
+    combMN(sc_module_name _name,      ///< process name
            const functype& _func             ///< function to be passed
           ) : base(_name), _func(_func) {}
 
@@ -814,18 +815,24 @@ private:
  * loops since combinational loops are forbidden in ForSyDe.
  */
 template <class T>
-class delay : public sy_process
+class delay : public sy_process,
+              public ForSyDe::detail::bindable<delay<T>>
 {
 public:
     SY_in<T>  iport1;       ///< port for the input channel
     SY_out<T> oport1;        ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<delay<T>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which inserts the initial element, reads
      * data from its input port, and writes the results using the output
      * port.
      */
-    delay(const sc_module_name& _name,      ///< process name
+    delay(sc_module_name _name,      ///< process name
            const abst_ext<T>& init_val      ///< initial value
           ) : sy_process(_name), iport1("iport1"), oport1("oport1"),
               init_val(init_val)
@@ -873,10 +880,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -890,18 +895,24 @@ private:
  * parameterized for its input/output data-type.
  */
 template <class T>
-class delayn : public sy_process
+class delayn : public sy_process,
+               public ForSyDe::detail::bindable<delayn<T>>
 {
 public:
     SY_in<T>  iport1;       ///< port for the input channel
     SY_out<T> oport1;        ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<delayn<T>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which inserts the initial elements,
      * reads data from its input port, and writes the results using the
      * output port.
      */
-    delayn(const sc_module_name& _name,      ///< process name
+    delayn(sc_module_name _name,      ///< process name
             const abst_ext<T>& init_val,    ///< initial value
             const unsigned int& n            ///< number of delay elements
           ) : sy_process(_name), iport1("iport1"), oport1("oport1"),
@@ -955,10 +966,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -994,7 +1003,7 @@ public:
      * applies the user-imlpemented functions to the input and current
      * state and writes the results using the output port
      */
-    moore(const sc_module_name& _name,      ///< process name
+    moore(sc_module_name _name,      ///< process name
            const ns_functype& _ns_func, ///< The next_state function
            const od_functype& _od_func, ///< The output-decoding function
            const ST& init_st  ///< Initial state
@@ -1066,7 +1075,7 @@ public:
      * applies the user-imlpemented functions to the input and current
      * state and writes the results using the output port
      */
-    mealy(const sc_module_name& _name,      ///< process name
+    mealy(sc_module_name _name,      ///< process name
            const ns_functype& _ns_func, ///< The next_state function
            const od_functype& _od_func, ///< The output-decoding function
            const ST& init_st  ///< Initial state
@@ -1101,17 +1110,23 @@ private:
  * given value.
  */
 template <class T>
-class fill : public sy_process
+class fill : public sy_process,
+             public ForSyDe::detail::bindable<fill<T>>
 {
 public:
     SY_in<T> iport1;              ///< port for the input channel
     SY_out<T> oport1;             ///< port for the output channel
 
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<fill<T>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
+
     //! The constructor requires the process name and a default value
     /*! It creates an SC_THREAD which fills the signal result using the
      * output port
      */
-    fill(const sc_module_name& _name,      ///< process name
+    fill(sc_module_name _name,      ///< process name
           const T& def_val                  ///< default value
          ) : sy_process(_name), def_val(def_val)
     {
@@ -1163,10 +1178,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -1178,17 +1191,23 @@ private:
  * exists, the absent value is replaced by a default value.
  */
 template <class T>
-class hold : public sy_process
+class hold : public sy_process,
+             public ForSyDe::detail::bindable<hold<T>>
 {
 public:
     SY_in<T> iport1;              ///< port for the input channel
     SY_out<T> oport1;             ///< port for the output channel
 
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<hold<T>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
+
     //! The constructor requires the process name and a default value
     /*! It creates an SC_THREAD which fills the signal result using the
      * output port
      */
-    hold(const sc_module_name& _name,      ///< process name
+    hold(sc_module_name _name,      ///< process name
           const T& def_val                   ///< default value
          ) : sy_process(_name), def_val(def_val)
     {
@@ -1241,10 +1260,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -1256,16 +1273,21 @@ private:
  * This class can directly be instantiated to build a process.
  */
 template <class T>
-class constant : public sy_process
+class constant : public sy_process,
+                 public ForSyDe::detail::bindable<constant<T>>
 {
 public:
     SY_out<T> oport1;            ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<constant<T>>::operator();
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which runs the user-imlpemented function
      * and writes the result using the output port
      */
-    constant(const sc_module_name& _name,      ///< process name
+    constant(sc_module_name _name,      ///< process name
               const abst_ext<T>& init_val,     ///< The constant output value
               const unsigned long long& take=0 ///< number of tokens produced (0 for infinite)
              ) : sy_process(_name), oport1("oport1"),
@@ -1315,8 +1337,7 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -1328,10 +1349,15 @@ private:
  * also the process output. It can be used in test-benches.
  */
 template <class T>
-class source : public sy_process
+class source : public sy_process,
+               public ForSyDe::detail::bindable<source<T>>
 {
 public:
     SY_out<T> oport1;        ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<source<T>>::operator();
+    auto out_ports() {return std::tie(oport1);}
     
     //! Type of the function to be passed to the process constructor
     typedef std::function<void(abst_ext<T>&, const abst_ext<T>&)> functype;
@@ -1340,7 +1366,7 @@ public:
     /*! It creates an SC_THREAD which runs the user-imlpemented function
      * and writes the result using the output port
      */
-    source(const sc_module_name& _name,      ///< process name
+    source(sc_module_name _name,      ///< process name
             const functype& _func,         ///< function to be passed
             const abst_ext<T>& init_val,    ///< Initial state
             const unsigned long long& take=0 ///< number of tokens produced (0 for infinite)
@@ -1406,8 +1432,7 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -1420,10 +1445,15 @@ private:
  * It can be used in test-benches.
  */
 template <class T>
-class file_source : public sy_process
+class file_source : public sy_process,
+                    public ForSyDe::detail::bindable<file_source<T>>
 {
 public:
     SY_out<T> oport1;        ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<file_source<T>>::operator();
+    auto out_ports() {return std::tie(oport1);}
     
     //! Type of the function to be passed to the process constructor
     typedef std::function<void(abst_ext<T>&, const std::string&)> functype;
@@ -1497,8 +1527,7 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -1509,16 +1538,21 @@ private:
  * of the vector and outputs one value on each evaluation cycle.
  */
 template <class T>
-class vsource : public sy_process
+class vsource : public sy_process,
+                public ForSyDe::detail::bindable<vsource<T>>
 {
 public:
     SY_out<T> oport1;     ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<vsource<T>>::operator();
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which writes the result using the output
      * port.
      */
-    vsource(const sc_module_name& _name,      ///< process name
+    vsource(sc_module_name _name,      ///< process name
             const std::vector<abst_ext<T>>& in_vec  ///< Initial vector
             ) : sy_process(_name), in_vec(in_vec)
     {
@@ -1563,8 +1597,7 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -1575,10 +1608,15 @@ private:
  * applies a given function to the current input.
  */
 template <class T>
-class sink : public sy_process
+class sink : public sy_process,
+             public ForSyDe::detail::bindable<sink<T>>
 {
 public:
     SY_in<T> iport1;         ///< port for the input channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<sink<T>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
     
     //! Type of the function to be passed to the process constructor
     typedef std::function<void(const abst_ext<T>&)> functype;
@@ -1587,7 +1625,7 @@ public:
     /*! It creates an SC_THREAD which runs the user-imlpemented function
      * in each cycle.
      */
-    sink(const sc_module_name& _name,      ///< process name
+    sink(sc_module_name _name,      ///< process name
           const functype& _func             ///< function to be passed
         ) : sy_process(_name), iport1("iport1"), _func(_func)
             
@@ -1634,8 +1672,7 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);    // only one output port
-        boundInChans[0].port = &iport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
     }
 #endif
 };
@@ -1647,10 +1684,15 @@ private:
  * write the string to a new line of an output file.
  */
 template <class T>
-class file_sink : public sy_process
+class file_sink : public sy_process,
+                  public ForSyDe::detail::bindable<file_sink<T>>
 {
 public:
     SY_in<T> iport1;         ///< port for the input channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<file_sink<T>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
     
     //! Type of the function to be passed to the process constructor
     typedef std::function<void(std::string&, const abst_ext<T>&)> functype;
@@ -1722,8 +1764,7 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);    // only one output port
-        boundInChans[0].port = &iport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
     }
 #endif
 };
@@ -1746,7 +1787,7 @@ public:
     /*! It creates an SC_THREAD which reads data from its input port,
      * zips them together and writes the results using the output port
      */
-    zip(const sc_module_name& _name      ///< process name
+    zip(sc_module_name _name      ///< process name
         ) : base(_name), iport1("iport1"), iport2("iport2") {}
 
     //! Specifying from which process constructor is the module built
@@ -1774,7 +1815,7 @@ public:
     /*! It creates an SC_THREAD which reads data from its input port,
      * zips them together and writes the results using the output port
      */
-    zipX(const sc_module_name& _name      ///< process name
+    zipX(sc_module_name _name      ///< process name
         ) : base(_name) {}
 
     //! Specifying from which process constructor is the module built
@@ -1807,7 +1848,7 @@ public:
     /*! It creates an SC_THREAD which reads data from its input port,
      * zips them together and writes the results using the output port
      */
-    zipN(const sc_module_name& _name      ///< process name
+    zipN(sc_module_name _name      ///< process name
          ) : base(_name) {}
 
     //! Specifying from which process constructor is the module built
@@ -1838,7 +1879,7 @@ public:
     /*! It creates an SC_THREAD which reads data from its input ports,
      * unzips them and writes the results using the output ports
      */
-    unzip(const sc_module_name& _name      ///< process name
+    unzip(sc_module_name _name      ///< process name
           ) : base(_name), oport1("oport1"), oport2("oport2") {}
 
     //! Specifying from which process constructor is the module built
@@ -1866,7 +1907,7 @@ public:
     /*! It creates an SC_THREAD which reads data from its input ports,
      * unzips them and writes the results using the output ports
      */
-    unzipX(const sc_module_name& _name      ///< process name
+    unzipX(sc_module_name _name      ///< process name
           ) : base(_name) {}
 
     //! Specifying from which process constructor is the module built
@@ -1896,7 +1937,7 @@ public:
     /*! It creates an SC_THREAD which reads data from its input port,
      * unzips it and writes the results using the output ports
      */
-    unzipN(const sc_module_name& _name      ///< process name
+    unzipN(sc_module_name _name      ///< process name
            ) : base(_name) {}
 
     //! Specifying from which process constructor is the module built
@@ -1948,7 +1989,7 @@ public:
     typedef std::function<void(T0&,const T1&)> functype;
 
     //! The constructor requires the module name
-    scomb(const sc_module_name& _name,      ///< process name
+    scomb(sc_module_name _name,      ///< process name
          const functype& _func             ///< function to be passed
          ) : base(_name), iport1("iport1"), oport1("oport1"), _func(_func) {}
 
@@ -1991,7 +2032,7 @@ public:
     typedef std::function<void(T0&, const T1&, const T2&)> functype;
 
     //! The constructor requires the module name
-    scomb2(const sc_module_name& _name,      ///< process name
+    scomb2(sc_module_name _name,      ///< process name
            const functype& _func             ///< function to be passed
           ) : base(_name), iport1("iport1"), iport2("iport2"), oport1("oport1"),
               _func(_func) {}
@@ -2040,7 +2081,7 @@ public:
     typedef std::function<void(T0&, const T1&, const T2&, const T3&)> functype;
 
     //! The constructor requires the module name
-    scomb3(const sc_module_name& _name,      ///< process name
+    scomb3(sc_module_name _name,      ///< process name
            const functype& _func             ///< function to be passed
           ) : base(_name), iport1("iport1"), iport2("iport2"), iport3("iport3"),
               oport1("oport1"), _func(_func) {}
@@ -2091,7 +2132,7 @@ public:
     typedef std::function<void(T0&, const T1&, const T2&, const T3&, const T4&)> functype;
 
     //! The constructor requires the module name
-    scomb4(const sc_module_name& _name,      ///< process name
+    scomb4(sc_module_name _name,      ///< process name
            const functype& _func             ///< function to be passed
           ) : base(_name), iport1("iport1"), iport2("iport2"),
               iport3("iport3"), iport4("iport4"), oport1("oport1"), _func(_func) {}
@@ -2139,7 +2180,7 @@ public:
     typedef std::function<void(T0&, const std::array<T1,N>&)> functype;
 
     //! The constructor requires the module name
-    scombX(const sc_module_name& _name,      ///< process name
+    scombX(sc_module_name _name,      ///< process name
            const functype& _func             ///< function to be passed
           ) : base(_name), _func(_func) {}
 
@@ -2183,7 +2224,7 @@ public:
     typedef std::function<void(T0&, const std::tuple<Ts...>&)> functype;
 
     //! The constructor requires the module name
-    scombN(const sc_module_name& _name,      ///< process name
+    scombN(sc_module_name _name,      ///< process name
            const functype& _func             ///< function to be passed
           ) : base(_name), oport1("oport1"), _func(_func) {}
 
@@ -2228,7 +2269,7 @@ public:
     typedef std::function<void(std::tuple<TOs...>&, const std::tuple<TIs...>&)> functype;
 
     //! The constructor requires the module name
-    scombMN(const sc_module_name& _name,      ///< process name
+    scombMN(sc_module_name _name,      ///< process name
            const functype& _func             ///< function to be passed
           ) : base(_name), _func(_func) {}
 
@@ -2263,7 +2304,7 @@ public:
     SY_in<T2> iport2;        ///< port for the input channel 2
 
     //! The constructor requires the module name
-    szip(const sc_module_name& _name      ///< process name
+    szip(sc_module_name _name      ///< process name
         ) : base(_name), iport1("iport1"), iport2("iport2") {}
 
     //! Specifying from which process constructor is the module built
@@ -2290,7 +2331,7 @@ public:
     std::array<SY_in<T1>,N> iport;      ///< port array for the input channels
 
     //! The constructor requires the module name
-    szipX(const sc_module_name& _name      ///< process name
+    szipX(sc_module_name _name      ///< process name
         ) : base(_name) {}
 
     //! Specifying from which process constructor is the module built
@@ -2319,7 +2360,7 @@ public:
     std::tuple<SY_in<Ts>...> iport;///< tuple of ports for the input channels
 
     //! The constructor requires the module name
-    szipN(const sc_module_name& _name      ///< process name
+    szipN(sc_module_name _name      ///< process name
          ) : base(_name) {}
 
     //! Specifying from which process constructor is the module built
@@ -2347,7 +2388,7 @@ public:
     SY_out<T2> oport2;        ///< port for the output channel 2
 
     //! The constructor requires the module name
-    sunzip(const sc_module_name& _name      ///< process name
+    sunzip(sc_module_name _name      ///< process name
           ) : base(_name), oport1("oport1"), oport2("oport2") {}
 
     //! Specifying from which process constructor is the module built
@@ -2374,7 +2415,7 @@ public:
     std::array<SY_out<T1>,N> oport;///< port array for the output channels
 
     //! The constructor requires the module name
-    sunzipX(const sc_module_name& _name      ///< process name
+    sunzipX(sc_module_name _name      ///< process name
           ) : base(_name) {}
 
     //! Specifying from which process constructor is the module built
@@ -2403,7 +2444,7 @@ public:
     std::tuple<SY_out<Ts>...> oport;///< tuple of ports for the output channels
 
     //! The constructor requires the module name
-    sunzipN(const sc_module_name& _name      ///< process name
+    sunzipN(sc_module_name _name      ///< process name
            ) : base(_name) {}
 
     //! Specifying from which process constructor is the module built
@@ -2439,7 +2480,7 @@ public:
      * data from its input port, and writes the results using the output
      * port.
      */
-    sdelay(const sc_module_name& _name,  ///< process name
+    sdelay(sc_module_name _name,  ///< process name
            const T& init_val            ///< initial value
           ) : base(_name, typename base::no_func_arg{}),
               iport1("iport1"), oport1("oport1"), init_val(init_val)
@@ -2487,7 +2528,7 @@ public:
     SY_out<T> oport1;        ///< port for the output channel
 
     //! The constructor requires the module name
-    sdelayn(const sc_module_name& _name,    ///< process name
+    sdelayn(sc_module_name _name,    ///< process name
             const T& init_val,              ///< initial value
             const unsigned int& n           ///< number of delay elements
            ) : base(_name, typename base::no_func_arg{}),
@@ -2546,7 +2587,7 @@ public:
     typedef std::function<void(T0&, const T1&)> functype;
 
     //! The constructor requires the module name
-    sdpmap(const sc_module_name& _name,    ///< process name
+    sdpmap(sc_module_name _name,    ///< process name
            const functype& _func            ///< function to be passed
           ) : base(_name), iport1("iport1"), oport1("oport1"), _func(_func) {}
 
@@ -2600,7 +2641,7 @@ public:
     typedef std::function<void(T0&, const T0&, const T0&)> functype;
 
     //! The constructor requires the module name
-    sdpreduce(const sc_module_name& _name,      ///< process name
+    sdpreduce(sc_module_name _name,      ///< process name
            const functype& _func             ///< function to be passed
           ) : base(_name), iport1("iport1"), oport1("oport1"), _func(_func) {}
 
@@ -2671,7 +2712,7 @@ public:
     typedef std::function<void(T0&, const T0&, const T1&)> functype;
 
     //! The constructor requires the module name
-    sdpscan(const sc_module_name& _name,      ///< process name
+    sdpscan(sc_module_name _name,      ///< process name
            const functype& _func,             ///< function to be passed
            const T0& init_res                 ///< initial value for running result
           ) : base(_name), iport1("iport1"), oport1("oport1"),
@@ -2729,7 +2770,7 @@ public:
     typedef std::function<void(const T&)> functype;
 
     //! The constructor requires the module name
-    ssink(const sc_module_name& _name,      ///< process name
+    ssink(sc_module_name _name,      ///< process name
           const functype& _func             ///< function to be passed
          ) : base(_name), iport1("iport1"), _func(_func) {}
 
@@ -2772,7 +2813,7 @@ public:
     SY_out<std::vector<T>> oport1;             ///< port for the output channel
 
     //! The constructor requires the module name
-    sgroup(const sc_module_name& _name,      ///< process name
+    sgroup(sc_module_name _name,      ///< process name
            const unsigned long& samples       ///< Number of samples in each group
           ) : base(_name, typename base::no_func_arg{}),
               iport1("iport1"), oport1("oport1"), samples(samples)
@@ -2868,7 +2909,7 @@ public:
     typedef std::function<void(OT&, const ST&)> od_functype;
 
     //! The constructor requires the module name
-    smoore(const sc_module_name& _name,     ///< process name
+    smoore(sc_module_name _name,     ///< process name
            const ns_functype& _ns_func, ///< The next_state function
            const od_functype& _od_func, ///< The output-decoding function
            const ST& init_st  ///< Initial state
@@ -2930,7 +2971,7 @@ public:
     typedef std::function<void(OT&, const ST&, const IT&)> od_functype;
 
     //! The constructor requires the module name
-    smealy(const sc_module_name& _name,     ///< process name
+    smealy(sc_module_name _name,     ///< process name
            const ns_functype& _ns_func, ///< The next_state function
            const od_functype& _od_func, ///< The output-decoding function
            const ST& init_st  ///< Initial state
@@ -2966,16 +3007,21 @@ private:
  * This class can directly be instantiated to build a process.
  */
 template <class T>
-class sconstant : public sy_process
+class sconstant : public sy_process,
+                  public ForSyDe::detail::bindable<sconstant<T>>
 {
 public:
     SY_out<T> oport1;            ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<sconstant<T>>::operator();
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which runs the user-imlpemented function
      * and writes the result using the output port
      */
-    sconstant(const sc_module_name& _name,      ///< process name
+    sconstant(sc_module_name _name,      ///< process name
               const T& init_val,                ///< The constant output value
               const unsigned long long& take=0  ///< number of tokens produced (0 for infinite)
              ) : sy_process(_name), oport1("oport1"),
@@ -3025,8 +3071,7 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -3038,10 +3083,15 @@ private:
  * also the process output. It can be used in test-benches.
  */
 template <class T>
-class ssource : public sy_process
+class ssource : public sy_process,
+                public ForSyDe::detail::bindable<ssource<T>>
 {
 public:
     SY_out<T> oport1;        ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<ssource<T>>::operator();
+    auto out_ports() {return std::tie(oport1);}
     
     //! Type of the function to be passed to the process constructor
     typedef std::function<void(T&, const T&)> functype;
@@ -3050,7 +3100,7 @@ public:
     /*! It creates an SC_THREAD which runs the user-imlpemented function
      * and writes the result using the output port
      */
-    ssource(const sc_module_name& _name,    ///< process name
+    ssource(sc_module_name _name,    ///< process name
             const functype& _func,          ///< function to be passed
             const T& init_val,              ///< Initial state
             const unsigned long long& take=0///< number of tokens produced (0 for infinite)
@@ -3116,8 +3166,7 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -3128,16 +3177,21 @@ private:
  * of the vector and outputs one value on each evaluation cycle.
  */
 template <class T>
-class svsource : public sy_process
+class svsource : public sy_process,
+                 public ForSyDe::detail::bindable<svsource<T>>
 {
 public:
     SY_out<T> oport1;     ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<svsource<T>>::operator();
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which writes the result using the output
      * port.
      */
-    svsource(const sc_module_name& _name,   ///< process name
+    svsource(sc_module_name _name,   ///< process name
             const std::vector<T>& in_vec    ///< Initial vector
             ) : sy_process(_name), in_vec(in_vec)
     {
@@ -3182,8 +3236,7 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -3194,18 +3247,24 @@ private:
  * consists of absent values.
  */
 template <class T>
-class group : public sy_process
+class group : public sy_process,
+              public ForSyDe::detail::bindable<group<T>>
 {
 public:
     SY_in<T> iport1;                           ///< port for the input channel
     SY_out<std::vector<abst_ext<T>>> oport1;    ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<group<T>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input port,
      * groups together n samples and writes the results using the output
      * port.
      */
-    group(const sc_module_name& _name,      ///< process name
+    group(sc_module_name _name,      ///< process name
            const unsigned long& samples       ///< Number of samples in each group
           )
          :sy_process(_name), samples(samples)
@@ -3263,10 +3322,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -3282,17 +3339,23 @@ private:
  * port of a module to the input channels of multiple processes (modules).
  */
 template <class T>
-class fanout : public sy_process
+class fanout : public sy_process,
+               public ForSyDe::detail::bindable<fanout<T>>
 {
 public:
     SY_in<T> iport1;        ///< port for the input channel
     SY_out<T> oport1;       ///< port for the output channel
 
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<fanout<T>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
+
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input port,
      * applies and writes the results using the output port
      */
-    fanout(const sc_module_name& _name      ///< process name
+    fanout(sc_module_name _name      ///< process name
            ) 
          : sy_process(_name) { }
     
@@ -3328,13 +3391,97 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
+
+
+
+//! Deduction guides: the template arguments, from the constructor call
+/*! The other half of retiring the make_* helpers. Each helper did two
+ * things -- it named the template arguments and it bound the ports --
+ * and detail::bindable above takes care of the second. This takes care
+ * of the first, so that a process constructor is written the way its
+ * helper was called:
+ *
+ *      SY::make_scomb2("mul1", mul_func, out, a, b)
+ *      add(new SY::scomb2("mul1", mul_func))(out, a, b)
+ *
+ * The arguments come from the signature of the user's function, or from
+ * an initial value where there is no function -- ForSyDe::detail::arg_t
+ * in binding.hpp is what reads a callable's parameter list and looks
+ * through the abst_ext an SY signal wraps the value in.
+ *
+ * Not every constructor can have one. fanout, zip and unzip take no
+ * argument that mentions the token type, and combX and combN are handed
+ * a whole std::array rather than one parameter per input, so those keep
+ * their template arguments written out. A *generic* lambda has no single
+ * signature to read either, and the same applies -- which is the rule 2b
+ * arrived at for deducing the token policy, so the two agree.
+ */
+
+// -- combinational, total: f(out, in...) over abst_ext ---------------
+template <class F> comb(sc_module_name, F)
+    -> comb<ForSyDe::detail::arg_t<0,F>, ForSyDe::detail::arg_t<1,F>>;
+template <class F> comb2(sc_module_name, F)
+    -> comb2<ForSyDe::detail::arg_t<0,F>, ForSyDe::detail::arg_t<1,F>,
+             ForSyDe::detail::arg_t<2,F>>;
+template <class F> comb3(sc_module_name, F)
+    -> comb3<ForSyDe::detail::arg_t<0,F>, ForSyDe::detail::arg_t<1,F>,
+             ForSyDe::detail::arg_t<2,F>, ForSyDe::detail::arg_t<3,F>>;
+template <class F> comb4(sc_module_name, F)
+    -> comb4<ForSyDe::detail::arg_t<0,F>, ForSyDe::detail::arg_t<1,F>,
+             ForSyDe::detail::arg_t<2,F>, ForSyDe::detail::arg_t<3,F>,
+             ForSyDe::detail::arg_t<4,F>>;
+
+// -- combinational, strict: the same, over bare values ---------------
+template <class F> scomb(sc_module_name, F)
+    -> scomb<ForSyDe::detail::arg_t<0,F>, ForSyDe::detail::arg_t<1,F>>;
+template <class F> scomb2(sc_module_name, F)
+    -> scomb2<ForSyDe::detail::arg_t<0,F>, ForSyDe::detail::arg_t<1,F>,
+              ForSyDe::detail::arg_t<2,F>>;
+template <class F> scomb3(sc_module_name, F)
+    -> scomb3<ForSyDe::detail::arg_t<0,F>, ForSyDe::detail::arg_t<1,F>,
+              ForSyDe::detail::arg_t<2,F>, ForSyDe::detail::arg_t<3,F>>;
+template <class F> scomb4(sc_module_name, F)
+    -> scomb4<ForSyDe::detail::arg_t<0,F>, ForSyDe::detail::arg_t<1,F>,
+              ForSyDe::detail::arg_t<2,F>, ForSyDe::detail::arg_t<3,F>,
+              ForSyDe::detail::arg_t<4,F>>;
+
+// -- state machines: <IT, ST, OT>, the state from the initial value ---
+template <class NS, class OD, class ST> moore(sc_module_name, NS, OD, const ST&)
+    -> moore<ForSyDe::detail::arg_t<2,NS>, ST, ForSyDe::detail::arg_t<0,OD>>;
+template <class NS, class OD, class ST> mealy(sc_module_name, NS, OD, const ST&)
+    -> mealy<ForSyDe::detail::arg_t<2,NS>, ST, ForSyDe::detail::arg_t<0,OD>>;
+template <class NS, class OD, class ST> smoore(sc_module_name, NS, OD, const ST&)
+    -> smoore<ForSyDe::detail::arg_t<2,NS>, ST, ForSyDe::detail::arg_t<0,OD>>;
+template <class NS, class OD, class ST> smealy(sc_module_name, NS, OD, const ST&)
+    -> smealy<ForSyDe::detail::arg_t<2,NS>, ST, ForSyDe::detail::arg_t<0,OD>>;
+
+// -- delays and constants: the type of the initial value --------------
+template <class T> delay(sc_module_name, const abst_ext<T>&) -> delay<T>;
+template <class T> sdelay(sc_module_name, const T&) -> sdelay<T>;
+template <class T> delayn(sc_module_name, const abst_ext<T>&, unsigned long long)
+    -> delayn<T>;
+template <class T> sdelayn(sc_module_name, const T&, unsigned long long)
+    -> sdelayn<T>;
+template <class T> constant(sc_module_name, const abst_ext<T>&,
+                            unsigned long long = 0) -> constant<T>;
+template <class T> sconstant(sc_module_name, const T&,
+                             unsigned long long = 0) -> sconstant<T>;
+
+// -- sources and sinks -----------------------------------------------
+template <class F, class T> source(sc_module_name, F, const abst_ext<T>&,
+                                   unsigned long long = 0) -> source<T>;
+template <class F, class T> ssource(sc_module_name, F, const T&,
+                                    unsigned long long = 0) -> ssource<T>;
+template <class T> vsource(sc_module_name, const std::vector<abst_ext<T>>&)
+    -> vsource<T>;
+template <class T> svsource(sc_module_name, const std::vector<T>&) -> svsource<T>;
+template <class F> sink(sc_module_name, F) -> sink<ForSyDe::detail::arg_t<0,F>>;
+template <class F> ssink(sc_module_name, F) -> ssink<ForSyDe::detail::arg_t<0,F>>;
 
 }
 }

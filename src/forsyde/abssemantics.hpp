@@ -31,6 +31,8 @@
 #include <systemc>
 #include <sstream>
 #include <fstream>
+#include <memory>
+#include <vector>
 
 // get_type_name<T>() (used a few lines below, under the same macro) is
 // declared in types.hpp. forsyde.hpp includes types.hpp itself before
@@ -301,7 +303,11 @@ class process : public sc_module
 {
 private:
     //! 
-    SC_HAS_PROCESS(process);
+    // SC_HAS_PROCESS(process) stood here. In SystemC 3.0 the macro
+    // expands to a static_assert that does nothing -- SC_THREAD
+    // reaches the module type through SC_CURRENT_USER_MODULE_TYPE,
+    // which is decltype(*this) -- so it is deleted rather than kept
+    // as decoration.
 
     //! The main and only execution thread of the module
     void worker()
@@ -396,6 +402,89 @@ public:
     //! The ForSyDe process type represented by the current module
     virtual std::string forsyde_kind() const = 0;
     
+};
+
+//! A module that owns the processes and sub-modules built inside it
+/*! The base for a model's top level and for any composite process, in
+ * place of a bare SC_MODULE.
+ *
+ * It exists to answer a question the library had been leaving open.
+ * Every one of the 137 make_* helpers ended in `return p;` after a new,
+ * no example ever deleted anything, and SystemC registers a module with
+ * its parent without owning it -- so every process in every model leaked.
+ * In a one-shot simulation that is invisible, because the objects live
+ * until exit(). It stops being invisible as soon as anything elaborates
+ * a model more than once, which is exactly what Phase 4a's forked sim_A
+ * does.
+ *
+ * add() is also what lets a process be built with class template
+ * argument deduction. CTAD applies to a new-expression and to a
+ * block-scope variable, and to nothing else -- a non-static data member
+ * cannot deduce, in C++17 or in C++20 -- so a process declared as a
+ * member has to spell its token types out. Passing the new-expression
+ * through here keeps the deduction and fixes the ownership at the same
+ * time:
+ *
+ *      add(new SY::comb2("mul1", mul_func))(result, srca, srcb);
+ *
+ * which is one statement, as the helper it replaces was.
+ *
+ * On destruction order: the owned processes are released when this base
+ * subobject is destroyed, which is after the derived class's own members
+ * -- its signals among them. That is safe because a port's destructor
+ * does not reach back into the channel it is bound to, and it is the
+ * order any arrangement would give short of declaring each process as a
+ * member of the module, which is what CTAD cannot do.
+ */
+class composite : public sc_module
+{
+public:
+    //! Both forms sc_module offers
+    /*! The default one is what SC_CTOR(top) reaches: the macro expands to
+     * top(sc_module_name) with no base initializer, and sc_module's own
+     * default constructor takes the name off the stack the sc_module_name
+     * temporary pushed it onto. A composite that did not have it could
+     * only be written with the base spelled out by hand.
+     */
+    composite() : sc_module() {}
+    composite(sc_module_name _name) : sc_module(_name) {}
+
+    //! Take ownership of a freshly constructed process or sub-module
+    /*! Returns it by reference, so that the call reads as one statement
+     * with the signal binding that follows it.
+     */
+    template <typename P>
+    P& add(P* p)
+    {
+        owned.emplace_back(p);
+        return *p;
+    }
+
+    //! SystemC's positional binding, hidden on purpose
+    /*! sc_module::operator() binds a module's ports in declaration order
+     * through sc_port::bind, which is not the operator() that in_port
+     * and out_port override to record the bound channel. A composite
+     * bound that way elaborates perfectly and then emits introspection
+     * XML with no channels in it at all -- a failure with no symptom
+     * until someone reads the XML. It is easy to reach for by accident,
+     * because it accepts exactly the call a ForSyDe binder would.
+     *
+     * A composite's own ports are bound by name instead, which is what
+     * every composite process in the examples already does.
+     */
+    template <typename... Sigs>
+    void operator()(Sigs&...)
+    {
+        static_assert(sizeof...(Sigs) != sizeof...(Sigs),
+            "Bind a composite's ports by name -- m.a(sig) -- rather than "
+            "positionally. SystemC's positional binding is hidden here "
+            "because it does not record the binding for introspection, so "
+            "a model that used it would elaborate correctly and emit an "
+            "XML with no channels in it.");
+    }
+
+private:
+    std::vector<std::unique_ptr<sc_module>> owned;
 };
 
 }

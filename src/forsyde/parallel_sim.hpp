@@ -38,10 +38,15 @@ using namespace sc_core;
  * the non-absent events it receives using an MPI_send command.
  */
 template <typename T1>
-class sender : public sy_process
+class sender : public sy_process,
+               public ForSyDe::detail::bindable<sender<T1>>
 {
 public:
     SY_in<T1>  iport1;       ///< port for the input channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<sender<T1>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input port,
@@ -105,8 +110,7 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
     }
 #endif
 };
@@ -117,10 +121,15 @@ private:
  * its output signal.
  */
 template <typename T0>
-class receiver : public sy_process
+class receiver : public sy_process,
+                 public ForSyDe::detail::bindable<receiver<T0>>
 {
 public:
     SY_out<T0>  oport1;       ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<receiver<T0>>::operator();
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input port,
@@ -185,8 +194,7 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -205,10 +213,15 @@ using namespace sc_core;
  * the non-absent events it receives using an MPI_send command.
  */
 template <typename T1>
-class sender : public sdf_process
+class sender : public sdf_process,
+               public ForSyDe::detail::bindable<sender<T1>>
 {
 public:
     SDF_in<T1>  iport1;       ///< port for the input channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<sender<T1>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input port,
@@ -272,8 +285,7 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
     }
 #endif
 };
@@ -284,10 +296,15 @@ private:
  * its output signal.
  */
 template <typename T0>
-class receiver : public sdf_process
+class receiver : public sdf_process,
+                 public ForSyDe::detail::bindable<receiver<T0>>
 {
 public:
     SDF_out<T0>  oport1;       ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<receiver<T0>>::operator();
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input port,
@@ -352,8 +369,7 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };

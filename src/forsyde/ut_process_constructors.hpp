@@ -150,7 +150,7 @@ protected:
     //! True until the first evaluation cycle has run
     bool first_run;
 
-    fsm_core(const sc_module_name& _name,   ///< process name
+    fsm_core(sc_module_name _name,   ///< process name
              const ST& init_st              ///< initial state
              ) : ut_process(_name), init_st(init_st)
     {
@@ -236,7 +236,7 @@ protected:
     OVals ovals;    ///< output tokens, one vector per output port
     IVals ivals;    ///< input tokens, one vector per input port
 
-    comb_core(const sc_module_name& _name,              ///< process name
+    comb_core(sc_module_name _name,              ///< process name
               const std::array<size_t,n_ins>& itoks     ///< consumption rates
               ) : ut_process(_name), itoks(itoks)
     {
@@ -290,7 +290,7 @@ protected:
     std::array<size_t,n_ins> itoks; ///< consumption rate, one per input port
     Pack ivals;                     ///< input tokens, one vector per input port
 
-    zips_core(const sc_module_name& _name,              ///< process name
+    zips_core(sc_module_name _name,              ///< process name
               const std::array<size_t,n_ins>& itoks     ///< consumption rates
               ) : ut_process(_name), oport1("oport1"), itoks(itoks) {}
 
@@ -332,7 +332,7 @@ public:
 protected:
     Pack in_val;            ///< the token read from iport1
 
-    unzip_core(const sc_module_name& _name      ///< process name
+    unzip_core(sc_module_name _name      ///< process name
                ) : ut_process(_name), iport1("iport1") {}
 
 private:
@@ -388,7 +388,7 @@ public:
      * applies the user-imlpemented function to it and writes the
      * results using the output port
      */
-    comb(const sc_module_name& _name,      ///< process name
+    comb(sc_module_name _name,      ///< process name
          const functype& _func,           ///< function to be passed
          const unsigned int& i1toks       ///< consumption rate for the first input
          ) : base(_name,{i1toks}), iport1("iport1"), oport1("oport1"), _func(_func)
@@ -439,7 +439,7 @@ public:
      * applies the user-imlpemented function to them and writes the
      * results using the output port
      */
-    comb2(const sc_module_name& _name,      ///< process name
+    comb2(sc_module_name _name,      ///< process name
           const functype& _func,            ///< function to be passed
           const unsigned int& i1toks,      ///< consumption rate for the first input
           const unsigned int& i2toks       ///< consumption rate for the second input
@@ -499,7 +499,7 @@ public:
      * applies the user-imlpemented function to them and writes the
      * results using the output port
      */
-    comb3(const sc_module_name& _name,      ///< process name
+    comb3(sc_module_name _name,      ///< process name
           const functype& _func,            ///< function to be passed
           const unsigned int& i1toks,      ///< consumption rate for the first input
           const unsigned int& i2toks,      ///< consumption rate for the second input
@@ -565,7 +565,7 @@ public:
      * applies the user-imlpemented function to them and writes the
      * results using the output port
      */
-    comb4(const sc_module_name& _name,      ///< process name
+    comb4(sc_module_name _name,      ///< process name
           const functype& _func,            ///< function to be passed
           const unsigned int& i1toks,      ///< consumption rate for the first input
           const unsigned int& i2toks,      ///< consumption rate for the second input
@@ -612,18 +612,24 @@ private:
  * loops since combinational loops are forbidden in ForSyDe.
  */
 template <class T>
-class delay : public ut_process
+class delay : public ut_process,
+              public ForSyDe::detail::bindable<delay<T>>
 {
 public:
     UT_in<T>  iport1;       ///< port for the input channel
     UT_out<T> oport1;       ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<delay<T>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which inserts the initial element, reads
      * data from its input port, and writes the results using the output
      * port.
      */
-    delay(const sc_module_name& _name,     ///< process name
+    delay(sc_module_name _name,     ///< process name
            const T& init_val                 ///< initial value
           ) : ut_process(_name), iport1("iport1"), oport1("oport1"),
               init_val(init_val)
@@ -671,10 +677,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -688,18 +692,24 @@ private:
  * parameterized for its input/output data-type.
  */
 template <class T>
-class delayn : public ut_process
+class delayn : public ut_process,
+               public ForSyDe::detail::bindable<delayn<T>>
 {
 public:
     UT_in<T>  iport1;       ///< port for the input channel
     UT_out<T> oport1;        ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<delayn<T>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which inserts the initial elements,
      * reads data from its input port, and writes the results using the
      * output port.
      */
-    delayn(const sc_module_name& _name,    ///< process name
+    delayn(sc_module_name _name,    ///< process name
             const T& init_val,               ///< initial value
             const unsigned int& n            ///< number of delay elements
           ) : ut_process(_name), iport1("iport1"), oport1("oport1"),
@@ -751,10 +761,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -792,7 +800,7 @@ public:
      * applies the user-imlpemented functions to the input and current
      * state and writes the results using the output port
      */
-    scan(const sc_module_name& _name,   ///< The module name
+    scan(sc_module_name _name,   ///< The module name
          const gamma_functype& _gamma_func,///< The partitioning function
          const ns_functype& _ns_func, ///< The next_state function
          const ST& init_st  ///< Initial state
@@ -868,7 +876,7 @@ public:
      * applies the user-imlpemented functions to the input and current
      * state and writes the results using the output port
      */
-    scand(const sc_module_name& _name,   ///< The module name
+    scand(sc_module_name _name,   ///< The module name
            const gamma_functype& _gamma_func,///< The partitioning function
            const ns_functype& _ns_func, ///< The next_state function
            const ST& init_st  ///< Initial state
@@ -951,7 +959,7 @@ public:
      * applies the user-imlpemented functions to the input and current
      * state and writes the results using the output port
      */
-    moore(const sc_module_name& _name,   ///< The module name
+    moore(sc_module_name _name,   ///< The module name
            const gamma_functype& _gamma_func,///< The partitioning function
            const ns_functype& _ns_func, ///< The next_state function
            const od_functype& _od_func, ///< The output-decoding function
@@ -1048,7 +1056,7 @@ public:
      * applies the user-imlpemented functions to the input and current
      * state and writes the results using the output port
      */
-    mooreMN(const sc_module_name& _name,        ///< The module name
+    mooreMN(sc_module_name _name,        ///< The module name
             const gamma_functype& _gamma_func,  ///< The partitioning function
             const ns_functype& _ns_func,        ///< The next_state function
             const od_functype& _od_func,        ///< The output-decoding function
@@ -1135,7 +1143,7 @@ public:
      * applies the user-imlpemented functions to the input and current
      * state and writes the results using the output port
      */
-    mealy(const sc_module_name& _name,   ///< The module name
+    mealy(sc_module_name _name,   ///< The module name
            const gamma_functype& _gamma_func,///< The partitioning function
            const ns_functype& _ns_func, ///< The next_state function
            const od_functype& _od_func, ///< The output-decoding function
@@ -1222,7 +1230,7 @@ public:
      * applies the user-imlpemented functions to the input and current
      * state and writes the results using the output port
      */
-    mealyMN(const sc_module_name& _name,        ///< The module name
+    mealyMN(sc_module_name _name,        ///< The module name
             const gamma_functype& _gamma_func,  ///< The partitioning function
             const ns_functype& _ns_func,        ///< The next_state function
             const od_functype& _od_func,        ///< The output-decoding function
@@ -1275,16 +1283,21 @@ private:
  * This class can directly be instantiated to build a process.
  */
 template <class T>
-class constant : public ut_process
+class constant : public ut_process,
+                 public ForSyDe::detail::bindable<constant<T>>
 {
 public:
     UT_out<T> oport1;            ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<constant<T>>::operator();
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which runs the user-imlpemented function
      * and writes the result using the output port
      */
-    constant(const sc_module_name& _name,      ///< The module name
+    constant(sc_module_name _name,      ///< The module name
               const T& init_val,                ///< The constant output value
               const unsigned long long& take=0 ///< number of tokens produced (0 for infinite)
              ) : ut_process(_name), oport1("oport1"),
@@ -1332,8 +1345,7 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -1345,10 +1357,15 @@ private:
  * also the process output. It can be used in test-benches.
  */
 template <class T>
-class source : public ut_process
+class source : public ut_process,
+               public ForSyDe::detail::bindable<source<T>>
 {
 public:
     UT_out<T> oport1;        ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<source<T>>::operator();
+    auto out_ports() {return std::tie(oport1);}
     
     //! Type of the function to be passed to the process constructor
     typedef std::function<void(T&, const T&)> functype;
@@ -1357,7 +1374,7 @@ public:
     /*! It creates an SC_THREAD which runs the user-imlpemented function
      * and writes the result using the output port
      */
-    source(const sc_module_name& _name,   ///< The module name
+    source(sc_module_name _name,   ///< The module name
             const functype& _func,         ///< function to be passed
             const T& init_val,              ///< Initial state
             const unsigned long long& take=0 ///< number of tokens produced (0 for infinite)
@@ -1421,8 +1438,7 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -1433,16 +1449,21 @@ private:
  * of the vector and outputs one value on each evaluation cycle.
  */
 template <class OTYP>
-class vsource : public sc_module
+class vsource : public sc_module,
+                public ForSyDe::detail::bindable<vsource<OTYP>>
 {
 public:
     sc_fifo_out<OTYP> oport1;     ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<vsource<OTYP>>::operator();
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which writes the result using the output
      * port.
      */
-    vsource(const sc_module_name& _name,           ///< The module name
+    vsource(sc_module_name _name,           ///< The module name
              const std::vector<OTYP>& invec  ///< Initial vector
             )
          :sc_module(_name), in_vec(invec)
@@ -1451,7 +1472,6 @@ public:
     }
 private:
     std::vector<OTYP> in_vec;
-    SC_HAS_PROCESS(vsource);
 
     //! The main and only execution thread of the module
     void worker()
@@ -1471,10 +1491,15 @@ private:
  * applies a given function to the current input.
  */
 template <class T>
-class sink : public ut_process
+class sink : public ut_process,
+             public ForSyDe::detail::bindable<sink<T>>
 {
 public:
     UT_in<T> iport1;         ///< port for the input channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<sink<T>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
     
     //! Type of the function to be passed to the process constructor
     typedef std::function<void(const T&)> functype;
@@ -1483,7 +1508,7 @@ public:
     /*! It creates an SC_THREAD which runs the user-imlpemented function
      * in each cycle.
      */
-    sink(const sc_module_name& _name,      ///< process name
+    sink(sc_module_name _name,      ///< process name
           const functype& _func             ///< function to be passed
         ) : ut_process(_name), iport1("iport1"), _func(_func)
             
@@ -1530,8 +1555,7 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);    // only one output port
-        boundInChans[0].port = &iport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
     }
 #endif
 };
@@ -1554,7 +1578,7 @@ public:
     /*! It creates an SC_THREAD which reads data from its input port,
      * zips them together and writes the results using the output port
      */
-    zips(const sc_module_name& _name,       ///< process name
+    zips(sc_module_name _name,       ///< process name
         const unsigned int& i1toks,         ///< consumption rate for the first input
         const unsigned int& i2toks          ///< consumption rate for the second input
         ) : base(_name,{i1toks,i2toks}), iport1("iport1"), iport2("iport2") {}
@@ -1581,7 +1605,7 @@ public:
     /*! It creates an SC_THREAD which reads data from its input port,
      * zips them together and writes the results using the output port
      */
-    zipsN(const sc_module_name& _name,                  ///< process name
+    zipsN(sc_module_name _name,                  ///< process name
             std::array<size_t, sizeof...(Ts)> in_toks   ///< consumption rates for the inputs
             ) : base(_name,in_toks)
     {
@@ -1617,7 +1641,7 @@ public:
     /*! It creates an SC_THREAD which reads data from its input ports,
      * unzips them and writes the results using the output ports
      */
-    unzip(const sc_module_name& _name       ///< process name
+    unzip(sc_module_name _name       ///< process name
            ) : base(_name), oport1("oport1"), oport2("oport2") {}
 
     //! Specifying from which process constructor is the module built
@@ -1642,7 +1666,7 @@ public:
     /*! It creates an SC_THREAD which reads data from its input port,
      * unzips it and writes the results using the output ports
      */
-    unzipN(const sc_module_name& _name      ///< process name
+    unzipN(sc_module_name _name      ///< process name
             ) : base(_name) {}
 
     //! Specifying from which process constructor is the module built
@@ -1663,17 +1687,23 @@ private:
  * port of a module to the input channels of multiple processes (modules).
  */
 template <class T>
-class fanout : public ut_process
+class fanout : public ut_process,
+               public ForSyDe::detail::bindable<fanout<T>>
 {
 public:
     UT_in<T> iport1;        ///< port for the input channel
     UT_out<T> oport1;       ///< port for the output channel
 
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<fanout<T>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
+
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input port,
      * applies and writes the results using the output port
      */
-    fanout(const sc_module_name& _name)  // module name
+    fanout(sc_module_name _name)  // module name
          : ut_process(_name) { }
     
     //! Specifying from which process constructor is the module built
@@ -1708,10 +1738,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // only one output port
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };

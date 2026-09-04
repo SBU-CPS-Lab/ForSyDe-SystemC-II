@@ -20,7 +20,7 @@
 
 using namespace ForSyDe;
 
-SC_MODULE(mulacc)
+struct mulacc : ForSyDe::composite
 {
     SY::in_port<int>  a, b;
     SY::out_port<int> result;
@@ -29,12 +29,13 @@ SC_MODULE(mulacc)
     
     SC_CTOR(mulacc)
     {
-        SY::make_scomb2("mul1", mul_func, addi1, a, b);
+        add(new SY::scomb2("mul1", mul_func))(addi1, a, b);
 
-        auto add1 = SY::make_scomb2("add1", add_func, acci, addi1, addi2);
-        add1->oport1(result);
+        auto& add1 = add(new SY::scomb2("add1", add_func));
+        add1(acci, addi1, addi2);
+        add1.oport1(result);
         
-        SY::make_sdelay("accum", 0, addi2, acci);
+        add(new SY::sdelay("accum", 0))(addi2, acci);
     }
 };
 

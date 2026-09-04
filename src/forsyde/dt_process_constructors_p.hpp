@@ -160,7 +160,7 @@ public:
      * applies the user-imlpemented functions to the input and current
      * state and writes the results using the output port
      */
-    mealyMN(const sc_module_name& _name,        ///< The module name
+    mealyMN(sc_module_name _name,        ///< The module name
             const gamma_functype& _gamma_func,  ///< The partitioning function
             const ns_functype& _ns_func,        ///< The next_state function
             const od_functype& _od_func,        ///< The output-decoding function

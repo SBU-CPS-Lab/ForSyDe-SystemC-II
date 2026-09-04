@@ -56,12 +56,18 @@ using namespace boost::numeric::ublas;
  * tol_error between min_step and max_step.
  */
 template <class T>
-class filter : public dde_process
+class filter : public dde_process,
+               public ForSyDe::detail::bindable<filter<T>>
 {
 public:
     DDE_in<T>  iport1;           ///< port for the input channel
     DDE_out<T> oport1;           ///< port for the output channel
     DDE_out<unsigned int> oport2;///< port for the sampling signal
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<filter<T>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1,oport2);}
 
     typedef matrix<T> MatrixDouble;
 
@@ -350,11 +356,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(2);    // two output ports
-        boundOutChans[0].port = &oport1;
-        boundOutChans[1].port = &oport2;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -363,11 +366,17 @@ private:
 /*! As filter, but takes one step of a fixed size rather than adapting.
  */
 template <class T>
-class filterf : public dde_process
+class filterf : public dde_process,
+                public ForSyDe::detail::bindable<filterf<T>>
 {
 public:
     DDE_in<T>  iport1;           ///< port for the input channel
     DDE_out<T> oport1;           ///< port for the output channel
+
+    //! Bind signals positionally: outputs first, then inputs
+    using ForSyDe::detail::bindable<filterf<T>>::operator();
+    auto in_ports()  {return std::tie(iport1);}
+    auto out_ports() {return std::tie(oport1);}
 
     typedef matrix<T> MatrixDouble;
 
@@ -570,10 +579,8 @@ private:
 #ifdef FORSYDE_INTROSPECTION
     void bindInfo()
     {
-        boundInChans.resize(1);     // only one input port
-        boundInChans[0].port = &iport1;
-        boundOutChans.resize(1);    // two output ports
-        boundOutChans[0].port = &oport1;
+        ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
