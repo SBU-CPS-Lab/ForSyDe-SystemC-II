@@ -299,6 +299,9 @@ public:
 public:
     UT_out<Pack> oport1;    ///< port for the output channel
 
+    //! Supplied here because the port is declared here; Derived has the rest
+    auto out_ports() {return std::tie(oport1);}
+
 protected:
     static constexpr std::size_t n_ins = std::tuple_size<Pack>::value;
 
@@ -348,6 +351,9 @@ public:
 
 public:
     UT_in<Pack> iport1;     ///< port for the input channel
+
+    //! Supplied here because the port is declared here; Derived has the rest
+    auto in_ports() {return std::tie(iport1);}
 
 protected:
     Pack in_val;            ///< the token read from iport1

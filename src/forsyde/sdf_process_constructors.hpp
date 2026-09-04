@@ -201,6 +201,9 @@ public:
 public:
     SDF_out<Pack> oport1;   ///< port for the output channel
 
+    //! Supplied here because the port is declared here; Derived has the rest
+    auto out_ports() {return std::tie(oport1);}
+
 protected:
     static constexpr std::size_t n_ins = std::tuple_size<Pack>::value;
 
@@ -264,6 +267,9 @@ public:
 
 public:
     SDF_in<Pack> iport1;    ///< port for the input channel
+
+    //! Supplied here because the port is declared here; Derived has the rest
+    auto in_ports() {return std::tie(iport1);}
 
 protected:
     Pack in_val;            ///< the token read from iport1
@@ -1614,7 +1620,8 @@ template <class T> constant(sc_module_name, T, unsigned long long = 0) -> consta
 template <class F, class T> source(sc_module_name, F, T, unsigned long long = 0) -> source<T>;
 template <class T> vsource(sc_module_name, const std::vector<T>&) -> vsource<T>;
 template <class F> sink(sc_module_name, F) -> sink<ForSyDe::detail::arg_t<0,F>>;
-template <class F, class T> file_source(sc_module_name, F, T) -> file_source<T>;
+template <class F> file_source(sc_module_name, F, std::string)
+    -> file_source<ForSyDe::detail::arg_t<0,F>>;
 template <class F> file_sink(sc_module_name, F, std::string)
     -> file_sink<ForSyDe::detail::arg_t<1,F>>;
 
