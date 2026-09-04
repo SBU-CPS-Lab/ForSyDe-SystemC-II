@@ -171,6 +171,45 @@ constexpr const char* moc_name(moc_id m)
     return "?";
 }
 
+//! How much a MoC says about *when*, on Jantsch's untimed/synchronous/timed ladder
+/*! Distinct from the carrier, and the distinction is the whole point.
+ * The carrier says what a channel physically holds; the rank says what
+ * the model means by it. SY and DT share a carrier -- both put one
+ * abst_ext<T> on the wire per tick -- and are two ranks apart, because
+ * an SY tick is only an ordering with no metric attached, while a DT
+ * tick *is* the time base, which is what lets a DT process count absent
+ * events to measure a duration.
+ *
+ * That is also why DT is not DDE. Both are timed in the loose sense,
+ * but a DT signal is sampled: an event per tick, absent where nothing
+ * happened, at a fixed granularity. A DDE signal is tagged: events carry
+ * their own time and arrive at whatever instants they arrive at, with no
+ * grid to be absent on. Only the first is Jantsch's timed MoC, so only
+ * the first sits on this ladder, and the chapter 6 interfaces are
+ * written between DT, SY and the untimed MoCs -- never DDE.
+ *
+ * \return 0 untimed, 1 synchronous, 2 timed; -1 for a MoC that is not on
+ *         the ladder at all (DDE, whose events are tagged rather than
+ *         sampled, and CT, whose signals are functions over intervals).
+ *         Converting to or from those is a change of carrier and needs a
+ *         physical sample period, not a count of events.
+ */
+constexpr int timing_rank(moc_id m)
+{
+    switch (m)
+    {
+        case moc_id::UT:
+        case moc_id::SDF:
+        case moc_id::SADF: return 0;
+        case moc_id::SY:   return 1;
+        case moc_id::DT:   return 2;
+        default:           return -1;
+    }
+}
+
+//! Is \a m on the untimed/synchronous/timed ladder at all?
+constexpr bool on_timing_ladder(moc_id m) {return timing_rank(m) >= 0;}
+
 //! Same carrier, but neither direction is a refinement of the other
 /*! SY and DT are the case in the library today. Both carry abst_ext<T>
  * one token per tick, so the compiler cannot separate them, but an

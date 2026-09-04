@@ -127,8 +127,10 @@ template <typename T> struct port_of<moc_id::DT,T>
  * combination of {SY, DT} to {UT, SDF, SADF} exists now rather than the
  * single SY-to-SDF that was written by hand.
  *
- * \a From must be a synchronous-carrier MoC and \a To an untimed one;
- * both are checked.
+ * \a From must be a MoC that carries timing information -- SY or DT --
+ * and \a To an untimed one. Both are checked, on the timing ladder
+ * rather than on the carrier: SY and DT share a carrier and differ by
+ * exactly the thing this class removes.
  */
 template <moc_id From, moc_id To, typename T>
 class strip : public process
@@ -141,14 +143,20 @@ public:
     strip(sc_module_name _name      ///< process name
          ) : process(_name), iport1("iport1"), oport1("oport1")
     {
-        static_assert(moc_traits_carrier(From) == carrier::synchronous ||
-                      moc_traits_carrier(From) == carrier::timed,
+        static_assert(on_timing_ladder(From) && on_timing_ladder(To),
+            "strip is one of Jantsch's chapter 6 interfaces and is defined "
+            "over the untimed/synchronous/timed ladder. DDE and CT are not "
+            "on it: a DDE event carries its own tag rather than sitting on "
+            "a grid, and a CT signal is a function over an interval. "
+            "Converting either is a change of carrier and needs a physical "
+            "sample period, not a count of events.");
+        static_assert(timing_rank(From) > timing_rank(To),
             "strip removes timing information, so it has to start in a "
-            "domain that has some: a synchronous or a timed MoC.");
-        static_assert(moc_traits_carrier(To) == carrier::untimed,
+            "domain that has more of it than the destination.");
+        static_assert(timing_rank(To) == 0,
             "strip's output is an untimed signal. To land in a synchronous "
             "domain from a timed one, group events instead -- that is "
-            "Jantsch's stripT2S, and it needs a ratio.");
+            "MI::group, Jantsch's stripT2S, and it needs a ratio.");
     }
 
     //! Specifying from which process constructor is the module built
@@ -209,7 +217,11 @@ private:
  * what the interface does. lambda = 1, one token per tick, is what the
  * hand-written SDF2SY did without saying so or letting you change it.
  *
- * \a From must be an untimed-carrier MoC and \a To a synchronous one.
+ * Note that 6.6 goes from *synchronous* to timed, so the condition is a
+ * step up the timing ladder rather than a start on its bottom rung. SY
+ * to DT is the case in this library, and it is the one that shows why
+ * the ladder is not the carrier: those two MoCs put the same token on
+ * the wire and this interface is exactly what separates them.
  */
 template <moc_id From, moc_id To, typename T>
 class insert : public process
@@ -223,11 +235,15 @@ public:
            unsigned long lambda = 1     ///< output events per input event
           ) : process(_name), iport1("iport1"), oport1("oport1"), lambda(lambda)
     {
-        static_assert(moc_traits_carrier(From) == carrier::untimed,
-            "insert adds timing information to a signal that has none, so "
-            "it has to start in an untimed MoC.");
-        static_assert(moc_traits_carrier(To) == carrier::synchronous,
-            "insert's output is a synchronous signal.");
+        static_assert(on_timing_ladder(From) && on_timing_ladder(To),
+            "insert is one of Jantsch's chapter 6 interfaces and is defined "
+            "over the untimed/synchronous/timed ladder. DDE and CT are not "
+            "on it: their events are tagged, or their signals continuous, "
+            "so entering them needs a physical sample period rather than a "
+            "count of events.");
+        static_assert(timing_rank(To) > timing_rank(From),
+            "insert adds timing information, so the destination has to "
+            "carry more of it than the source.");
 #ifdef FORSYDE_INTROSPECTION
         arg_vec.push_back(std::make_tuple("lambda", std::to_string(lambda)));
 #endif
@@ -241,17 +257,30 @@ public:
 
 private:
     unsigned long lambda;
-    T val;
 
-    void init() {val = T();}
+    //! The event being placed, always absent-extended
+    /*! An untimed source hands over a bare T, which is lifted on the way
+     * in; a synchronous source already hands over an abst_ext<T>, and an
+     * absent one stays absent -- an SY clock cycle in which nothing
+     * happened becomes lambda DT ticks in which nothing happened.
+     */
+    abst_ext<T> val;
 
-    void prep() {val = iport1.read();}
+    void init() {val = abst_ext<T>();}
+
+    void prep()
+    {
+        if constexpr (timing_rank(From) == 0)
+            val = abst_ext<T>(iport1.read());
+        else
+            val = iport1.read();
+    }
 
     void exec() {}
 
     void prod()
     {
-        write_multiport(oport1, abst_ext<T>(val));
+        write_multiport(oport1, val);
         for (unsigned long i=1; i<lambda; i++)
             write_multiport(oport1, abst_ext<T>());
     }
@@ -268,6 +297,102 @@ private:
     }
 #endif
 };
+
+//! Group timing information: lambda timed events into one synchronous event (Jantsch 6.3)
+/*! The third of chapter 6's operations, and the only one that is not a
+ * relabelling. strip and insert each leave the events alone and change
+ * only what is said about when they happen; this one changes the events
+ * themselves, because going from a timed signal to a synchronous one
+ * means deciding what a whole clock cycle's worth of timed events
+ * amounts to as a single synchronous value.
+ *
+ * Jantsch's answer (6.3) is lastt -- the last non-absent event of the
+ * group, absent if all lambda of them are absent:
+ *
+ *      pi(nu, s)  = <a_i>,  nu(i)  = lambda
+ *      pi(nu', s) = <e_i>,  nu'(i) = 1
+ *      e_i = absent          if every event of a_i is absent
+ *            lastt(a_i)      otherwise
+ *
+ * "Filters out all events except the last in a clock cycle", as chapter
+ * 7 puts it when it uses this process to move a synchronous Mealy
+ * machine into the timed domain.
+ *
+ * This is DT to SY, and only DT to SY -- which is worth saying plainly,
+ * because it would be easy to reach for it at the SY-to-DDE boundary
+ * instead. DDE is not the timed MoC of this ladder. Its events carry
+ * their own tags and land wherever they land, so there is no fixed
+ * number of them per clock cycle to group; SY2DDE and DDE2SY take a
+ * physical sample_period for exactly that reason, and are a different
+ * kind of interface that chapter 6 does not describe.
+ */
+template <moc_id From, moc_id To, typename T>
+class group : public process
+{
+public:
+    typename port_of<From,T>::in  iport1;   ///< port for the input channel
+    typename port_of<To,T>::out   oport1;   ///< port for the output channel
+
+    //! The constructor requires the module name and the event ratio
+    group(sc_module_name _name,         ///< process name
+          unsigned long lambda = 1      ///< input events per output event
+         ) : process(_name), iport1("iport1"), oport1("oport1"), lambda(lambda)
+    {
+        static_assert(on_timing_ladder(From) && on_timing_ladder(To),
+            "group is one of Jantsch's chapter 6 interfaces and is defined "
+            "over the untimed/synchronous/timed ladder. DDE is not on it: "
+            "its events are tagged rather than sampled, so there is no "
+            "fixed number of them per clock cycle to group. Use the "
+            "sample_period-parameterised DDE interfaces instead.");
+        static_assert(timing_rank(From) > timing_rank(To) && timing_rank(To) > 0,
+            "group takes a timed signal to a synchronous one. To leave the "
+            "timing behind entirely, use MI::strip.");
+#ifdef FORSYDE_INTROSPECTION
+        arg_vec.push_back(std::make_tuple("lambda", std::to_string(lambda)));
+#endif
+    }
+
+    //! Specifying from which process constructor is the module built
+    std::string forsyde_kind() const
+    {
+        return std::string("MI::group<") + moc_name(From) + "," + moc_name(To) + ">";
+    }
+
+private:
+    unsigned long lambda;
+    abst_ext<T> val;
+
+    void init() {val = abst_ext<T>();}
+
+    void prep()
+    {
+        // lastt: keep overwriting, so what survives the loop is the last
+        // present event of the group, or absent if there was none
+        val = abst_ext<T>();
+        for (unsigned long i=0; i<lambda; i++)
+        {
+            auto tok = iport1.read();
+            if (!is_absent(tok)) val = tok;
+        }
+    }
+
+    void exec() {}
+
+    void prod() {write_multiport(oport1, val);}
+
+    void clean() {}
+
+#ifdef FORSYDE_INTROSPECTION
+    void bindInfo()
+    {
+        boundInChans.resize(1);     // only one input port
+        boundInChans[0].port = &iport1;
+        boundOutChans.resize(1);    // only one output port
+        boundOutChans[0].port = &oport1;
+    }
+#endif
+};
+
 
 }
 
@@ -789,6 +914,28 @@ using SY2SDF = MI::strip<moc_id::SY, moc_id::SDF, T>;
  */
 template <typename T>
 using SDF2SY = MI::insert<moc_id::SDF, moc_id::SY, T>;
+
+//! The synchronous-to-timed MoC interface (Jantsch's insertS2T, 6.6)
+/*! New, and the pair below with it. DT had no MoC interface of any kind
+ * before: not to SY, not to the untimed MoCs, not to CT. It could not be
+ * entered or left, which is a large part of why so little of the library
+ * uses it.
+ *
+ * Each SY event becomes one DT event followed by lambda-1 absent ones,
+ * so lambda is the number of DT ticks in one SY clock cycle. That is the
+ * only information the conversion needs, and it is a count rather than a
+ * duration, because a DT tick is the time base rather than a sample of
+ * one.
+ */
+template <typename T>
+using SY2DT = MI::insert<moc_id::SY, moc_id::DT, T>;
+
+//! The timed-to-synchronous MoC interface (Jantsch's stripT2S, 6.3)
+/*! The inverse of SY2DT: lambda DT ticks make one SY clock cycle, and
+ * the cycle's value is the last event present in it. See MI::group.
+ */
+template <typename T>
+using DT2SY = MI::group<moc_id::DT, moc_id::SY, T>;
 
 //! Process constructor for a SY2DDE MoC interfaces
 /*! This class is used to build a MoC interface which converts an SY 

@@ -218,6 +218,18 @@ SC_MODULE(all)
                 const std::tuple<std::vector<int>,std::vector<int>,std::vector<int>>&){},
              std::map<int,std::array<size_t,2>>{{0,{1,1}}}, 0,
              std::array<size_t,3>{1,1,1});
+
+        // ---- MoC interfaces -------------------------------------------
+        // Every one of these is a template that no example names, which
+        // is the condition under which this library has repeatedly
+        // shipped a class that does not compile or does not work. The
+        // twelve strip/insert pairs are one class each, so one of each
+        // shape is enough; group is DT to SY and has only the one.
+        inst<MI::strip<moc_id::SY, moc_id::UT, int>>("mi_strip_sy_ut");
+        inst<MI::strip<moc_id::DT, moc_id::SDF, int>>("mi_strip_dt_sdf");
+        inst<MI::insert<moc_id::SADF, moc_id::SY, int>>("mi_insert_sadf_sy", 2ul);
+        inst<MI::insert<moc_id::SY, moc_id::DT, int>>("mi_insert_sy_dt", 3ul);
+        inst<MI::group<moc_id::DT, moc_id::SY, int>>("mi_group_dt_sy", 3ul);
     }
 };
 
