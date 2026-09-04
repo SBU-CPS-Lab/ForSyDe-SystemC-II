@@ -212,6 +212,24 @@ SC_MODULE(all)
         // find what needed bindable.
         inst<SY::apply<int,int>>("sy_apply");
 
+        // ---- MI: SY<->CT and DDE<->CT ----------------------------------
+        // None of these seven were named by any example or test before
+        // today. Three of them (SY2CT, DDE2CT, SY2DDE) had a real defect
+        // to show for it: the automated pass that added in_ports() and
+        // out_ports() to every class already declaring its own ports
+        // found only the first of the two here, because iport1 and
+        // oport1 are declared with an unrelated member in between rather
+        // than back to back -- so out_ports() was simply absent, and
+        // with it any output-channel binding through the new binder, and
+        // any output channel in bindInfo()'s introspection XML.
+        inst<SY2CT>("mi_sy2ct", sc_core::sc_time(1,sc_core::SC_MS));
+        inst<CT2SY>("mi_ct2sy", sc_core::sc_time(1,sc_core::SC_MS));
+        inst<CT2DDE<double>>("mi_ct2dde");
+        inst<CT2DDEf<double>>("mi_ct2ddef", sc_core::sc_time(1,sc_core::SC_MS));
+        inst<DDE2CT<double>>("mi_dde2ct");
+        inst<SY2DDE<int>>("mi_sy2dde", sc_core::sc_time(1,sc_core::SC_MS));
+        inst<DDE2SY<int>>("mi_dde2sy", sc_core::sc_time(1,sc_core::SC_MS));
+
         // ---- SADF -----------------------------------------------------
         // The scenario tables differ in shape per arity: a pair of
         // scalars, an array plus a scalar, then two arrays.

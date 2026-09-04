@@ -430,6 +430,7 @@ public:
     using ForSyDe::detail::bindable<SY2CT>::operator();
     auto in_ports()  {return std::tie(iport1);}
 	CT::CT_out oport1;              ///< port for the output channel
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input port,
@@ -515,6 +516,7 @@ private:
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -840,6 +842,7 @@ public:
     using ForSyDe::detail::bindable<DDE2CT<T>>::operator();
     auto in_ports()  {return std::tie(iport1);}
 	CT::CT_out oport1;          ///< port for the output channel
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input port,
@@ -922,6 +925,7 @@ private:
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -979,6 +983,7 @@ public:
     using ForSyDe::detail::bindable<SY2DDE<T>>::operator();
     auto in_ports()  {return std::tie(iport1);}
 	DDE::DDE_out<T> oport1;       ///< port for the output channel
+    auto out_ports() {return std::tie(oport1);}
 
     //! The constructor requires the module name
     /*! It creates an SC_THREAD which reads data from its input port,
@@ -1027,7 +1032,11 @@ private:
     
     void prod()
     {
-        write_multiport(oport1, tt_event<T>(*val,cur_time));
+        // ttn_event<T>, not tt_event<T>: oport1 is DDE_out<T>, whose
+        // token type is ttn_event<T> = tt_event<abst_ext<T>>. Nothing
+        // named SY2DDE before today to find out that a bare tt_event<T>
+        // does not convert to it.
+        write_multiport(oport1, ttn_event<T>(*val,cur_time));
         wait(cur_time - sc_time_stamp());
         cur_time += sample_period;
     }
@@ -1042,6 +1051,7 @@ private:
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundInChans, in_ports());
+        ForSyDe::detail::record_ports(boundOutChans, out_ports());
     }
 #endif
 };
@@ -1087,15 +1097,23 @@ private:
     sc_time sample_period;
     
     // Internal variables
-    tt_event<T>* tok;
-    T* prev_val;
+    // tok used to be declared tt_event<T>*, and prev_val T* -- but
+    // iport1 is DDE_in<T>, whose token type is ttn_event<T>, which is
+    // tt_event<abst_ext<T>>, not tt_event<T>. That compiled anyway
+    // because nothing ever instantiated this class to find out: T's own
+    // deduced type made tt_event<T> and ttn_event<T> different enough to
+    // fail, but no example or test named DDE2SY at all. get_value()
+    // returns tt_event's value slot as-is -- abst_ext<T> here -- so
+    // prev_val holds that directly rather than re-wrapping it in prod().
+    ttn_event<T>* tok;
+    abst_ext<T>* prev_val;
     sc_time cur_time;
     
     //Implementing the abstract semantics
     void init()
     {
-        tok = new tt_event<T>();
-        prev_val = new T;
+        tok = new ttn_event<T>();
+        prev_val = new abst_ext<T>;
         cur_time = SC_ZERO_TIME;
         *tok = iport1.read();
     }
@@ -1113,7 +1131,7 @@ private:
     
     void prod()
     {
-        write_multiport(oport1, abst_ext<T>(*prev_val));
+        write_multiport(oport1, *prev_val);
         cur_time += sample_period;
     }
     
