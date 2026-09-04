@@ -35,7 +35,7 @@ constexpr std::array<size_t,2> otoks = {2,2};
 using namespace ForSyDe;
 using namespace std;
 
-SC_MODULE(compAvg)
+struct compAvg : ForSyDe::composite
 {
     SDF::in_port<float>  iport;
     SDF::out_port<float> oport;
@@ -45,19 +45,19 @@ SC_MODULE(compAvg)
     
     SC_CTOR(compAvg)
     {
-        auto zip1 = new SDF::zipN<float,float>("zip1",itoks);
-        get<0>(zip1->iport)(iport);
-        get<1>(zip1->iport)(dout);
-        zip1->oport1(zi);
+        auto& zip1 = add(new SDF::zipN<float,float>("zip1",itoks));
+        get<0>(zip1.iport)(iport);
+        get<1>(zip1.iport)(dout);
+        zip1.oport1(zi);
         
-        SDF::make_comb("averager1", averager_func, 1, 1, zo, zi);
+        add(new SDF::comb("averager1", averager_func, 1, 1))(zo, zi);
         
-        auto unzip1 = new SDF::unzipN<float,float>("unzip1",otoks);
-        unzip1->iport1(zo);
-        get<0>(unzip1->oport)(oport);
-        get<1>(unzip1->oport)(din);
+        auto& unzip1 = add(new SDF::unzipN<float,float>("unzip1",otoks));
+        unzip1.iport1(zo);
+        get<0>(unzip1.oport)(oport);
+        get<1>(unzip1.oport)(din);
         
-        SDF::make_delayn("avginit1", (float)0, 2, dout, din);
+        add(new SDF::delayn("avginit1", (float)0, 2))(dout, din);
     }
 };
 

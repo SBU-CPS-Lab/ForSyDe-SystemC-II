@@ -18,7 +18,7 @@ using namespace sc_core;
 using namespace ForSyDe;
 
 
-SC_MODULE(delay_line)   
+struct delay_line : ForSyDe::composite
 {
     SY::in_port<int>                iport;
 
@@ -51,7 +51,7 @@ SC_MODULE(delay_line)
         for(int i=0;i<N;i++){
             std::stringstream name;
             name << "delay" << i;
-            delay_vec.push_back(new SY::sdelay<int>( name.str().c_str(), 0));
+            delay_vec.push_back(&add(new SY::sdelay<int>( name.str().c_str(), 0)));
         }
 
         //////////////////////////////
@@ -71,15 +71,6 @@ SC_MODULE(delay_line)
         delay_vec[N-1]->iport1(signal_vec[N-2]);
         for(int i=0;i<N;i++){
             delay_vec[i]->oport1(oports[i]);
-        }
-
-    }
-
-    ~delay_line()
-    {
-        for(unsigned int i=0;i<delay_vec.size();i++)
-        {
-            delete delay_vec[i];
         }
 
     }

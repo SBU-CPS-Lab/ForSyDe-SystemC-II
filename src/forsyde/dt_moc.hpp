@@ -30,7 +30,6 @@
 #include "dt_process_constructors_p.hpp"
 #include "dt_process_constructors_s.hpp"
 #include "dt_process_constructors_t.hpp"
-#include "dt_helpers.hpp"
 
 namespace ForSyDe
 {

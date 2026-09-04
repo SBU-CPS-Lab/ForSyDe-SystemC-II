@@ -54,7 +54,7 @@ std::vector<abst_ext<double>> input_vec =
          PrstF(0.0), PrstF(0.1), PrstF(0.2), PrstF(0.3),
          PrstF(0.5), PrstF(0.6), PrstF(0.7), PrstF(0.8)};
 
-SC_MODULE(top)
+struct top : ForSyDe::composite
 {
     SY::signal<Sensor> bassDn_sig, bassUp_sig;
     SY::signal<Sensor> trebleDn_sig, trebleUp_sig;
@@ -62,25 +62,25 @@ SC_MODULE(top)
 
     SC_CTOR(top)
     {
-        make_vsource("bassDn_src", bassDn_vec, bassDn_sig);
+        add(new vsource<Sensor>("bassDn_src", bassDn_vec))(bassDn_sig);
 
-        make_vsource("bassUp_src", bassUp_vec, bassUp_sig);
+        add(new vsource<Sensor>("bassUp_src", bassUp_vec))(bassUp_sig);
 
-        make_vsource("trebleDn_src", trebleDn_vec, trebleDn_sig);
+        add(new vsource<Sensor>("trebleDn_src", trebleDn_vec))(trebleDn_sig);
 
-        make_vsource("trebleUp_src", trebleUp_vec, trebleUp_sig);
+        add(new vsource<Sensor>("trebleUp_src", trebleUp_vec))(trebleUp_sig);
 
-        make_vsource("binput_src", input_vec, input_sig);
+        add(new vsource<double>("binput_src", input_vec))(input_sig);
 
-        auto equalizer1 = new equalizer("equalizer");
-        equalizer1->bassUp(bassUp_sig);
-        equalizer1->bassDn(bassDn_sig);
-        equalizer1->trebleUp(trebleUp_sig);
-        equalizer1->trebleDn(trebleDn_sig);
-        equalizer1->input(input_sig);
-        equalizer1->output(output_sig);
+        auto& equalizer1 = add(new equalizer("equalizer"));
+        equalizer1.bassUp(bassUp_sig);
+        equalizer1.bassDn(bassDn_sig);
+        equalizer1.trebleUp(trebleUp_sig);
+        equalizer1.trebleDn(trebleDn_sig);
+        equalizer1.input(input_sig);
+        equalizer1.output(output_sig);
 
-        make_sink("report1", report_func, output_sig);
+        add(new sink("report1", report_func))(output_sig);
     }
 #ifdef FORSYDE_INTROSPECTION
     void start_of_simulation()

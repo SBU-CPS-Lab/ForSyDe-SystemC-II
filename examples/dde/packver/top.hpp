@@ -16,35 +16,34 @@
 
 using namespace ForSyDe;
 
-SC_MODULE(top)
+struct top : ForSyDe::composite
 {
     DDE::signal<int> si, s1, s2;
     DDE::signal<char> sp1, sp2, so1, so2, sf;
     
     SC_CTOR(top)
     {
-        DDE::make_vsource("inputs", {4, 8, -3}, 
-            {sc_time(10,SC_MS), sc_time(40,SC_MS), sc_time(60,SC_MS)}, si
-        );
+        add(new DDE::vsource<int>("inputs", {4, 8, -3}, 
+            {sc_time(10,SC_MS), sc_time(40,SC_MS), sc_time(60,SC_MS)}
+        ))(si);
         
-        auto splitter1 = new splitter("splitter1");
-        splitter1->iport1(sf);
-        splitter1->iport2(si);
-        splitter1->oport1(s1);
-        splitter1->oport2(s2);
+        auto& splitter1 = add(new splitter("splitter1"));
+        splitter1.iport1(sf);
+        splitter1.iport2(si);
+        splitter1.oport1(s1);
+        splitter1.oport2(s2);
         
-        DDE::make_comb("pv1", pv_func, sp1, s1);
+        add(new DDE::comb("pv1", pv_func))(sp1, s1);
         
-        DDE::make_comb("pv2", pv_func, sp2, s2);
+        add(new DDE::comb("pv2", pv_func))(sp2, s2);
         
-        auto merge1 = DDE::make_comb2("merge1", merge_func, so1, sp1, sp2);
-        merge1->oport1(so2);
+        auto& merge1 = add(new DDE::comb2("merge1", merge_func));
+        merge1(so1, sp1, sp2);
+        merge1.oport1(so2);
         
-        DDE::make_delay("delay1", abst_ext<char>(), sc_time(15,SC_MS),
-            sf, so2
-        );
+        add(new DDE::delay("delay1", abst_ext<char>(), sc_time(15,SC_MS)))(sf, so2);
         
-        DDE::make_sink("report1", report_func, so1);
+        add(new DDE::sink("report1", report_func))(so1);
     }
     
     static void pv_func(abst_ext<char>& out, const int& inp)

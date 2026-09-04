@@ -21,24 +21,25 @@
 
 using namespace ForSyDe;
 
-SC_MODULE(amplifier)
+struct amplifier : ForSyDe::composite
 {
     UT::in_port<int>  iport1;
     UT::out_port<int> oport1;
-    
+
     UT::signal<std::tuple<std::vector<int>,std::vector<int>>> s1;
     UT::signal<int> s2, s3, s4;
-    
+
     SC_CTOR(amplifier)
     {
-        UT::make_zips("A1p", 1, 5, s1, s3, iport1);
-        
-        auto A2p1 = UT::make_comb("A2p1", A2p_func, 1, s4, s1);
-        A2p1->oport1(oport1);
+        add(new UT::zips<int,int>("A1p", 1, 5))(s1, s3, iport1);
 
-        UT::make_scan("A3p1", A3p_gamma_func, A3p_ns_func, 10, s2, s4);
-        
-        UT::make_delay("A4p", 10, s3, s2);
+        auto& A2p1 = add(new UT::comb("A2p1", A2p_func, 1));
+        A2p1(s4, s1);
+        A2p1.oport1(oport1);
+
+        add(new UT::scan("A3p1", A3p_gamma_func, A3p_ns_func, 10))(s2, s4);
+
+        add(new UT::delay("A4p", 10))(s3, s2);
     }
 };
 

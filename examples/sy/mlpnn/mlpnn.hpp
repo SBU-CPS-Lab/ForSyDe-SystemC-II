@@ -21,7 +21,7 @@
 using namespace std;
 using namespace ForSyDe::SY;
 
-SC_MODULE(mlpnn)
+struct mlpnn : ForSyDe::composite
 {
 	SY_in<float> iport[NN_NUM_INPUTS];
 	SY_out<float> oport[NN_NUM_OUTPUTS];
@@ -37,14 +37,15 @@ SC_MODULE(mlpnn)
 
     	for (int i=0;i<NN_NUM_INPUTS;i++)
     	{
-    		nn_input_layer[i] = make_fanout("nn_input_layer"+std::to_string(i), nn_inner_connections[i][0], iport[i]);
+    		nn_input_layer[i] = &add(new fanout<float>(("nn_input_layer"+std::to_string(i)).c_str()));
+    		(*nn_input_layer[i])(nn_inner_connections[i][0], iport[i]);
     		for (int j=1;j<NN_NUM_INNERS;j++)
     			nn_input_layer[i]->oport1(nn_inner_connections[i][j]);
     	}
 
     	for (int i=0;i<NN_NUM_INNERS;i++)
     	{
-    		nn_inner_layer[i] = new combX<float,float,NN_NUM_INPUTS>(("nn_inner_layer"+std::to_string(i)).c_str(),nn_inner_layer_func);
+    		nn_inner_layer[i] = &add(new combX<float,float,NN_NUM_INPUTS>(("nn_inner_layer"+std::to_string(i)).c_str(),nn_inner_layer_func));
     		for (int j=0;j<NN_NUM_INPUTS;j++)
     			nn_inner_layer[i]->iport[j](nn_inner_connections[j][i]);
     		for (int j=0;j<NN_NUM_OUTPUTS;j++)
@@ -53,7 +54,7 @@ SC_MODULE(mlpnn)
 
     	for (int i=0;i<NN_NUM_OUTPUTS;i++)
     	{
-    		nn_output_layer[i] = new combX<float,float,NN_NUM_INNERS>(("nn_output_layer"+std::to_string(i)).c_str(),nn_output_layer_func);
+    		nn_output_layer[i] = &add(new combX<float,float,NN_NUM_INNERS>(("nn_output_layer"+std::to_string(i)).c_str(),nn_output_layer_func));
     		for (int j=0;j<NN_NUM_INNERS;j++)
     			nn_output_layer[i]->iport[j](nn_output_connections[j][i]);
     		nn_output_layer[i]->oport1(oport[i]);

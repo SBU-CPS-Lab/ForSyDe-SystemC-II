@@ -48,7 +48,7 @@ void tri_adder_func(double& out1,
 }
 
 
-SC_MODULE(audio_filter)
+struct audio_filter : ForSyDe::composite
 {
     SY::in_port<double> bass;
     SY::in_port<double> treble;
@@ -59,28 +59,32 @@ SC_MODULE(audio_filter)
     SY::signal<double> ampedLow, ampedHigh, filteredLow, filteredBand, filteredHigh;
     SY::signal<double> fAudioIn1, fAudioIn2, fAudioIn3;
 
-    audio_filter(sc_module_name name)
+    audio_filter(sc_module_name name) : composite(name)
     {
-        make_scomb3("tri_adder1", tri_adder_func, audioOut, ampedLow, filteredBand, ampedHigh);
+        add(new scomb3("tri_adder1", tri_adder_func))(audioOut, ampedLow, filteredBand, ampedHigh);
 
         // Amplify Bass
-        make_scomb2("amplitude1", amplify_func, ampedLow, bass, filteredLow);
+        add(new scomb2("amplitude1", amplify_func))(ampedLow, bass, filteredLow);
 
         // Amplify Treble
-        make_scomb2("amplitude2", amplify_func, ampedHigh, treble, filteredHigh);
+        add(new scomb2("amplitude2", amplify_func))(ampedHigh, treble, filteredHigh);
 
         // Low pass filter
-        make_smealy("fir1", fir_ns_func, fir_od_func<lpCoeff>, std::vector<double>(lpCoeff.size()-1, 0), filteredLow, fAudioIn1);
+        add(new smealy("fir1", fir_ns_func, fir_od_func<lpCoeff>,
+            std::vector<double>(lpCoeff.size()-1, 0)))(filteredLow, fAudioIn1);
 
         // Band pass filter
-        make_smealy("fir2", fir_ns_func, fir_od_func<bpCoeff>, std::vector<double>(bpCoeff.size()-1, 0), filteredBand, fAudioIn2);
+        add(new smealy("fir2", fir_ns_func, fir_od_func<bpCoeff>,
+            std::vector<double>(bpCoeff.size()-1, 0)))(filteredBand, fAudioIn2);
 
         // High pass filter
-        make_smealy("fir3", fir_ns_func, fir_od_func<hpCoeff>, std::vector<double>(hpCoeff.size()-1, 0), filteredHigh, fAudioIn3);
+        add(new smealy("fir3", fir_ns_func, fir_od_func<hpCoeff>,
+            std::vector<double>(hpCoeff.size()-1, 0)))(filteredHigh, fAudioIn3);
 
-        auto fanout1 = make_fanout("fanout1", fAudioIn1, audioIn);
-        fanout1->oport1(fAudioIn2);
-        fanout1->oport1(fAudioIn3);
+        auto& fanout1 = add(new fanout<double>("fanout1"));
+        fanout1(fAudioIn1, audioIn);
+        fanout1.oport1(fAudioIn2);
+        fanout1.oport1(fAudioIn3);
     }
 };
 

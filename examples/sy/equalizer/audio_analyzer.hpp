@@ -103,7 +103,7 @@ void check_bass_func(abst_ext<AnalyzerMsg>& out, abst_ext<std::vector<double>> i
     }
 }
 
-SC_MODULE(audio_analyzer)
+struct audio_analyzer : ForSyDe::composite
 {
     SY::in_port<double> audioIn;
 
@@ -116,15 +116,15 @@ SC_MODULE(audio_analyzer)
 
     SC_CTOR(audio_analyzer)
     {
-        make_scomb("to_complex1", to_complex_func, cmplxSig, audioIn);
+        add(new scomb("to_complex1", to_complex_func))(cmplxSig, audioIn);
 
-        make_group("group_samples", grppts, grpSig, cmplxSig);
+        add(new group<std::complex<double>>("group_samples", grppts))(grpSig, cmplxSig);
 
-        make_comb("dft1", dft_func, dftSig, grpSig);
+        add(new comb("dft1", dft_func))(dftSig, grpSig);
 
-        make_comb("take_spectrum", take_spectrum_func, spectrumSig, dftSig);
+        add(new comb("take_spectrum", take_spectrum_func))(spectrumSig, dftSig);
 
-        make_comb("check_bass", check_bass_func, analyzerOut, spectrumSig);
+        add(new comb("check_bass", check_bass_func))(analyzerOut, spectrumSig);
     }
 };
 

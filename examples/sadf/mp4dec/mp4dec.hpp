@@ -22,7 +22,7 @@
 using namespace ForSyDe;
 using namespace std;
 
-SC_MODULE(mp4dec)
+struct mp4dec : ForSyDe::composite
 {
     SADF::in_port<frame_type>  ft;
     SADF::in_port<MacroBlock<bs>>  mb;
@@ -43,7 +43,9 @@ SC_MODULE(mp4dec)
         auto rc2mc   = new SADF::signal<Frame<fsr,fsc>>("rc2mc",100);
         auto rc2mcd  = new SADF::signal<Frame<fsr,fsc>>("rc2mcd",100);
 
-        SADF::make_detectorMN(
+        using fd1_t = SADF::detectorMN<std::tuple<frame_type,frame_type,frame_type,frame_type>,
+                                       std::tuple<frame_type,bool>,frame_type>;
+        add(new fd1_t(
             "fd1",
             fd_cds_func,
             fd_kss_func,
@@ -59,12 +61,12 @@ SC_MODULE(mp4dec)
                 {P99, {99,99,1,1}}
             },
             I,
-            {1,1},
-            tie(*fd2idct,*fd2vld,*fd2mc,*fd2rc),
-            tie(ft,*rc2fdd)
-        );
+            {1,1}
+        ))(*fd2idct,*fd2vld,*fd2mc,*fd2rc, ft,*rc2fdd);
 
-        SADF::make_kernelMN(
+        using vld1_t = SADF::kernelMN<std::tuple<MacroBlock<bs>,MotionVec>,frame_type,
+                                      std::tuple<MacroBlock<bs>>>;
+        auto& vld1 = add(new vld1_t(
             "vld1",
             vld_func,
             {
@@ -77,13 +79,14 @@ SC_MODULE(mp4dec)
                 {P70, {{1},{1,1}}},
                 {P80, {{1},{1,1}}},
                 {P99, {{1},{1,1}}}
-            },
-            tie(*vld2idct,*vld2mc),
-            *fd2vld,
-            tie(mb)
-        );
+            }
+        ));
+        vld1.cport1(*fd2vld);
+        vld1(*vld2idct,*vld2mc, mb);
 
-        SADF::make_kernelMN(
+        using idct1_t = SADF::kernelMN<std::tuple<MacroBlock<bs>>,frame_type,
+                                       std::tuple<MacroBlock<bs>>>;
+        auto& idct1 = add(new idct1_t(
             "idct1",
             idct_func,
             {
@@ -96,13 +99,14 @@ SC_MODULE(mp4dec)
                 {P70, {{1},{1}}},
                 {P80, {{1},{1}}},
                 {P99, {{1},{1}}}
-            },
-            tie(*idct2rc),
-            *fd2idct,
-            tie(*vld2idct)
-        );
+            }
+        ));
+        idct1.cport1(*fd2idct);
+        idct1(*idct2rc, *vld2idct);
 
-        SADF::make_kernelMN(
+        using mc1_t = SADF::kernelMN<std::tuple<Frame<fsr,fsc>>,frame_type,
+                                     std::tuple<MotionVec,Frame<fsr,fsc>>>;
+        auto& mc1 = add(new mc1_t(
             "mc1",
             mc_func,
             {
@@ -115,13 +119,14 @@ SC_MODULE(mp4dec)
                 {P70, {{70,1},{1}}},
                 {P80, {{80,1},{1}}},
                 {P99, {{99,1},{1}}}
-            },
-            tie(*mc2rc),
-            *fd2mc,
-            tie(*vld2mc,*rc2mcd)
-        );
+            }
+        ));
+        mc1.cport1(*fd2mc);
+        mc1(*mc2rc, *vld2mc,*rc2mcd);
 
-        auto rc1 = SADF::make_kernelMN(
+        using rc1_t = SADF::kernelMN<std::tuple<Frame<fsr,fsc>,bool>,frame_type,
+                                     std::tuple<MacroBlock<bs>,Frame<fsr,fsc>>>;
+        auto& rc1 = add(new rc1_t(
             "rc1",
             rc_func,
             {
@@ -134,27 +139,22 @@ SC_MODULE(mp4dec)
                 {P70, {{70,1},{1,1}}},
                 {P80, {{80,1},{1,1}}},
                 {P99, {{99,1},{1,1}}}
-            },
-            tie(*rc2mc,*rc2fd),
-            *fd2rc,
-            tie(*idct2rc,*mc2rc)
-        );
-        get<0>(rc1->oport)(out);
+            }
+        ));
+        rc1.cport1(*fd2rc);
+        rc1(*rc2mc,*rc2fd, *idct2rc,*mc2rc);
+        get<0>(rc1.oport)(out);
 
-        SDF::make_delayn(
+        add(new SDF::delayn(
             "rc2fddelay",
             true,
-            3,
-            *rc2fdd,
-            *rc2fd
-        );
+            3
+        ))(*rc2fdd, *rc2fd);
 
-        SDF::make_delay(
+        add(new SDF::delay(
             "rc2mcdelay",
-            Frame<fsr,fsc>(),
-            *rc2mcd,
-            *rc2mc
-        );
+            Frame<fsr,fsc>()
+        ))(*rc2mcd, *rc2mc);
     }
 };
 

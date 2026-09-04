@@ -21,7 +21,7 @@ using namespace ForSyDe;
 
 #define TAPS 5
 
-SC_MODULE(fir)
+struct fir : ForSyDe::composite
 {
     SY_in<double> iport1;
     SY_out<double> oport1;
@@ -39,26 +39,32 @@ SC_MODULE(fir)
                   res_line(TAPS-1)
     
     {
-        auto fo = make_fanout("fo", del_line[0], iport1);
-        fo->oport1(coef_line[0]);
+        auto& fo = add(new SY::fanout<double>("fo"));
+        fo(del_line[0], iport1);
+        fo.oport1(coef_line[0]);
         
-        SY::make_constant("coef0", abst_ext<double>(coefs[0]), 0, coef_src_line[0]);
+        add(new SY::constant("coef0", abst_ext<double>(coefs[0]), 0))(coef_src_line[0]);
         
-        SY::make_comb2("mul0", mul_func, res_line[0], coef_line[0], coef_src_line[0]);
+        add(new SY::comb2("mul0", mul_func))(res_line[0], coef_line[0], coef_src_line[0]);
         
         for (int i=0; i<TAPS-1; i++)
         {
-            auto del = SY::make_delay("del_line"+std::to_string(i), abst_ext<double>(0), coef_line[i+1], del_line[i]);
-            if (i<TAPS-1-1) del->oport1(del_line[i+1]);
+            auto& del = add(new SY::delay(("del_line"+std::to_string(i)).c_str(), abst_ext<double>(0)));
+            del(coef_line[i+1], del_line[i]);
+            if (i<TAPS-1-1) del.oport1(del_line[i+1]);
             
-            SY::make_constant("coef"+std::to_string(i+1), abst_ext<double>(coefs[i+1]), 0, coef_src_line[i+1]);
+            add(new SY::constant(("coef"+std::to_string(i+1)).c_str(), abst_ext<double>(coefs[i+1]), 0))
+                (coef_src_line[i+1]);
             
-            SY::make_comb2("mul"+std::to_string(i+1), mul_func, mac_line[i], coef_line[i+1], coef_src_line[i+1]);
+            add(new SY::comb2(("mul"+std::to_string(i+1)).c_str(), mul_func))
+                (mac_line[i], coef_line[i+1], coef_src_line[i+1]);
             
             if (i<TAPS-1-1)
-                SY::make_comb2("add"+std::to_string(i), add_func, res_line[i+1], mac_line[i], res_line[i]);
+                add(new SY::comb2(("add"+std::to_string(i)).c_str(), add_func))
+                    (res_line[i+1], mac_line[i], res_line[i]);
             else
-                SY::make_comb2("add"+std::to_string(i), add_func, oport1, mac_line[i], res_line[i]);
+                add(new SY::comb2(("add"+std::to_string(i)).c_str(), add_func))
+                    (oport1, mac_line[i], res_line[i]);
         }
     }
 #ifdef FORSYDE_INTROSPECTION

@@ -19,29 +19,30 @@
 
 using namespace ForSyDe;
 
-SC_MODULE(top)
+struct top : ForSyDe::composite
 {
     SDF::signal<double> src, src2, upsrc, res, downres;
     SDF::signal<std::tuple<std::vector<double>,std::vector<double>>> zipped_res;
     
     SC_CTOR(top)
     {
-        auto stimuli1 = SDF::make_file_source("stimuli1", stimuli_func, 
-            "input.txt", src
-        );
-        stimuli1->oport1(src2);
+        auto& stimuli1 = add(new SDF::file_source("stimuli1", stimuli_func, 
+            "input.txt"
+        ));
+        stimuli1(src);
+        stimuli1.oport1(src2);
       
-        SDF::make_comb("upSampler1", upSampler_func, 2, 1, upsrc, src);
+        add(new SDF::comb("upSampler1", upSampler_func, 2, 1))(upsrc, src);
 
-        auto compAvg1 = new compAvg("compAvg1");
-        compAvg1->iport1(upsrc);
-        compAvg1->oport1(res);
+        auto& compAvg1 = add(new compAvg("compAvg1"));
+        compAvg1.iport1(upsrc);
+        compAvg1.oport1(res);
 
-        SDF::make_comb("downSampler1", downSampler_func, 2, 3, downres, res);
+        add(new SDF::comb("downSampler1", downSampler_func, 2, 3))(downres, res);
         
-        SDF::make_zip("zip1", 4, 3, zipped_res, src2, downres);
+        add(new SDF::zip<double,double>("zip1", 4, 3))(zipped_res, src2, downres);
         
-        SDF::make_file_sink("report1", report_func, "output.txt", zipped_res);
+        add(new SDF::file_sink("report1", report_func, "output.txt"))(zipped_res);
     }
 #ifdef FORSYDE_INTROSPECTION
     void start_of_simulation()

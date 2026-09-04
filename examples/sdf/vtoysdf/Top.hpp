@@ -28,23 +28,23 @@ void report_func(float inp1)
     std::cout << "output value: " << inp1 << std::endl;
 }
 
-SC_MODULE(Top)
+struct Top : ForSyDe::composite
 {
     SDF::signal<float> src, upsrc, res, downres;
         
     SC_CTOR(Top)
     {
-        SDF::make_source("stimuli1", stimuli_func, (float)0, 100, src);
+        add(new SDF::source("stimuli1", stimuli_func, (float)0, 100))(src);
       
-        SDF::make_comb("upSampler1", upSampler_func, 2, 1, upsrc, src);
+        add(new SDF::comb("upSampler1", upSampler_func, 2, 1))(upsrc, src);
 
-        auto compAvg1 = new compAvg("compAvg1");
-        compAvg1->iport(upsrc);
-        compAvg1->oport(res);
+        auto& compAvg1 = add(new compAvg("compAvg1"));
+        compAvg1.iport(upsrc);
+        compAvg1.oport(res);
 
-        SDF::make_comb("downSampler1", downSampler_func, 2, 3, downres, res);
+        add(new SDF::comb("downSampler1", downSampler_func, 2, 3))(downres, res);
         
-        SDF::make_sink("report1", report_func, downres);
+        add(new SDF::sink("report1", report_func))(downres);
     }
 #ifdef FORSYDE_INTROSPECTION
     void start_of_simulation()

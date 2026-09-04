@@ -20,7 +20,7 @@
 
 using namespace ForSyDe;
 
-SC_MODULE(compAvg)
+struct compAvg : ForSyDe::composite
 {
     SDF::in_port<double>  iport1;
     SDF::out_port<double> oport1;
@@ -29,10 +29,11 @@ SC_MODULE(compAvg)
     
     SC_CTOR(compAvg)
     {
-        auto averager1 = SDF::make_comb2("averager1", averager_func, 2,3,2, oport1, iport1, dout);
-        averager1->oport1(din);
+        auto& averager1 = add(new SDF::comb2("averager1", averager_func, 2,3,2));
+        averager1(oport1, iport1, dout);
+        averager1.oport1(din);
         
-        SDF::make_delayn("avginit1",0.0,2, dout, din);
+        add(new SDF::delayn("avginit1",0.0,2))(dout, din);
     }
 };
 

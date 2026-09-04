@@ -114,7 +114,6 @@
 
 // include MoC interfaces
 #include "forsyde/mis.hpp"
-#include "forsyde/mi_helpers.hpp"
 
 #include "forsyde/adaptivity.hpp"
 
@@ -145,7 +144,6 @@
 #endif
 
 #ifdef FORSYDE_WITH_MPI
-#include "forsyde/parallel_sim_helpers.hpp"
 #endif
 
 #ifdef FORSYDE_WITH_GDB

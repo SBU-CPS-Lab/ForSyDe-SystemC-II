@@ -22,7 +22,7 @@
 using namespace ForSyDe::SY;
 using namespace std;
 
-SC_MODULE(codec)
+struct codec : ForSyDe::composite
 {
     SY_in<int>  iport;
     SY_in<int>  code;
@@ -34,13 +34,18 @@ SC_MODULE(codec)
     
     SC_CTOR(codec)
     {
-        make_apply("encoder1", coded, iport, key1);
+        auto& encoder1 = add(new ForSyDe::SY::apply<int,int>("encoder1"));
+        encoder1(coded, iport);
+        encoder1.fport(key1);
         
-        make_apply("decoder1", oport, coded, key2);
+        auto& decoder1 = add(new ForSyDe::SY::apply<int,int>("decoder1"));
+        decoder1(oport, coded);
+        decoder1.fport(key2);
         
-        make_comb("keygen1", keygen_func, keys, code);
+        add(new comb<tuple<abst_ext<functype>,abst_ext<functype>>,int>("keygen1", keygen_func))
+            (keys, code);
         
-        make_unzip("unzip1", keys, key1, key2);
+        add(new unzip<functype,functype>("unzip1"))(key1, key2, keys);
     }
 };
 

@@ -26,11 +26,14 @@ namespace SY {
  * string to a new line of an output file.
  */
 template <class T>
-class file_sink_last : public sy_process
+class file_sink_last : public sy_process,
+                        public ForSyDe::detail::bindable<file_sink_last<T>>
 {
 public:
+    using ForSyDe::detail::bindable<file_sink_last<T>>::operator();
     SY_in<T> iport1;         ///< port for the input channel
-    
+    auto in_ports() {return std::tie(iport1);}
+
     //! Type of the function to be passed to the process constructor
     typedef std::function<void(std::string&, const abst_ext<T>&)> functype;
 
@@ -103,31 +106,10 @@ private:
 #endif
 };
 
-//! Helper function to construct a file_sink_last process
-/*! This function is used to construct a file_sink_last (SystemC module)
- * and connect its output and output signals.
- * It provides a more functional style definition of a ForSyDe process.
- * It also removes bilerplate code by using type-inference feature of
- * C++ and automatic binding to the input FIFOs.
- */
-template <class T, template <class> class IIf>
-inline file_sink_last<T>* make_file_sink_last(std::string pName,
-    typename file_sink_last<T>::functype _func,
-    std::string file_name,
-    IIf<T>& inS
-    )
-{
-    auto p = new file_sink_last<T>(pName.c_str(), _func, file_name);
-    
-    (*p).iport1(inS);
-    
-    return p;
-}
-
 }
 }
 
-SC_MODULE(reader)
+struct reader : ForSyDe::composite
 {
     std::vector<SY::in_port<int>>   iports;
 
@@ -137,11 +119,12 @@ SC_MODULE(reader)
     reader(sc_module_name,int N) : iports(N)
     {
         auto zipped_inp = new SY::signal<std::array<int,NTAPS>>;
-        
-        auto zipx1 = SY::make_szipX("zipx1", *zipped_inp);
-        for(int i=0;i<N;i++) zipx1->iport[i](iports[i]);
-        
-        SY::make_file_sink_last("report", report_func, "results.txt", *zipped_inp);
+
+        auto& zipx1 = add(new SY::szipX<int,NTAPS>("zipx1"));
+        zipx1.oport1(*zipped_inp);
+        for(int i=0;i<N;i++) zipx1.iport[i](iports[i]);
+
+        add(new SY::file_sink_last<std::array<int,NTAPS>>("report", report_func, "results.txt"))(*zipped_inp);
         
       //~ // Create reporter modules
       //~ for(int i=0;i<N;i++){

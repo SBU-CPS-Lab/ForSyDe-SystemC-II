@@ -28,17 +28,17 @@ vector<tuple<size_t,int>> in_vec1 =
      make_tuple(15,2), make_tuple(16,3), make_tuple(17,3),
      make_tuple(18,4), make_tuple(19,4)};
 
-SC_MODULE(top)
+struct top : ForSyDe::composite
 {
     DT::signal<int> src, result;
     
     SC_CTOR(top)
     {        
-        DT::make_vsource("vsource1", in_vec1, src);
+        add(new DT::vsource<int>("vsource1", in_vec1))(src);
         
-        DT::make_mealy("swap1", swap_gamma, swap_ns_func, swap_od_func, 0, result, src);
+        add(new DT::mealy("swap1", swap_gamma, swap_ns_func, swap_od_func, 0))(result, src);
         
-        DT::make_sink("report1", report_func, result);
+        add(new DT::sink("report1", report_func))(result);
     }
 #ifdef FORSYDE_INTROSPECTION
     void start_of_simulation()

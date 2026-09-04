@@ -19,7 +19,7 @@
 using namespace std;
 using namespace ForSyDe::SY;
 
-SC_MODULE(top)
+struct top : ForSyDe::composite
 {
     SY2SY<float> nn_input_sig[NN_NUM_INPUTS];
     SY2SY<float> nn_output_sig[NN_NUM_OUTPUTS];
@@ -27,18 +27,18 @@ SC_MODULE(top)
     SC_CTOR(top)
     {
 
-    	auto mlpnn1 = new mlpnn("mlpnn1");
+    	auto& mlpnn1 = add(new mlpnn("mlpnn1"));
 
     	for (int i=0;i<NN_NUM_INPUTS;i++)
     	{
-    		make_vsource("nn_inputs"+std::to_string(i), nn_inputs[i], nn_input_sig[i]);
-    		mlpnn1->iport[i](nn_input_sig[i]);
+    		add(new vsource<float>(("nn_inputs"+std::to_string(i)).c_str(), nn_inputs[i]))(nn_input_sig[i]);
+    		mlpnn1.iport[i](nn_input_sig[i]);
     	}
 
     	for (int i=0;i<NN_NUM_OUTPUTS;i++)
     	{
-    		make_sink("report"+std::to_string(i), report_func, nn_output_sig[i]);
-    		mlpnn1->oport[i](nn_output_sig[i]);
+    		add(new sink<float>(("report"+std::to_string(i)).c_str(), report_func))(nn_output_sig[i]);
+    		mlpnn1.oport[i](nn_output_sig[i]);
     	}
 
     }

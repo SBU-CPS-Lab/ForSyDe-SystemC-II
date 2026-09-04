@@ -17,19 +17,19 @@
 
 using namespace ForSyDe;
 
-SC_MODULE(top)
+struct top : ForSyDe::composite
 {
     UT::signal<int> src, result;
-    
+
     SC_CTOR(top)
-    {        
-        UT::make_source("ramp1", ramp_func, 1, 20, src);
-        
-        auto amplifier1 = new amplifier("amplifier1");
-        amplifier1->iport1(src);
-        amplifier1->oport1(result);
-        
-        UT::make_sink("report1", report_func, result);
+    {
+        add(new UT::source("ramp1", ramp_func, 1, 20))(src);
+
+        auto& amplifier1 = add(new amplifier("amplifier1"));
+        amplifier1.iport1(src);
+        amplifier1.oport1(result);
+
+        add(new UT::sink("report1", report_func))(result);
     }
 #ifdef FORSYDE_INTROSPECTION
     void start_of_simulation()

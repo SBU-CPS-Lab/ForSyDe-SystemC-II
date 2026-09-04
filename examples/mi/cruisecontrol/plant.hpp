@@ -23,7 +23,7 @@ using namespace ForSyDe;
 #define b 50
 #define DEAT_TIME .1  // transport delay of the plant in seconds
 
-SC_MODULE(plant)
+struct plant : ForSyDe::composite
 {
         CT::in_port u;
     CT::out_port v;
@@ -32,28 +32,21 @@ SC_MODULE(plant)
 
     SC_CTOR(plant)
         {
-            // CT::make_filter("car",
-            //      {1.0},
-            //      {{m, b}},
-            //      sc_time(20,SC_MS),
-            //      v,
-            //      u
-            // );
             #ifndef FORSYDE_WITH_FMI
-            auto car = new CT::filter("car",
+            auto& car = add(new CT::filter("car",
                     {1.0},
                     {{m, b}},
                     sc_time(20,SC_MS),
                     sc_time(0.05,SC_NS),
                     1
-            );
-            car->iport1(u);
-            car->oport1(v_t);
+            ));
+            car.iport1(u);
+            car.oport1(v_t);
             #else
-            CT::make_fmi2cswrap("car", "fmi2/car.fmu", 0, 1, sc_time(20,SC_MS), v_t, u);
+            add(new CT::fmi2cswrap("car", "fmi2/car.fmu", 0, 1, sc_time(20,SC_MS)))(v_t, u);
             #endif
 
-            CT::make_shift("dead_time", sc_time(DEAT_TIME, SC_SEC), v, v_t);
+            add(new CT::shift("dead_time", sc_time(DEAT_TIME, SC_SEC)))(v, v_t);
 
     }
 };

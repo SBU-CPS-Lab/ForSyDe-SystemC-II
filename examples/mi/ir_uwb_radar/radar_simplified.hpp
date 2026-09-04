@@ -39,7 +39,7 @@ using namespace ForSyDe;
 /*
  * Toplevel radar module
  */
-SC_MODULE(radar_simplified)
+struct radar_simplified : ForSyDe::composite
 {
     CT::in_port                 sig;         // Signal input
     std::vector<SY::out_port<int>>  oports;  // Sampler output
@@ -65,41 +65,41 @@ SC_MODULE(radar_simplified)
         ) : oports(N), to_sampler(N)
     {
         // Front-end: ADC + thresholder
-        
-        SY::make_gaussian("noise", noise_var, 0, n);
-        
-        make_CT2SY("adc", sc_time(ADC_PERIOD,SC_SEC), s, sig);
 
-        make_scomb2("add1", add_func, to_th, n, s);
+        add(new SY::gaussian("noise", noise_var, 0))(n);
+
+        add(new CT2SY("adc", sc_time(ADC_PERIOD,SC_SEC)))(s, sig);
+
+        add(new SY::scomb2("add1", add_func))(to_th, n, s);
 
         // SY thresholder
-        make_scomb2("threshold1", threshold_func, from_th, to_th, threshold);
+        add(new SY::scomb2("threshold1", threshold_func))(from_th, to_th, threshold);
 
         // Back-end/downsampler
-        
+
         // Synchronous delay line
-        auto delay_line1 = new delay_line("delay_line1",N);
-        delay_line1->iport(from_th);
-        for(int i=0;i<N;i++) delay_line1->oports[i](to_sampler[i]);
-        
+        auto& delay_line1 = add(new delay_line("delay_line1",N));
+        delay_line1.iport(from_th);
+        for(int i=0;i<N;i++) delay_line1.oports[i](to_sampler[i]);
+
         // "Clock", generates a stream of ones and zeros
-        SY::make_ssource("clk_gen1", clk_gen_func, std::make_tuple(0,0), 0, from_clk_st);
-        
-        SY::make_scomb("strip1", strip_func, from_clk, from_clk_st);
-        
+        add(new SY::ssource("clk_gen1", clk_gen_func, std::make_tuple(0,0), 0))(from_clk_st);
+
+        add(new SY::scomb("strip1", strip_func))(from_clk, from_clk_st);
+
         // Controls "DAC" sweep and sampling/averaging
-        auto sweep_ctrl1 = new sweep_ctrl("sweep_ctrl1");
-        sweep_ctrl1->clk(from_clk);
-        sweep_ctrl1->th(threshold);
-        sweep_ctrl1->smpl_en(smpl_en);
+        auto& sweep_ctrl1 = add(new sweep_ctrl("sweep_ctrl1"));
+        sweep_ctrl1.clk(from_clk);
+        sweep_ctrl1.th(threshold);
+        sweep_ctrl1.smpl_en(smpl_en);
 
         // Pure synchronous sampler
-        auto sampler_counter1 = new sampler_counter("sampler_counter1", N);
-        sampler_counter1->clk(smpl_en);
+        auto& sampler_counter1 = add(new sampler_counter("sampler_counter1", N));
+        sampler_counter1.clk(smpl_en);
         for(int i=0;i<N;i++)
         {
-          sampler_counter1->iports[i](to_sampler[i]);
-          sampler_counter1->oports[i](oports[i]);
+          sampler_counter1.iports[i](to_sampler[i]);
+          sampler_counter1.oports[i](oports[i]);
         }
     }
     

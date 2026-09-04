@@ -48,32 +48,36 @@ std::vector<CTTYPE> dens = {1.0, 2.6912e9, 2.5302e21, 5.0585e30, 2.2986e42, 2.99
 using namespace sc_core;
 using namespace ForSyDe;
 
-SC_MODULE(top)
+struct top : ForSyDe::composite
 {
     CT::signal  from_pg, from_anttx, from_channel, from_antrx, src2;
     std::vector<SY::signal<int>>    from_sampler;
-    
+
     SC_CTOR(top) : from_sampler(NTAPS)
 	{
-        auto uwb_pg1 = new uwb_pg("uwb_pg1", end_t, t_c, t_bw, t_fire, duty_cycle);
-        uwb_pg1->out(from_pg);
-        
-        CT::make_filterf("tx_antenna", nums, dens, t_step, from_anttx, from_pg);
-        
-        auto ir_channel1 = new ir_channel("ir_channel1", ch_shift, ch_attn, no_of_bs);
-        ir_channel1->in(from_anttx);
-        ir_channel1->out(from_channel);
-        
-        CT::make_filterf("rx_antenna", nums, dens, t_step, from_antrx, from_channel);
-        
-        CT::make_shift("chan_delay", delay_int, src2, from_antrx);
-        
-        auto radar1 = new radar_simplified("radar1", NTAPS, 0.16);
-        radar1->sig(src2);
-        for(int i=0;i<NTAPS;i++) radar1->oports[i](from_sampler[i]);
-        
-        auto reader1 = new reader("reader1", NTAPS);
-        for(int i=0;i<NTAPS;i++) reader1->iports[i](from_sampler[i]);
+        auto& uwb_pg1 = add(new uwb_pg("uwb_pg1", end_t, t_c, t_bw, t_fire, duty_cycle));
+        uwb_pg1.out(from_pg);
+
+        auto& tx_antenna1 = add(new CT::filterf("tx_antenna", nums, dens, t_step));
+        tx_antenna1.oport1(from_anttx);
+        tx_antenna1.iport1(from_pg);
+
+        auto& ir_channel1 = add(new ir_channel("ir_channel1", ch_shift, ch_attn, no_of_bs));
+        ir_channel1.in(from_anttx);
+        ir_channel1.out(from_channel);
+
+        auto& rx_antenna1 = add(new CT::filterf("rx_antenna", nums, dens, t_step));
+        rx_antenna1.oport1(from_antrx);
+        rx_antenna1.iport1(from_channel);
+
+        add(new CT::shift("chan_delay", delay_int))(src2, from_antrx);
+
+        auto& radar1 = add(new radar_simplified("radar1", NTAPS, 0.16));
+        radar1.sig(src2);
+        for(int i=0;i<NTAPS;i++) radar1.oports[i](from_sampler[i]);
+
+        auto& reader1 = add(new reader("reader1", NTAPS));
+        for(int i=0;i<NTAPS;i++) reader1.iports[i](from_sampler[i]);
     }
 #ifdef FORSYDE_INTROSPECTION
     void start_of_simulation()

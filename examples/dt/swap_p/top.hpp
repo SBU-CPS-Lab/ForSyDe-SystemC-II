@@ -28,20 +28,20 @@ vector<tuple<size_t,int>> in_vec1 =
      make_tuple(15,2), make_tuple(16,3), make_tuple(17,3),
      make_tuple(18,4), make_tuple(19,4)};
 
-SC_MODULE(top)
+struct top : ForSyDe::composite
 {
     DT::signal<int> src, result;
     
     SC_CTOR(top)
     {        
-        DT::make_vsource("vsource1", in_vec1, src);
+        add(new DT::vsource<int>("vsource1", in_vec1))(src);
         
-        // DT::P::make_mealy("swap1", swap_gamma, swap_ns_func, swap_od_func, 0, result, src);
-        auto swap1 = new DT::P::mealyMN<tuple<int>,tuple<int>,int>("swap1", swap_gamma, swap_ns_func, swap_od_func, 0);
-        get<0>(swap1->iport)(src);
-        get<0>(swap1->oport)(result);
+        auto& swap1 = add(new DT::P::mealyMN<tuple<int>,tuple<int>,int>(
+                        "swap1", swap_gamma, swap_ns_func, swap_od_func, 0));
+        get<0>(swap1.iport)(src);
+        get<0>(swap1.oport)(result);
         
-        DT::make_sink("report1", report_func, result);
+        add(new DT::sink("report1", report_func))(result);
     }
 #ifdef FORSYDE_INTROSPECTION
     void start_of_simulation()

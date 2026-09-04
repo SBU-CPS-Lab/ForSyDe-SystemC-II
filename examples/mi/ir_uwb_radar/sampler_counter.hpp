@@ -18,7 +18,7 @@
 using namespace sc_core;
 using namespace ForSyDe;
 
-SC_MODULE(sampler_counter)
+struct sampler_counter : ForSyDe::composite
 {
     std::vector<SY::in_port<int>>   iports;
     SY::in_port<int>                clk;
@@ -41,34 +41,29 @@ SC_MODULE(sampler_counter)
         ) : iports(N), oports(N), sel_vec(N), sig_vec(N)
     {
         // Connect the fanout module input to the module input
-        auto fo1 = SY::make_fanout("fo1", sel_vec[0], clk);
-        for(int i=1;i<N;i++) fo1->oport1(sel_vec[i]);
-        
+        auto& fo1 = add(new SY::fanout<int>("fo1"));
+        fo1(sel_vec[0], clk);
+        for(int i=1;i<N;i++) fo1.oport1(sel_vec[i]);
+
         // Create sampler modules
         for(int i=0;i<N;i++){
             std::stringstream name;
             name << "smpl" << i;
             m_cnt_vec.push_back(
-                SY::make_smoore(
+                &add(new SY::smoore(
                     name.str().c_str(),
                     counter_ns_func,
                     counter_od_func,
-                    0,
-                    oports[i],
-                    sig_vec[i]
-                )
+                    0
+                ))
             );
+            (*m_cnt_vec.back())(oports[i], sig_vec[i]);
 
             name << "_and";
             and_vec.push_back(
-                SY::make_scomb2(
-                    name.str().c_str(),
-                    and_func,
-                    sig_vec[i],
-                    iports[i],
-                    sel_vec[i]
-                )
+                &add(new SY::scomb2(name.str().c_str(), and_func))
             );
+            (*and_vec.back())(sig_vec[i], iports[i], sel_vec[i]);
         }
     }
     

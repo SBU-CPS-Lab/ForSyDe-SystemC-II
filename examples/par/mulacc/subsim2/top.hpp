@@ -16,10 +16,10 @@
 
 using namespace ForSyDe::SY;
 
-SC_MODULE(top)
+struct top : ForSyDe::composite
 {
     SY2SY<int> srcb, result;
-    
+
     SC_CTOR(top)
     {
         int world_rank;
@@ -27,15 +27,15 @@ SC_MODULE(top)
         int world_size;
         MPI_Comm_size(MPI_COMM_WORLD, &world_size );
         int partner_rank = (world_rank + 1) % 2;
-        
-        make_source("siggen1", siggen_func, abst_ext<int>(1), 10, srcb);
-        
-        make_sender<int>("sender1", partner_rank, 1, srcb);
-        
-        auto receiver1 = new receiver<int>("receiver1", partner_rank, 0);
-        receiver1->oport1(result);
-        
-        make_sink("report1", report_func, result);
+
+        add(new source("siggen1", siggen_func, abst_ext<int>(1), 10))(srcb);
+
+        add(new sender<int>("sender1", partner_rank, 1))(srcb);
+
+        auto& receiver1 = add(new receiver<int>("receiver1", partner_rank, 0));
+        receiver1.oport1(result);
+
+        add(new sink("report1", report_func))(result);
     }
 #ifdef FORSYDE_INTROSPECTION
     void start_of_simulation()

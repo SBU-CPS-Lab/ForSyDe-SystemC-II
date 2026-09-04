@@ -20,21 +20,22 @@
 
 using namespace ForSyDe::SY;
 
-SC_MODULE(mulacc)
+struct mulacc : ForSyDe::composite
 {
     SY_in<int>  a, b;
     SY_out<int> result;
-    
+
     SY2SY<int> addi1, addi2, acci;
-    
+
     SC_CTOR(mulacc)
     {
-        make_comb2("mul1", mul_func, addi1, a, b);
+        add(new comb2("mul1", mul_func))(addi1, a, b);
 
-        auto add1 = make_comb2("add1", add_func, acci, addi1, addi2);
-        add1->oport1(result);
-        
-        make_delay("accum", abst_ext<int>(0), addi2, acci);
+        auto& add1 = add(new comb2("add1", add_func));
+        add1(acci, addi1, addi2);
+        add1.oport1(result);
+
+        add(new delay("accum", abst_ext<int>(0)))(addi2, acci);
     }
 };
 

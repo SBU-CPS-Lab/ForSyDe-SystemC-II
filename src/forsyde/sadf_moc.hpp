@@ -26,7 +26,6 @@
 
 #include "sadf_process.hpp"
 #include "sadf_process_constructors.hpp"
-#include "sadf_helpers.hpp"
 
 namespace ForSyDe
 {

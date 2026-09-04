@@ -139,7 +139,7 @@ static const char* verdict(moc_id from, moc_id to)
 // particular had no interface of any kind -- it could not be entered or
 // left -- which is checked here as a round trip, since SY2DT and DT2SY
 // at the same lambda have to compose to the identity.
-SC_MODULE(through_an_interface)
+struct through_an_interface : ForSyDe::composite
 {
     SY::signal<int> sy_src, sy_out, sy_src2, sy_back, sy_last;
     UT::signal<int> ut_mid, ut_src;
@@ -148,34 +148,34 @@ SC_MODULE(through_an_interface)
     SC_CTOR(through_an_interface)
     {
         // 1 _ 2 _ _ 3  ->  1 2 3
-        SY::make_vsource("s", {abst_ext<int>(1), abst_ext<int>(),
+        add(new SY::vsource<int>("s", {abst_ext<int>(1), abst_ext<int>(),
                                abst_ext<int>(2), abst_ext<int>(),
-                               abst_ext<int>(), abst_ext<int>(3)}, sy_src);
-        auto st = new MI::strip<moc_id::SY, moc_id::UT, int>("strip1");
-        st->iport1(sy_src); st->oport1(ut_mid);
-        UT::make_sink("ru", [](const int& v)
-            {std::cout << "strip  " << v << "\n";}, ut_mid);
+                               abst_ext<int>(), abst_ext<int>(3)}))(sy_src);
+        auto& st = add(new MI::strip<moc_id::SY, moc_id::UT, int>("strip1"));
+        st.iport1(sy_src); st.oport1(ut_mid);
+        add(new UT::sink<int>("ru", [](const int& v)
+            {std::cout << "strip  " << v << "\n";}))(ut_mid);
 
         // 7 8  at lambda = 3  ->  7 _ _ 8 _ _
-        UT::make_vsource("t", {7,8}, ut_src);
-        auto ins = new MI::insert<moc_id::UT, moc_id::SY, int>("insert1", 3);
-        ins->iport1(ut_src); ins->oport1(sy_out);
-        SY::make_sink("rs", [](const abst_ext<int>& v)
-            {std::cout << "insert " << v << "\n";}, sy_out);
+        add(new UT::vsource<int>("t", {7,8}))(ut_src);
+        auto& ins = add(new MI::insert<moc_id::UT, moc_id::SY, int>("insert1", 3));
+        ins.iport1(ut_src); ins.oport1(sy_out);
+        add(new SY::sink("rs", [](const abst_ext<int>& v)
+            {std::cout << "insert " << v << "\n";}))(sy_out);
 
         // 5 _ 6  at lambda = 3  ->  DT: 5 _ _ _ _ _ 6 _ _  ->  SY: 5 _ 6
-        SY::make_vsource("u", {abst_ext<int>(5), abst_ext<int>(),
-                               abst_ext<int>(6)}, sy_src2);
-        auto s2d = new SY2DT<int>("s2d", 3);
-        s2d->iport1(sy_src2);
-        s2d->oport1(dt_mid);            // multiport: both the sink and the
-        s2d->oport1(dt_tap);            // return leg see the DT stream
-        DT::make_sink("rd", [](const abst_ext<int>& v)
-            {std::cout << "dt     " << v << "\n";}, dt_tap);
-        auto d2s = new DT2SY<int>("d2s", 3);
-        d2s->iport1(dt_mid); d2s->oport1(sy_back);
-        SY::make_sink("rb", [](const abst_ext<int>& v)
-            {std::cout << "round  " << v << "\n";}, sy_back);
+        add(new SY::vsource<int>("u", {abst_ext<int>(5), abst_ext<int>(),
+                               abst_ext<int>(6)}))(sy_src2);
+        auto& s2d = add(new SY2DT<int>("s2d", 3));
+        s2d.iport1(sy_src2);
+        s2d.oport1(dt_mid);            // multiport: both the sink and the
+        s2d.oport1(dt_tap);            // return leg see the DT stream
+        add(new DT::sink("rd", [](const abst_ext<int>& v)
+            {std::cout << "dt     " << v << "\n";}))(dt_tap);
+        auto& d2s = add(new DT2SY<int>("d2s", 3));
+        d2s.iport1(dt_mid); d2s.oport1(sy_back);
+        add(new SY::sink("rb", [](const abst_ext<int>& v)
+            {std::cout << "round  " << v << "\n";}))(sy_back);
 
         // lastt, which the round trip above cannot show: a clock cycle
         // holding more than one present event keeps the *last* of them,
@@ -183,11 +183,11 @@ SC_MODULE(through_an_interface)
         // DT::vsource is given (tick, value) pairs and is absent between
         // them, which is the DT tick doing exactly what SY's cannot.
         //   1 2 _ | _ 9 _ | _ _ 7   ->   2 9 7
-        DT::make_vsource("v", {{0,1}, {1,2}, {4,9}, {8,7}}, dt_many);
-        auto lastt = new DT2SY<int>("lastt", 3);
-        lastt->iport1(dt_many); lastt->oport1(sy_last);
-        SY::make_sink("rl", [](const abst_ext<int>& v)
-            {std::cout << "lastt  " << v << "\n";}, sy_last);
+        add(new DT::vsource<int>("v", {{0,1}, {1,2}, {4,9}, {8,7}}))(dt_many);
+        auto& lastt = add(new DT2SY<int>("lastt", 3));
+        lastt.iport1(dt_many); lastt.oport1(sy_last);
+        add(new SY::sink("rl", [](const abst_ext<int>& v)
+            {std::cout << "lastt  " << v << "\n";}))(sy_last);
     }
 };
 

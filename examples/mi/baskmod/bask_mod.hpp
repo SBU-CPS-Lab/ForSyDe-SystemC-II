@@ -19,7 +19,7 @@
 using namespace sc_core;
 using namespace ForSyDe::CT;
 
-SC_MODULE(bask_mod)
+struct bask_mod : ForSyDe::composite
 {
 	CT_in iport1;
 	CT_out oport1;
@@ -28,9 +28,9 @@ SC_MODULE(bask_mod)
 	
 	SC_CTOR(bask_mod)
 	{
-        make_sine("sine1", sc_time(3,SC_US), sc_time(100, SC_NS), 1.0, carrier);
+        add(new sine("sine1", sc_time(3,SC_US), sc_time(100, SC_NS), 1.0))(carrier);
 		
-		make_mul("mixer", oport1, iport1, carrier);
+		add(new mul("mixer"))(oport1, iport1, carrier);
 	}
 };
 

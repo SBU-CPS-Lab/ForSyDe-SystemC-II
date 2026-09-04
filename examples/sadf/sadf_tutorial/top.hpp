@@ -19,10 +19,10 @@ using namespace sc_core;
 using namespace ForSyDe;
 using namespace std;
 
-SC_MODULE(top)
+struct top : ForSyDe::composite
 {
 
-    SADF::signal<kernel1_scenario_type> from_detector1; 
+    SADF::signal<kernel1_scenario_type> from_detector1;
     SADF::signal<kernel2_scenario_type> from_detector2;
     SADF::signal<int> from_source;
     SADF::signal<int> to_kernel1, from_kernel1, to_kernel2, from_kernel2;
@@ -31,46 +31,38 @@ SC_MODULE(top)
     SC_CTOR(top)
     {
 
-        SDF::make_source ("sourced", [] (int& out1, const int& inp1) {out1 = inp1 + 1;}, 1, 4, from_source);
+        add(new SDF::source("sourced", [] (int& out1, const int& inp1) {out1 = inp1 + 1;}, 1, 4))(from_source);
 
-        SADF::make_detector("detector1",
+        add(new SADF::detector("detector1",
                             detector1_cds_func,
                             detector1_kss_func,
                             detector1_table,
                             S1,
-                            1,
-                            to_zip,
-                            from_source
-                            );
-        SDF::make_unzip("unzip1", to_zip, 1, 1, from_detector1, from_detector2);
+                            1
+                            ))(to_zip, from_source);
 
-        SADF::make_kernel("kernel1",
-                            kernel1_func,
-                            kernel1_table,
-                            from_kernel1,
-                            from_detector1,
-                            to_kernel1
-                        );
+        add(new SDF::unzip<kernel1_scenario_type,kernel2_scenario_type>("unzip1", 1, 1))
+            (from_detector1, from_detector2, to_zip);
 
-        SADF::make_kernel("kernel2",
-                            kernel2_func,
-                            kernel2_table,
-                            from_kernel2,
-                            from_detector2,
-                            to_kernel2
-                        );
+        auto& kernel1 = add(new SADF::kernel("kernel1", kernel1_func, kernel1_table));
+        kernel1.cport1(from_detector1);
+        kernel1(from_kernel1, to_kernel1);
 
-        SDF::make_source("source1", [] (int& out1, const int& inp1) {out1 = inp1 + 1;}, 1, 0, to_kernel1);
-        
-        SDF::make_source("source2", [] (int& out1, const int& inp1) {out1 = inp1 - 1;}, -1, 0, to_kernel2);        
-        
-        SDF::make_sink ("sink1", [] (const int& out) {std::cout <<"kernel1 = " <<out << std::endl;}, from_kernel1);
-        
-        SDF::make_sink ("sink2", [] (const int& out) {std::cout <<"kernel2 = " <<out << std::endl;}, from_kernel2);
+        auto& kernel2 = add(new SADF::kernel("kernel2", kernel2_func, kernel2_table));
+        kernel2.cport1(from_detector2);
+        kernel2(from_kernel2, to_kernel2);
+
+        add(new SDF::source("source1", [] (int& out1, const int& inp1) {out1 = inp1 + 1;}, 1, 0))(to_kernel1);
+
+        add(new SDF::source("source2", [] (int& out1, const int& inp1) {out1 = inp1 - 1;}, -1, 0))(to_kernel2);
+
+        add(new SDF::sink("sink1", [] (const int& out) {std::cout <<"kernel1 = " <<out << std::endl;}))(from_kernel1);
+
+        add(new SDF::sink("sink2", [] (const int& out) {std::cout <<"kernel2 = " <<out << std::endl;}))(from_kernel2);
 
 
-        
-        
+
+
         //! < -------------------------------- Without Using Helper--------------------------------> //!
         
         // auto sourced = new SDF::source<int>("sourced", [] (int& out1, const int& inp1) {out1 = inp1 + 1;}, 1, 4);

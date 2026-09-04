@@ -19,26 +19,30 @@
 using namespace sc_core;
 using namespace ForSyDe;
 
-SC_MODULE(Top)
+struct Top : ForSyDe::composite
 {
     CT::signal cosSrc, NoiseSrc1, NoiseSrc2, filtInp, filtOut;
     
     SC_CTOR(Top)
     {
         
-        CT::make_cosine("cosine1", endT, CosPeriod, 1.0, cosSrc);
+        add(new CT::cosine("cosine1", endT, CosPeriod, 1.0))(cosSrc);
         
-        //~ make_cosine("cosine2", endT, CosPeriod/10, 0.1, NoiseSrc1);
-        CT::make_gaussian("gaussian1", 0.01, 0, sc_time(1, SC_MS), NoiseSrc1);
+        //~ add(new CT::cosine("cosine2", endT, CosPeriod/10, 0.1))(NoiseSrc1);
+        auto& gaussian1 = add(new CT::gaussian("gaussian1", 0.01, 0, sc_time(1, SC_MS)));
+        gaussian1.oport1(NoiseSrc1);
         
-        auto add1 = CT::make_comb2("add1", add_func, filtInp, cosSrc, NoiseSrc1);
-        add1->oport1(NoiseSrc2);
+        auto& add1 = add(new CT::comb2("add1", add_func));
+        add1(filtInp, cosSrc, NoiseSrc1);
+        add1.oport1(NoiseSrc2);
         
-        CT::make_filter("filter1", nums, dens, samplingPeriod, filtOut, filtInp);
+        auto& filter1 = add(new CT::filter("filter1", nums, dens, samplingPeriod));
+        filter1.iport1(filtInp);
+        filter1.oport1(filtOut);
         
-        CT::make_traceSig("report1", sc_time(100,SC_US), filtOut);
+        add(new CT::traceSig("report1", sc_time(100,SC_US)))(filtOut);
         
-        CT::make_traceSig("report2", sc_time(100,SC_US), NoiseSrc2);
+        add(new CT::traceSig("report2", sc_time(100,SC_US)))(NoiseSrc2);
     }
    
 };

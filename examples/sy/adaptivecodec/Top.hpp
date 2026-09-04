@@ -42,22 +42,22 @@ void report_func(abst_ext<int> inp1)
 #pragma ForSyDe end
 }
 
-SC_MODULE(Top)
+struct Top : ForSyDe::composite
 {
     SY2SY<int> srcval, srccode, result;
     
     SC_CTOR(Top)
     {
-        make_source("siggen1", siggen_func, abst_ext<int>(1), 10, srcval);
+        add(new source("siggen1", siggen_func, abst_ext<int>(1), 10))(srcval);
         
-        make_source("codegen1", codegen_func, abst_ext<int>(1), 10, srccode);
+        add(new source("codegen1", codegen_func, abst_ext<int>(1), 10))(srccode);
         
-        auto codec1 = new codec("codec1");
-        codec1->iport(srcval);
-        codec1->code(srccode);
-        codec1->oport(result);
+        auto& codec1 = add(new codec("codec1"));
+        codec1.iport(srcval);
+        codec1.code(srccode);
+        codec1.oport(result);
         
-        make_sink("report1", report_func, result);
+        add(new sink("report1", report_func))(result);
     }
 };
 

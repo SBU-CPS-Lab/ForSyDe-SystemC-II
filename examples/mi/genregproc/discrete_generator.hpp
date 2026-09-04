@@ -21,7 +21,7 @@
 
 using namespace ForSyDe;
 
-SC_MODULE(discrete_generator)
+struct discrete_generator : ForSyDe::composite
 {
 	DDE::in_port<double> drive;
 	DDE::in_port<double> load_impedance;
@@ -30,18 +30,18 @@ SC_MODULE(discrete_generator)
 	CT::signal ct_drive, ct_load_impedance, ct_voltage;
 	
     discrete_generator(sc_module_name name_, double time_constant,
-        double output_impedance, sc_time sampling_period): sc_module(name_)
+        double output_impedance, sc_time sampling_period): composite(name_)
 	{
-        make_DDE2CT("zero_order_hold1", HOLD, ct_drive, drive);
+        add(new DDE2CT<double>("zero_order_hold1", HOLD))(ct_drive, drive);
         
-        make_DDE2CT("zero_order_hold2", HOLD, ct_load_impedance, load_impedance);
+        add(new DDE2CT<double>("zero_order_hold2", HOLD))(ct_load_impedance, load_impedance);
 		
-		auto generator1 = new generator("generator1", time_constant, output_impedance, INFINITY);
-        generator1->drive(ct_drive);
-        generator1->load_impedance(ct_load_impedance);
-        generator1->voltage(ct_voltage);
+		auto& generator1 = add(new generator("generator1", time_constant, output_impedance, INFINITY));
+        generator1.drive(ct_drive);
+        generator1.load_impedance(ct_load_impedance);
+        generator1.voltage(ct_voltage);
         
-        make_CT2DDEf("periodic_sampler1", sampling_period, voltage, ct_voltage);
+        add(new CT2DDEf<double>("periodic_sampler1", sampling_period))(voltage, ct_voltage);
 	}
 };
 

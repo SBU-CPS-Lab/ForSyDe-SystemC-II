@@ -24,25 +24,26 @@ void abssin_func(CTTYPE& out1, const sc_time& inp1)
 #pragma ForSyDe end
 }
 
-SC_MODULE(top)
+struct top : ForSyDe::composite
 {
     CT2CT src1, src2, src3, des1, des2, del;
     
     SC_CTOR(top)
     {
-        auto stimuli1 = make_source("stimuli1", abssin_func, sc_time(3,SC_SEC), src1);
-        stimuli1->oport1(src2);
-        stimuli1->oport1(src3);
+        auto& stimuli1 = add(new source("stimuli1", abssin_func, sc_time(3,SC_SEC)));
+        stimuli1(src1);
+        stimuli1.oport1(src2);
+        stimuli1.oport1(src3);
         
-        make_comb2("add1", add_func, des1, src2, src3);
+        add(new comb2("add1", add_func))(des1, src2, src3);
         
-        make_shift("shift1", sc_time(.3, SC_SEC), del, des1);
+        add(new shift("shift1", sc_time(.3, SC_SEC)))(del, des1);
 
-        make_comb("pwr1", pwr_func, des2, del);
+        add(new comb("pwr1", pwr_func))(des2, del);
         
-        make_traceSig("report1", sc_time(10,SC_MS), src1);
+        add(new traceSig("report1", sc_time(10,SC_MS)))(src1);
         
-        make_traceSig("report2", sc_time(10,SC_MS), des2);
+        add(new traceSig("report2", sc_time(10,SC_MS)))(des2);
     }
    
 };

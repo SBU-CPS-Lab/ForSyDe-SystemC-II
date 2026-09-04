@@ -20,7 +20,7 @@ using namespace sc_core;
 using namespace ForSyDe;
 using namespace ForSyDe::CT;
 
-SC_MODULE(top)
+struct top : ForSyDe::composite
 {
     CT2CT cosSrc, NoiseSrc1, NoiseSrc2, filtInp, filtOut;
     SY::SY2SY<double> dig_in, dig_out;
@@ -28,24 +28,26 @@ SC_MODULE(top)
     SC_CTOR(top)    
     {
         
-        make_cosine("cosine1", endT, CosPeriod, 1.0, cosSrc);
+        add(new CT::cosine("cosine1", endT, CosPeriod, 1.0))(cosSrc);
         
-        make_gaussian("gaussian1", 0.01, 0, sc_time(1, SC_MS), NoiseSrc1);
+        auto& gaussian1 = add(new CT::gaussian("gaussian1", 0.01, 0, sc_time(1, SC_MS)));
+        gaussian1.oport1(NoiseSrc1);
         
-        auto ctadd1 = make_comb2("ctadd1", ctadd_func, filtInp, cosSrc, NoiseSrc1);
-        ctadd1->oport1(NoiseSrc2);
+        auto& ctadd1 = add(new CT::comb2("ctadd1", ctadd_func));
+        ctadd1(filtInp, cosSrc, NoiseSrc1);
+        ctadd1.oport1(NoiseSrc2);
         
-        make_CT2SY("a2d", samplingPeriod, dig_in, filtInp);
+        add(new CT2SY("a2d", samplingPeriod))(dig_in, filtInp);
         
-        auto fir1 = new fir("fir1");
-        fir1->iport1(dig_in);
-        fir1->oport1(dig_out);
+        auto& fir1 = add(new fir("fir1"));
+        fir1.iport1(dig_in);
+        fir1.oport1(dig_out);
         
-        make_SY2CT("d2a", samplingPeriod, LINEAR, filtOut, dig_out);
+        add(new SY2CT("d2a", samplingPeriod, LINEAR))(filtOut, dig_out);
                 
-        make_traceSig("report1", sc_time(100,SC_US), filtOut);
+        add(new CT::traceSig("report1", sc_time(100,SC_US)))(filtOut);
         
-        make_traceSig("report2", sc_time(100,SC_US), NoiseSrc2);
+        add(new CT::traceSig("report2", sc_time(100,SC_US)))(NoiseSrc2);
     }
    
 };

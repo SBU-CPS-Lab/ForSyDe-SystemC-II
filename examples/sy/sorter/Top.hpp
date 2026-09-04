@@ -17,24 +17,24 @@
 
 using namespace ForSyDe::SY;
 
-SC_MODULE(Top)
+struct Top : ForSyDe::composite
 {
     SY2SY<int> srca, srcb, srcc, biggest;
     
     SC_CTOR(Top)
     {
-        make_constant("constant1", abst_ext<int>(5), 1, srca);
+        add(new constant("constant1", abst_ext<int>(5), 1))(srca);
         
-        make_constant("constant2", abst_ext<int>(7), 1, srcb);
+        add(new constant("constant2", abst_ext<int>(7), 1))(srcb);
         
-        make_constant("constant3", abst_ext<int>(3), 1, srcc);
+        add(new constant("constant3", abst_ext<int>(3), 1))(srcc);
         
-        auto sorter1 = new sorter("sorter1");
-        sorter1->a(srca);
-        sorter1->b(srcb);
-        sorter1->c(srcc);
-        sorter1->biggest(biggest);
+        auto& sorter1 = add(new sorter("sorter1"));
+        sorter1.a(srca);
+        sorter1.b(srcb);
+        sorter1.c(srcc);
+        sorter1.biggest(biggest);
         
-        make_sink("sink1", report_func, biggest);
+        add(new sink("sink1", report_func))(biggest);
     }
 };

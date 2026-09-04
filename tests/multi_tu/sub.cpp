@@ -9,13 +9,13 @@
 
 #include "sub.hpp"
 
-sub::sub(sc_core::sc_module_name _name) : sc_module(_name)
+sub::sub(sc_core::sc_module_name _name) : composite(_name)
 {
-    ForSyDe::SY::make_scomb("inc", [](sample& out, const sample& in) {
+    add(new ForSyDe::SY::scomb("inc", [](sample& out, const sample& in) {
         out = sample(in.value + 1);
-    }, mid, iport);
+    }))(mid, iport);
 
-    ForSyDe::SY::make_scomb("dbl", [](sample& out, const sample& in) {
+    add(new ForSyDe::SY::scomb("dbl", [](sample& out, const sample& in) {
         out = sample(in.value * 2);
-    }, oport, mid);
+    }))(oport, mid);
 }

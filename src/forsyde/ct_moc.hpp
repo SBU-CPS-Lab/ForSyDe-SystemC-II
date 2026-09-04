@@ -29,7 +29,6 @@
 #include "sub_signal.hpp"
 #include "ct_process.hpp"
 #include "ct_process_constructors.hpp"
-#include "ct_helpers.hpp"
 
 namespace ForSyDe
 {

@@ -30,7 +30,6 @@
 #include "dde_process.hpp"
 #include "dde_process_constructors.hpp"
 #include "dde_lib.hpp"
-#include "dde_helpers.hpp"
 
 namespace ForSyDe
 {

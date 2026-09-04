@@ -16,7 +16,7 @@
 
 using namespace ForSyDe;
 
-SC_MODULE(top)
+struct top : ForSyDe::composite
 {
     SADF::signal<MacroBlock<bs>> src;
     SADF::signal<Frame<fsr,fsc>> result;
@@ -53,17 +53,17 @@ SC_MODULE(top)
         testinp.push_back(p2block1);
         testinp.push_back(p2block2);
         // SDF::make_constant("mcsrc", macroblock(), 10, src);
-        SDF::make_vsource("mcsrc", testinp, src);
-        
+        add(new SDF::vsource("mcsrc", testinp))(src);
+
         // SDF::make_constant("ftsrc", I, 10, src2);
-        SDF::make_vsource("ftsrc", {I,P30,P40,P50}, src2);
-        
-        auto mp4dec1 = new mp4dec("mp4dec1");
-        mp4dec1->mb(src);
-        mp4dec1->ft(src2);
-        mp4dec1->out(result);
-        
-        SDF::make_sink("report1", [](const auto& inp) {cout<<inp<<endl;}, result);
+        add(new SDF::vsource<frame_type>("ftsrc", {I,P30,P40,P50}))(src2);
+
+        auto& mp4dec1 = add(new mp4dec("mp4dec1"));
+        mp4dec1.mb(src);
+        mp4dec1.ft(src2);
+        mp4dec1.out(result);
+
+        add(new SDF::sink<Frame<fsr,fsc>>("report1", [](const auto& inp) {cout<<inp<<endl;}))(result);
     }
 #ifdef FORSYDE_INTROSPECTION
     void start_of_simulation()

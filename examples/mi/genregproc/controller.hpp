@@ -19,7 +19,7 @@
 
 using namespace ForSyDe;
 
-SC_MODULE(controller)
+struct controller : ForSyDe::composite
 {
 	DDE::in_port<double> voltage;
     DDE::out_port<double> drive;
@@ -29,30 +29,28 @@ SC_MODULE(controller)
 	
     SC_CTOR(controller)
 	{
-        auto fanout1 = DDE::make_fanout("fanout1", trigger, voltage);
-        fanout1->oport1(voltage2);
+        auto& fanout1 = add(new DDE::fanout<double>("fanout1"));
+        fanout1(trigger, voltage);
+        fanout1.oport1(voltage2);
         
-        DDE::make_comb("desired_v1", 
-            [](abst_ext<double>& desv, const double& trig) {desv=abst_ext<double>(110.0);},
-            desired_v,
-            trigger
-        );
+        add(new DDE::comb("desired_v1", 
+            [](abst_ext<double>& desv, const double& trig) {desv=abst_ext<double>(110.0);}
+        ))(desired_v, trigger);
         
-        DDE::make_comb2("sub1",
+        add(new DDE::comb2("sub1",
             [](abst_ext<double>& res, const abst_ext<double>& inp1, const abst_ext<double>& inp2)
             {
                 res = abst_ext<double>(unsafe_from_abst_ext(inp1)-unsafe_from_abst_ext(inp2));
-            },
-            err,
-            desired_v,
-            voltage2
-        );
+            }
+        ))(err, desired_v, voltage2);
         
-        make_DDE2CT("de2ct1", HOLD, err_ct, err);
+        add(new DDE2CT<double>("de2ct1", HOLD))(err_ct, err);
         
-        CT::make_pif("pi1", 1.1, 1.0, sc_time(100,SC_MS), drive_ct, err_ct);
+        auto& pi1 = add(new CT::pif("pi1", 1.1, 1.0, sc_time(100,SC_MS)));
+        pi1.iport1(err_ct);
+        pi1.oport1(drive_ct);
         
-        make_CT2DDEf("ct2de1", sc_time(100, SC_MS), drive, drive_ct);
+        add(new CT2DDEf<double>("ct2de1", sc_time(100, SC_MS)))(drive, drive_ct);
         
 	}
 };

@@ -37,7 +37,7 @@ using namespace ForSyDe;
 // which is what (4.3)-(4.6) fix the synchronous ones at.
 static void one(unsigned int& n, const int&) {n = 1;}
 
-SC_MODULE(fsm_semantics)
+struct fsm_semantics : ForSyDe::composite
 {
     SY::signal<int> sy_i1, sy_o1, sy_i2, sy_o2;
     UT::signal<int> ut_i1, ut_o1, ut_i2, ut_o2, ut_i3, ut_o3, ut_i4, ut_o4;
@@ -49,58 +49,58 @@ SC_MODULE(fsm_semantics)
         for (int i=0; i<8; i++) {sy_src.push_back(abst_ext<int>(i)); ut_src.push_back(i);}
 
         // ---- SY::moore ------------------------------------------------
-        SY::make_vsource("sy_moore_src", sy_src, sy_i1);
-        auto sm = new SY::moore<int,int,int>("sy_moore",
+        add(new SY::vsource("sy_moore_src", sy_src))(sy_i1);
+        auto& sm = add(new SY::moore<int,int,int>("sy_moore",
             [](int& ns, const int& st, const abst_ext<int>&){ns = st+1;},
-            [](abst_ext<int>& o, const int& st){o = abst_ext<int>(10*st);}, 0);
-        sm->iport1(sy_i1); sm->oport1(sy_o1);
-        SY::make_sink("sy_moore_sink",
-            [](const abst_ext<int>& v){std::cout << "SY::moore  " << v << "\n";}, sy_o1);
+            [](abst_ext<int>& o, const int& st){o = abst_ext<int>(10*st);}, 0));
+        sm.iport1(sy_i1); sm.oport1(sy_o1);
+        add(new SY::sink("sy_moore_sink",
+            [](const abst_ext<int>& v){std::cout << "SY::moore  " << v << "\n";}))(sy_o1);
 
         // ---- SY::mealy ------------------------------------------------
-        SY::make_vsource("sy_mealy_src", sy_src, sy_i2);
-        auto sy = new SY::mealy<int,int,int>("sy_mealy",
+        add(new SY::vsource("sy_mealy_src", sy_src))(sy_i2);
+        auto& sy = add(new SY::mealy<int,int,int>("sy_mealy",
             [](int& ns, const int& st, const abst_ext<int>&){ns = st+1;},
             [](abst_ext<int>& o, const int& st, const abst_ext<int>& a)
-                {o = abst_ext<int>(100*st + unsafe_from_abst_ext(a));}, 0);
-        sy->iport1(sy_i2); sy->oport1(sy_o2);
-        SY::make_sink("sy_mealy_sink",
-            [](const abst_ext<int>& v){std::cout << "SY::mealy  " << v << "\n";}, sy_o2);
+                {o = abst_ext<int>(100*st + unsafe_from_abst_ext(a));}, 0));
+        sy.iport1(sy_i2); sy.oport1(sy_o2);
+        add(new SY::sink("sy_mealy_sink",
+            [](const abst_ext<int>& v){std::cout << "SY::mealy  " << v << "\n";}))(sy_o2);
 
         // ---- UT::moore ------------------------------------------------
-        UT::make_vsource("ut_moore_src", ut_src, ut_i1);
-        auto um = new UT::moore<int,int,int>("ut_moore", one,
+        add(new UT::vsource("ut_moore_src", ut_src))(ut_i1);
+        auto& um = add(new UT::moore<int,int,int>("ut_moore", one,
             [](int& ns, const int& st, const std::vector<int>&){ns = st+1;},
-            [](std::vector<int>& o, const int& st){o.push_back(10*st);}, 0);
-        um->iport1(ut_i1); um->oport1(ut_o1);
-        UT::make_sink("ut_moore_sink",
-            [](const int& v){std::cout << "UT::moore  " << v << "\n";}, ut_o1);
+            [](std::vector<int>& o, const int& st){o.push_back(10*st);}, 0));
+        um.iport1(ut_i1); um.oport1(ut_o1);
+        add(new UT::sink("ut_moore_sink",
+            [](const int& v){std::cout << "UT::moore  " << v << "\n";}))(ut_o1);
 
         // ---- UT::mealy ------------------------------------------------
-        UT::make_vsource("ut_mealy_src", ut_src, ut_i2);
-        auto uy = new UT::mealy<int,int,int>("ut_mealy", one,
+        add(new UT::vsource("ut_mealy_src", ut_src))(ut_i2);
+        auto& uy = add(new UT::mealy<int,int,int>("ut_mealy", one,
             [](int& ns, const int& st, const std::vector<int>&){ns = st+1;},
             [](std::vector<int>& o, const int& st, const std::vector<int>& a)
-                {o.push_back(100*st + a[0]);}, 0);
-        uy->iport1(ut_i2); uy->oport1(ut_o2);
-        UT::make_sink("ut_mealy_sink",
-            [](const int& v){std::cout << "UT::mealy  " << v << "\n";}, ut_o2);
+                {o.push_back(100*st + a[0]);}, 0));
+        uy.iport1(ut_i2); uy.oport1(ut_o2);
+        add(new UT::sink("ut_mealy_sink",
+            [](const int& v){std::cout << "UT::mealy  " << v << "\n";}))(ut_o2);
 
         // ---- UT::scan -------------------------------------------------
-        UT::make_vsource("ut_scan_src", ut_src, ut_i3);
-        auto us = new UT::scan<int,int>("ut_scan", one,
-            [](int& ns, const int& st, const std::vector<int>&){ns = st+1;}, 0);
-        us->iport1(ut_i3); us->oport1(ut_o3);
-        UT::make_sink("ut_scan_sink",
-            [](const int& v){std::cout << "UT::scan   " << v << "\n";}, ut_o3);
+        add(new UT::vsource("ut_scan_src", ut_src))(ut_i3);
+        auto& us = add(new UT::scan<int,int>("ut_scan", one,
+            [](int& ns, const int& st, const std::vector<int>&){ns = st+1;}, 0));
+        us.iport1(ut_i3); us.oport1(ut_o3);
+        add(new UT::sink("ut_scan_sink",
+            [](const int& v){std::cout << "UT::scan   " << v << "\n";}))(ut_o3);
 
         // ---- UT::scand ------------------------------------------------
-        UT::make_vsource("ut_scand_src", ut_src, ut_i4);
-        auto ud = new UT::scand<int,int>("ut_scand", one,
-            [](int& ns, const int& st, const std::vector<int>&){ns = st+1;}, 0);
-        ud->iport1(ut_i4); ud->oport1(ut_o4);
-        UT::make_sink("ut_scand_sink",
-            [](const int& v){std::cout << "UT::scand  " << v << "\n";}, ut_o4);
+        add(new UT::vsource("ut_scand_src", ut_src))(ut_i4);
+        auto& ud = add(new UT::scand<int,int>("ut_scand", one,
+            [](int& ns, const int& st, const std::vector<int>&){ns = st+1;}, 0));
+        ud.iport1(ut_i4); ud.oport1(ut_o4);
+        add(new UT::sink("ut_scand_sink",
+            [](const int& v){std::cout << "UT::scand  " << v << "\n";}))(ut_o4);
     }
 };
 

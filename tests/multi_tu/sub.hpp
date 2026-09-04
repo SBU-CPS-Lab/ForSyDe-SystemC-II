@@ -36,7 +36,7 @@ DEFINE_TYPE(sample);
 #endif
 
 //! Increments, then doubles. Constructor defined in sub.cpp, not here.
-SC_MODULE(sub)
+struct sub : ForSyDe::composite
 {
     ForSyDe::SY::in_port<sample>  iport;
     ForSyDe::SY::out_port<sample> oport;

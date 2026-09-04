@@ -12,23 +12,23 @@
 
 using namespace ForSyDe;
 
-SC_MODULE(top)
+struct top : ForSyDe::composite
 {
     SY::signal<sample> src, result;
 
     SC_CTOR(top)
     {
-        SY::make_ssource("source1", [](sample& out, const sample& in) {
+        add(new SY::ssource("source1", [](sample& out, const sample& in) {
             out = sample(in.value + 1);
-        }, sample(1), 5, src);
+        }, sample(1), 5))(src);
 
-        auto sub1 = new sub("sub1");
-        sub1->iport(src);
-        sub1->oport(result);
+        auto& sub1 = add(new sub("sub1"));
+        sub1.iport(src);
+        sub1.oport(result);
 
-        SY::make_ssink("sink1", [](const sample& out) {
+        add(new SY::ssink("sink1", [](const sample& out) {
             std::cout << "result: " << out.value << std::endl;
-        }, result);
+        }))(result);
     }
 
 #ifdef FORSYDE_INTROSPECTION

@@ -73,7 +73,7 @@ void supervisor_fsm_od(abst_ext<double>& la,
     }
 }
 
-SC_MODULE(supervisor)
+struct supervisor : ForSyDe::composite
 {
     DDE::in_port<bool> on_off;
     DDE::in_port<bool> fault;
@@ -81,15 +81,12 @@ SC_MODULE(supervisor)
     
     SC_CTOR(supervisor)
     {
-        DDE::make_mealy2("supervisor_fsm1",
+        add(new DDE::mealy2("supervisor_fsm1",
             supervisor_fsm_ns,
             supervisor_fsm_od,
             OFF,
-            SC_ZERO_TIME,
-            load_impedance,
-            on_off,
-            fault
-        );
+            SC_ZERO_TIME
+        ))(load_impedance, on_off, fault);
     }
 };
 

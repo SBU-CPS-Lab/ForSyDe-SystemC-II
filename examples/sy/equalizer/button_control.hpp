@@ -29,7 +29,7 @@
 
 using namespace ForSyDe::SY;
 
-SC_MODULE(button_control)
+struct button_control : ForSyDe::composite
 {
     SY::in_port<OverrideMsg> overrides;
     SY::in_port<Sensor> bassDn;
@@ -47,20 +47,19 @@ SC_MODULE(button_control)
 
     SC_CTOR(button_control)
     {
-        make_comb4("button_interface1", button_interface_func,
-                    button, bassUp, bassDn, trebleUp, trebleDn);
+        add(new comb4("button_interface1", button_interface_func))
+                    (button, bassUp, bassDn, trebleUp, trebleDn);
 
-        make_zip("zip1", tup_btn_ovr, button, overrides);
+        add(new zip<Button,OverrideMsg>("zip1"))(tup_btn_ovr, button, overrides);
 
-        make_mealy("level_control1", level_control_ns_func, level_control_od_func,
-                    std::make_tuple(initState,initLevel),
-                    levelCntrl, tup_btn_ovr);
+        add(new mealy("level_control1", level_control_ns_func, level_control_od_func,
+                    std::make_tuple(initState,initLevel)))(levelCntrl, tup_btn_ovr);
 
-        make_hold("hold1",
-                std::make_tuple(abst_ext<Bass>(0),abst_ext<Treble>(0)),
-                levels, levelCntrl);
+        add(new hold("hold1",
+                std::make_tuple(abst_ext<Bass>(0),abst_ext<Treble>(0))))
+                (levels, levelCntrl);
 
-        make_unzip("unzip1", levels, bass, treble);
+        add(new unzip<Bass,Treble>("unzip1"))(bass, treble, levels);
     }
 };
 

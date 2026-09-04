@@ -29,31 +29,31 @@ sc_time t_bw = sc_time(1/1.0e9,SC_SEC);
 // Duty cycle = Firing period/Pulse pepetition period
 double duty_cycle = 0.05;
 
-SC_MODULE(uwb_pg)
+struct uwb_pg : ForSyDe::composite
 {
     // Define the output
     CT::out_port out;
 
     // Define the nodes
     CT::signal from_sin1, from_sin2, from_mult1, from_sq;
-    
+
     uwb_pg(sc_module_name _name,
-            sc_time end_t, 			
+            sc_time end_t,
             sc_time t_c, 			// carrier frequency
             sc_time t_bw, 			// envelope frequency
             sc_time t_fire, 	 		// frequency of the square wave
             double duty_cycle		// duty cycle of the square wave
-        ) : sc_module(_name)
+        ) : composite(_name)
 	{
-        CT::make_sine("sin1", end_t, t_c, 1.0, from_sin1);
-        
-        CT::make_sine("sin2", end_t, t_bw, 1.0, from_sin2);
-        
-        CT::make_mul("mult1", from_mult1, from_sin1, from_sin2);
-        
-        CT::make_square("square1", end_t, t_fire, 1.0, 0.0, duty_cycle, from_sq);
-        
-        CT::make_mul("mult2", out, from_mult1, from_sq);
-   	 }   
+        add(new CT::sine("sin1", end_t, t_c, 1.0))(from_sin1);
+
+        add(new CT::sine("sin2", end_t, t_bw, 1.0))(from_sin2);
+
+        add(new CT::mul("mult1"))(from_mult1, from_sin1, from_sin2);
+
+        add(new CT::square("square1", end_t, t_fire, 1.0, 0.0, duty_cycle))(from_sq);
+
+        add(new CT::mul("mult2"))(out, from_mult1, from_sq);
+   	 }
 };
 

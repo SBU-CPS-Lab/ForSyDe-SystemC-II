@@ -19,7 +19,7 @@
 
 using namespace ForSyDe;
 
-SC_MODULE(generator)
+struct generator : ForSyDe::composite
 {
 	CT::in_port drive;
 	CT::in_port load_impedance;
@@ -28,28 +28,35 @@ SC_MODULE(generator)
 	CT::signal limiter2sub, sub2scale, scale2int, int2sub, int2sub2, int2expr;
 	
     generator(sc_module_name name_, double time_constant,
-        double output_impedance, float drive_limit): sc_module(name_)
+        double output_impedance, float drive_limit): composite(name_)
 	{
-        CT::make_comb("limiter1", [drive_limit](CTTYPE& vout, const CTTYPE& vin)
+        add(new CT::comb("limiter1", [drive_limit](CTTYPE& vout, const CTTYPE& vin)
             {
                 if (vin>drive_limit) vout = drive_limit;
                 else if (vin<0) vout = 0;
                 else vout = vin;
-            }, limiter2sub, drive);
+            }))(limiter2sub, drive);
         
-        CT::make_sub("sub1", sub2scale, limiter2sub, int2sub);
+        add(new CT::sub("sub1"))(sub2scale, limiter2sub, int2sub);
         
-        CT::make_scale("scale1", 1.0/time_constant, scale2int, sub2scale);
+        add(new CT::scale("scale1", 1.0/time_constant))(scale2int, sub2scale);
         
-        auto int1 = CT::make_integratorf("integrator1", sc_time(100 ,SC_MS), int2sub2, scale2int);
-        int1->oport1(int2expr);
+        // CT::make_integratorf built a filterf with the fixed
+        // numerators/denominators of an integrator ({1.0}, {1.0,0.0}),
+        // rather than a class of its own -- filterf is a composite now,
+        // so its ports are bound by name like any other.
+        auto& int1 = add(new CT::filterf("integrator1",
+            std::vector<CTTYPE>{1.0}, std::vector<CTTYPE>{1.0,0.0}, sc_time(100 ,SC_MS)));
+        int1.iport1(scale2int);
+        int1.oport1(int2sub2);
+        int1.oport1(int2expr);
         
-        CT::make_shift("delay1", sc_time(200,SC_MS), int2sub, int2sub2);
+        add(new CT::shift("delay1", sc_time(200,SC_MS)))(int2sub, int2sub2);
                 
-        CT::make_comb2("expression1", [=](CTTYPE& vout, const CTTYPE& vin, const CTTYPE& imp)
+        add(new CT::comb2("expression1", [=](CTTYPE& vout, const CTTYPE& vin, const CTTYPE& imp)
             {
                 vout = (imp == INFINITY) ? vin : vin*imp/(output_impedance+imp);
-            }, voltage, int2expr, load_impedance);
+            }))(voltage, int2expr, load_impedance);
 	}
 };
 

@@ -17,44 +17,41 @@
 using namespace sc_core;
 using namespace ForSyDe;
 
-SC_MODULE(sweep_ctrl)
+struct sweep_ctrl : ForSyDe::composite
 {
     SY::in_port<int>        clk;      // "Clock"
     SY::out_port<int>       smpl_en;  // Sample enable signal
     SY::out_port<double>    th;       // Threshold
 
     SY::signal<int>         sc_in, ac_in, ac_out, a2_in;//, a2_out, sc_out;
-    
+
     /*
      * Constructor for the sweep controller top module
      */
     SC_CTOR(sweep_ctrl)
     {
-        
-        auto fo1 = SY::make_fanout("fo1", sc_in, clk);
-        fo1->oport1(ac_in);
-        fo1->oport1(a2_in);
-        
-        SY::make_smoore("avg_ctrl1",
+
+        auto& fo1 = add(new SY::fanout<int>("fo1"));
+        fo1(sc_in, clk);
+        fo1.oport1(ac_in);
+        fo1.oport1(a2_in);
+
+        add(new SY::smoore("avg_ctrl1",
             avg_ctrl_ns_func,
             avg_ctrl_od_func,
-            0,
-            ac_out,
-            ac_in
-        );
-        
-        auto and1 = SY::make_scomb2("and1", and_func, smpl_en, ac_out, a2_in);
+            0
+        ))(ac_out, ac_in);
+
+        add(new SY::scomb2("and1", and_func))(smpl_en, ac_out, a2_in);
         //~ and1->oport1(a2_out);
-        
+
         //~ SY::make_sink("report1", report_func, a2_out);
-        
-        SY::make_smoore("sc",
+
+        add(new SY::smoore("sc",
             sweep_ctrl_ns_func,
             sweep_ctrl_od_func,
-            std::make_tuple(static_cast<double>(DACMIN),0),
-            th,
-            sc_in
-        );
+            std::make_tuple(static_cast<double>(DACMIN),0)
+        ))(th, sc_in);
     }
     
     static void sweep_ctrl_ns_func(std::tuple<double,int>& out,

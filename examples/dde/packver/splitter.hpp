@@ -18,7 +18,7 @@
 
 using namespace ForSyDe;
 
-SC_MODULE(splitter)
+struct splitter : ForSyDe::composite
 {
     DDE::in_port<char> iport1;
     DDE::in_port<int> iport2;
@@ -29,9 +29,10 @@ SC_MODULE(splitter)
     
     SC_CTOR(splitter)
     {        
-        DDE::make_mealy2("split", split_ns_func, split_od_func, 'V', SC_ZERO_TIME, zout, iport1, iport2);
+        add(new DDE::mealy2("split", split_ns_func, split_od_func, 'V', SC_ZERO_TIME))
+            (zout, iport1, iport2);
         
-        DDE::make_unzip("unzip1", zout, oport1, oport2);
+        add(new DDE::unzip<int,int>("unzip1"))(oport1, oport2, zout);
     }
     
     static void split_ns_func(char& nst, const char& st, 
