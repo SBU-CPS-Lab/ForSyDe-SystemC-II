@@ -27,7 +27,7 @@
 
 using namespace ForSyDe;
 
-FORSYDE_COMPOSITE(top)
+FORSYDE_COMPOSITE(top), public SDF::mn_composite<top>
 {
     SDF::signal<short> e5, e9, e11, e15, e16, e18, e19;
     SDF::signal<L_av_t> e1, e2;
@@ -43,60 +43,36 @@ FORSYDE_COMPOSITE(top)
     {
         add(new SDF::file_source("VADFilesource1", VADFilesource_func, "source_data.txt"))
             (e12_13_14_15_16_17_18);
-        auto& VADFilesource1_unzip = add(new SDF::unzipN<r_t,r_t,r_t,short,short,rc_t,short>(
-            "VADFilesource1_unzip", {1,1,1,1,1,1,1}));
-        VADFilesource1_unzip.iport1(e12_13_14_15_16_17_18);
-        std::get<0>(VADFilesource1_unzip.oport)(e12);
-        std::get<1>(VADFilesource1_unzip.oport)(e13);
-        std::get<2>(VADFilesource1_unzip.oport)(e14);
-        std::get<3>(VADFilesource1_unzip.oport)(e15);
-        std::get<4>(VADFilesource1_unzip.oport)(e16);
-        std::get<5>(VADFilesource1_unzip.oport)(e17);
-        std::get<6>(VADFilesource1_unzip.oport)(e18);        
-        
+        add(new SDF::unzipN<r_t,r_t,r_t,short,short,rc_t,short>(
+            "VADFilesource1_unzip", {1,1,1,1,1,1,1}))
+            (e12, e13, e14, e15, e16, e17, e18, e12_13_14_15_16_17_18);
+
         add(new SDF::comb("ToneDetection1", ToneDetection_func, 1, 1))(e9, e17);
-        
-        auto& EnergyComputation1 = add(new SDF::combMN<std::tuple<pvad_acf0_t,Pfloat>,std::tuple<rvad_t,r_t,short>>(
+
+        add_combMN(
             "EnergyComputation1",
             EnergyComputation_func,
             {1,1},
-            {1,1,1}
-        ));
-        std::get<0>(EnergyComputation1.iport)(e7d);
-        std::get<1>(EnergyComputation1.iport)(e13);
-        std::get<2>(EnergyComputation1.iport)(e16);
-        std::get<0>(EnergyComputation1.oport)(e6);
-        std::get<1>(EnergyComputation1.oport)(e8);
-        
-        auto& ACFAveraging1 = add(new SDF::combMN<std::tuple<L_av_t,L_av_t>,std::tuple<r_t,r_t,short>>(
+            {1,1,1},
+            std::tie(e6, e8), std::tie(e7d, e13, e16));
+
+        add_combMN(
             "ACFAveraging1",
             ACFAveraging_func,
             {1,1},
-            {1,1,1}
-        ));
-        std::get<0>(ACFAveraging1.iport)(e12);
-        std::get<1>(ACFAveraging1.iport)(e14);
-        std::get<2>(ACFAveraging1.iport)(e15);
-        std::get<0>(ACFAveraging1.oport)(e1);
-        std::get<1>(ACFAveraging1.oport)(e2);
-        
+            {1,1,1},
+            std::tie(e1, e2), std::tie(e12, e14, e15));
+
         add(new SDF::comb("PredictorValues1", PredictorValues_func, 1, 1))(readers(e3, e4), e2);
-        
+
         add(new SDF::comb2("SpectralComparison1", SpectralComparison_func, 1, 1, 1))(e5, e1, e3);
-        
-        auto& ThresholdAdaptation1 = add(new SDF::combMN<std::tuple<rvad_t,Pfloat>,std::tuple<rav1_t,short,pvad_acf0_t,short,short>>(
+
+        add_combMN(
             "ThresholdAdaptation1",
             ThresholdAdaptation_func,
             {1,1},
-            {1,1,1,1,1}
-        ));
-        std::get<0>(ThresholdAdaptation1.iport)(e4);
-        std::get<1>(ThresholdAdaptation1.iport)(e5);
-        std::get<2>(ThresholdAdaptation1.iport)(e6);
-        std::get<3>(ThresholdAdaptation1.iport)(e9);
-        std::get<4>(ThresholdAdaptation1.iport)(e18);
-        std::get<0>(ThresholdAdaptation1.oport)(e7);
-        std::get<1>(ThresholdAdaptation1.oport)(e10);
+            {1,1,1,1,1},
+            std::tie(e7, e10), std::tie(e4, e5, e6, e9, e18));
         
         std::array<short,9> rvad_init = {{0x6000,0,0,0,0,0,0,0,0}}; short scal_init = 7;
         add(new SDF::delay("e7_init", std::make_tuple(rvad_init,scal_init)))(e7d, e7);

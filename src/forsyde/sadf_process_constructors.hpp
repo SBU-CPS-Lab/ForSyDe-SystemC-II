@@ -264,6 +264,9 @@ public:
 
     SADF_in<TC> cport1;     ///< port for the control channel
 
+    //! Supplied here because the port is declared here; Derived has the rest
+    auto control_ports() {return std::tie(cport1);}
+
 protected:
     OVals ovals;    ///< output tokens, one vector per output port
     IVals ivals;    ///< input tokens, one vector per input port
@@ -338,7 +341,7 @@ private:
         // The control port is the kernel's first input, ahead of the
         // data inputs -- which is the order the XML lists them in.
         SDF::detail::bind_all(boundInChans,
-                              std::tuple_cat(std::tie(cport1), self().in_ports()));
+                              std::tuple_cat(self().control_ports(), self().in_ports()));
         SDF::detail::bind_all(boundOutChans, self().out_ports());
     }
 #endif
@@ -883,8 +886,11 @@ using delayn = SDF::delayn<T>;
  * and the scenario type TS is read off the initial-scenario argument
  * directly, the way a state machine's ST comes off its initial state.
  * kernelMN and detectorMN take their ports as a whole tuple rather than
- * one parameter per port, so those keep their template arguments
- * explicit -- as do source, sink and delayn, which are aliases for
+ * one parameter per port, so a *deduction guide* cannot reach their
+ * template arguments -- but mn_composite's add_kernelMN/add_detectorMN,
+ * below, do, the same way make_kernelMN's tie()-wrapped outS/inpS
+ * always did: a function template deduces from its port arguments
+ * directly, guide or no guide. source, sink and delayn are aliases for
  * SDF's own and would need alias-template deduction (C++20) to reach
  * the guides above; write out the one template argument they take.
  */
@@ -895,6 +901,107 @@ kernel(sc_module_name, F, const std::map<TC,std::tuple<size_t,size_t>>&)
 template <class CDS, class KSS, class Table, class TS>
 detector(sc_module_name, CDS, KSS, Table, const TS&, size_t)
     -> detector<ForSyDe::detail::arg_t<0,KSS>, ForSyDe::detail::arg_t<2,KSS>, TS>;
+
+//! Construct-and-bind a kernelMN/detectorMN in one call, template arguments and all
+/*! See the note above: kernelMN and detectorMN take their ports as a
+ * whole tuple, so no deduction guide can reach TOs/TC/TIs, but a
+ * function template can -- add_kernelMN and add_detectorMN deduce them
+ * from the port arguments directly, the way make_kernelMN's tie()-
+ * wrapped outS/inpS parameters always did. Wrap more than one output
+ * or input in std::tie(...); a single one goes in bare. kernelMN's
+ * control port sits between the outputs and the inputs, unwrapped,
+ * exactly where bindable's own control_ports() slot sits.
+ *
+ * Two overloads each, like the constructors themselves: the one with
+ * a report_pipe argument requires FORSYDE_SELF_REPORTING (D10) and is
+ * a compile-time error without it, so a model that wants self-reporting
+ * still selects it with the same #ifdef the constructor itself needs.
+ *
+ * A composite picks this up by also deriving from SADF::mn_composite<Self>:
+ *
+ *   FORSYDE_COMPOSITE(top), public SADF::mn_composite<top>
+ */
+template <typename Derived>
+struct mn_composite
+{
+    template <typename... TOs, typename TC, typename... TIs,
+              template <class> class... OIf, template <class> class CIf,
+              template <class> class... IIf>
+    auto& add_kernelMN(sc_module_name name,
+        typename kernelMN<std::tuple<TOs...>,TC,std::tuple<TIs...>>::functype func,
+        typename kernelMN<std::tuple<TOs...>,TC,std::tuple<TIs...>>::scenario_table_type table,
+        std::tuple<OIf<TOs>&...> outs,
+        CIf<TC>& cport,
+        std::tuple<IIf<TIs>&...> ins)
+    {
+        auto& self = static_cast<Derived&>(*this);
+        auto& p = self.add(new kernelMN<std::tuple<TOs...>,TC,std::tuple<TIs...>>(name, func, table));
+        std::apply([&](auto&... o){
+            std::apply([&](auto&... i){ p(o..., cport, i...); }, ins);
+        }, outs);
+        return p;
+    }
+
+    template <typename... TOs, typename TC, typename... TIs,
+              template <class> class... OIf, template <class> class CIf,
+              template <class> class... IIf>
+    auto& add_kernelMN(sc_module_name name,
+        typename kernelMN<std::tuple<TOs...>,TC,std::tuple<TIs...>>::functype func,
+        typename kernelMN<std::tuple<TOs...>,TC,std::tuple<TIs...>>::scenario_table_type table,
+        FILE** report_pipe,
+        std::tuple<OIf<TOs>&...> outs,
+        CIf<TC>& cport,
+        std::tuple<IIf<TIs>&...> ins)
+    {
+        auto& self = static_cast<Derived&>(*this);
+        auto& p = self.add(new kernelMN<std::tuple<TOs...>,TC,std::tuple<TIs...>>(name, func, table, report_pipe));
+        std::apply([&](auto&... o){
+            std::apply([&](auto&... i){ p(o..., cport, i...); }, ins);
+        }, outs);
+        return p;
+    }
+
+    template <typename... TOs, typename... TIs, typename TS,
+              template <class> class... OIf, template <class> class... IIf>
+    auto& add_detectorMN(sc_module_name name,
+        typename detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::cds_functype cds_func,
+        typename detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::kss_functype kss_func,
+        typename detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::scenario_table_type table,
+        const TS& init_sc,
+        const std::array<size_t,sizeof...(TIs)>& itoks,
+        std::tuple<OIf<TOs>&...> outs,
+        std::tuple<IIf<TIs>&...> ins)
+    {
+        auto& self = static_cast<Derived&>(*this);
+        auto& p = self.add(new detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>(
+            name, cds_func, kss_func, table, init_sc, itoks));
+        std::apply([&](auto&... o){
+            std::apply([&](auto&... i){ p(o..., i...); }, ins);
+        }, outs);
+        return p;
+    }
+
+    template <typename... TOs, typename... TIs, typename TS,
+              template <class> class... OIf, template <class> class... IIf>
+    auto& add_detectorMN(sc_module_name name,
+        typename detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::cds_functype cds_func,
+        typename detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::kss_functype kss_func,
+        typename detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::scenario_table_type table,
+        const TS& init_sc,
+        const std::array<size_t,sizeof...(TIs)>& itoks,
+        FILE** report_pipe,
+        std::tuple<OIf<TOs>&...> outs,
+        std::tuple<IIf<TIs>&...> ins)
+    {
+        auto& self = static_cast<Derived&>(*this);
+        auto& p = self.add(new detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>(
+            name, cds_func, kss_func, table, init_sc, itoks, report_pipe));
+        std::apply([&](auto&... o){
+            std::apply([&](auto&... i){ p(o..., i...); }, ins);
+        }, outs);
+        return p;
+    }
+};
 
 }
 }

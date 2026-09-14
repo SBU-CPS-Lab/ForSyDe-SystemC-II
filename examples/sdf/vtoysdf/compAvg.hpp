@@ -45,17 +45,11 @@ FORSYDE_COMPOSITE(compAvg)
     
     SC_CTOR(compAvg)
     {
-        auto& zip1 = add(new SDF::zipN<float,float>("zip1",itoks));
-        get<0>(zip1.iport)(iport);
-        get<1>(zip1.iport)(dout);
-        zip1.oport1(zi);
-        
+        add(new SDF::zipN<float,float>("zip1",itoks))(zi, iport, dout);
+
         add(new SDF::comb("averager1", averager_func, 1, 1))(zo, zi);
-        
-        auto& unzip1 = add(new SDF::unzipN<float,float>("unzip1",otoks));
-        unzip1.iport1(zo);
-        get<0>(unzip1.oport)(oport);
-        get<1>(unzip1.oport)(din);
+
+        add(new SDF::unzipN<float,float>("unzip1",otoks))(oport, din, zo);
         
         add(new SDF::delayn("avginit1", (float)0, 2))(dout, din);
     }

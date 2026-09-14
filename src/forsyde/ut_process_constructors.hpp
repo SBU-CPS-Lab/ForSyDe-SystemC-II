@@ -1837,6 +1837,59 @@ template <class G, class NS, class OD, class ST> moore(sc_module_name, G, NS, OD
 template <class G, class NS, class OD, class ST> mealy(sc_module_name, G, NS, OD, const ST&)
     -> mealy<ForSyDe::detail::arg_t<2,NS>, ST, ForSyDe::detail::arg_t<0,OD>>;
 
+//! Construct-and-bind a mooreMN/mealyMN in one call, template arguments and all
+/*! See SDF::mn_composite for why this needs a function template rather
+ * than a deduction guide. TSs, unlike TOs/TIs, comes from init_st
+ * directly (the caller already writes std::make_tuple(...) for it, the
+ * same as moore/mealy's own ST); only the ports need std::tie(...) to
+ * carry more than one signal.
+ *
+ * A composite picks this up by also deriving from UT::mn_composite<Self>:
+ *
+ *   FORSYDE_COMPOSITE(top), public UT::mn_composite<top>
+ */
+template <typename Derived>
+struct mn_composite
+{
+    template <typename... TOs, typename... TIs, typename... TSs,
+              template <class> class... OIf, template <class> class... IIf>
+    auto& add_mooreMN(sc_module_name name,
+        typename mooreMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>>::gamma_functype gamma_func,
+        typename mooreMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>>::ns_functype ns_func,
+        typename mooreMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>>::od_functype od_func,
+        const std::tuple<TSs...>& init_st,
+        std::tuple<OIf<TOs>&...> outs,
+        std::tuple<IIf<TIs>&...> ins)
+    {
+        auto& self = static_cast<Derived&>(*this);
+        auto& p = self.add(new mooreMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>>(
+            name, gamma_func, ns_func, od_func, init_st));
+        std::apply([&](auto&... o){
+            std::apply([&](auto&... i){ p(o..., i...); }, ins);
+        }, outs);
+        return p;
+    }
+
+    template <typename... TOs, typename... TIs, typename... TSs,
+              template <class> class... OIf, template <class> class... IIf>
+    auto& add_mealyMN(sc_module_name name,
+        typename mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>>::gamma_functype gamma_func,
+        typename mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>>::ns_functype ns_func,
+        typename mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>>::od_functype od_func,
+        const std::tuple<TSs...>& init_st,
+        std::tuple<OIf<TOs>&...> outs,
+        std::tuple<IIf<TIs>&...> ins)
+    {
+        auto& self = static_cast<Derived&>(*this);
+        auto& p = self.add(new mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>>(
+            name, gamma_func, ns_func, od_func, init_st));
+        std::apply([&](auto&... o){
+            std::apply([&](auto&... i){ p(o..., i...); }, ins);
+        }, outs);
+        return p;
+    }
+};
+
 }
 }
 

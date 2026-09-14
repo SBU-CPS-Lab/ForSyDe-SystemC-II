@@ -153,17 +153,30 @@ template <typename P> struct has_in_ports<P,
 template <typename P, typename = void> struct has_out_ports : std::false_type {};
 template <typename P> struct has_out_ports<P,
     std::void_t<decltype(std::declval<P&>().out_ports())>> : std::true_type {};
+//! Does \a P declare a third, control slot -- SADF's scenario input
+/*! kernel_core's cport1 sits outside both in_ports() and out_ports(),
+ * so a kernel's control signal always needed a separate statement
+ * after the main bind. A class that supplies control_ports() gets it
+ * folded into the one positional call instead, between the outputs
+ * and the data inputs -- the order the old make_kernel(name, func,
+ * table, outS, cS1, inpS) helper already used.
+ */
+template <typename P, typename = void> struct has_control_ports : std::false_type {};
+template <typename P> struct has_control_ports<P,
+    std::void_t<decltype(std::declval<P&>().control_ports())>> : std::true_type {};
 
 template <typename Derived>
 class bindable
 {
 public:
-    //! Bind this process's signals: outputs first, then inputs
+    //! Bind this process's signals: outputs, then control, then inputs
     /*! The order is the one the make_* helpers used and the one the
      * introspection XML lists ports in, so a call reads the way the
      * process does -- out = f(in) -- and the rewrite of
      * make_comb(name, f, out, in) into comb(name, f) then p(out, in) is
-     * mechanical.
+     * mechanical. A class with a control_ports() (SADF's kernel_core)
+     * gets that slot between the outputs and the data inputs, where
+     * make_kernel's own cS1 argument already sat.
      *
      * The count is checked here rather than at the port, so a missing or
      * an extra signal is a sentence about this process instead of a
@@ -183,23 +196,38 @@ public:
         auto ports = all_ports(self);
         static_assert(sizeof...(Sigs) == std::tuple_size<decltype(ports)>::value,
             "Wrong number of signals bound to this process. Give one per "
-            "port -- the outputs first, in order, then the inputs -- or "
-            "wrap more than one signal for the same port in readers(...).");
+            "port -- the outputs first, in order, then the control port "
+            "(if any), then the inputs -- or wrap more than one signal "
+            "for the same port in readers(...).");
         bind_positional(ports, std::tie(sigs...),
                         std::index_sequence_for<Sigs...>{});
         return self;
     }
 
 private:
-    //! Outputs then inputs, skipping whichever half this process lacks
+    //! Whichever of out_ports()/control_ports()/in_ports() P declares,
+    //! as an empty tuple otherwise -- so tuple_cat below always works
+    //! regardless of which of the three this process has.
+    template <typename P> static auto maybe_outs(P& self)
+    {
+        if constexpr (has_out_ports<P>::value) return self.out_ports();
+        else return std::tuple<>{};
+    }
+    template <typename P> static auto maybe_controls(P& self)
+    {
+        if constexpr (has_control_ports<P>::value) return self.control_ports();
+        else return std::tuple<>{};
+    }
+    template <typename P> static auto maybe_ins(P& self)
+    {
+        if constexpr (has_in_ports<P>::value) return self.in_ports();
+        else return std::tuple<>{};
+    }
+
+    //! Outputs, then control (if any), then inputs
     static auto all_ports(Derived& self)
     {
-        if constexpr (has_out_ports<Derived>::value && has_in_ports<Derived>::value)
-            return std::tuple_cat(self.out_ports(), self.in_ports());
-        else if constexpr (has_out_ports<Derived>::value)
-            return self.out_ports();
-        else
-            return self.in_ports();
+        return std::tuple_cat(maybe_outs(self), maybe_controls(self), maybe_ins(self));
     }
 };
 

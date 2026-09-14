@@ -1465,6 +1465,39 @@ mealy(sc_module_name, G, NS, OD, ST)
              ST,
              typename ForSyDe::detail::token_value<ForSyDe::detail::arg_t<0,OD>>::type>;
 
+//! Construct-and-bind a mealyMN in one call, template arguments and all
+/*! See SDF::mn_composite for why this needs a function template rather
+ * than a deduction guide. TS comes from init_st directly, same as
+ * mealy's own ST above; only the ports need std::tie(...) to carry
+ * more than one signal.
+ *
+ * A composite picks this up by also deriving from DT::mn_composite<Self>:
+ *
+ *   FORSYDE_COMPOSITE(top), public DT::mn_composite<top>
+ */
+template <typename Derived>
+struct mn_composite
+{
+    template <typename... TOs, typename... TIs, typename TS,
+              template <class> class... OIf, template <class> class... IIf>
+    auto& add_mealyMN(sc_module_name name,
+        typename mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::gamma_functype gamma_func,
+        typename mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::ns_functype ns_func,
+        typename mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::od_functype od_func,
+        const TS& init_st,
+        std::tuple<OIf<TOs>&...> outs,
+        std::tuple<IIf<TIs>&...> ins)
+    {
+        auto& self = static_cast<Derived&>(*this);
+        auto& p = self.add(new mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>(
+            name, gamma_func, ns_func, od_func, init_st));
+        std::apply([&](auto&... o){
+            std::apply([&](auto&... i){ p(o..., i...); }, ins);
+        }, outs);
+        return p;
+    }
+};
+
 }
 }
 

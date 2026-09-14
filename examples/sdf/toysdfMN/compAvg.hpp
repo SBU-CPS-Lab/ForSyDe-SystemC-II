@@ -20,22 +20,18 @@
 
 using namespace ForSyDe;
 
-FORSYDE_COMPOSITE(compAvg)
+FORSYDE_COMPOSITE(compAvg), public SDF::mn_composite<compAvg>
 {
     SDF::in_port<double>  iport1;
     SDF::out_port<double> oport1;
-    
+
     SDF::signal<double> din, dout;
-    
+
     SC_CTOR(compAvg)
     {
-        auto& averager1 = add(new SDF::combMN<std::tuple<double>,std::tuple<double,double>>(
-                                            "averager1",
-                                            averager_func,
-                                            {2},
-                                            {3,2}));
-        averager1(oport1, iport1, dout);
-        get<0>(averager1.oport)(din);
+        auto& averager1 = add_combMN("averager1", averager_func, {2}, {3,2},
+            std::tie(oport1), std::tie(iport1, dout));
+        std::get<0>(averager1.oport)(din);
         
         add(new SDF::delayn("avginit1",0.0,2))(dout, din);
     }

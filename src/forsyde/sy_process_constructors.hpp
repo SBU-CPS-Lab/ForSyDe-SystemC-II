@@ -3483,6 +3483,59 @@ template <class T> svsource(sc_module_name, const std::vector<T>&) -> svsource<T
 template <class F> sink(sc_module_name, F) -> sink<ForSyDe::detail::arg_t<0,F>>;
 template <class F> ssink(sc_module_name, F) -> ssink<ForSyDe::detail::arg_t<0,F>>;
 
+//! Construct-and-bind combMN/scombMN in one call, template arguments and all
+/*! combMN and scombMN have no deduction guide above: their template
+ * arguments are the port tuples themselves, not something a single
+ * constructor argument reveals, so CTAD cannot reach them. A *function*
+ * template has no such limit -- it deduces from every parameter at
+ * once -- so add_combMN/add_scombMN take the ports as well as the
+ * constructor's own arguments, and deduce TOs/TIs from the ports the
+ * way make_combMN's tie()-wrapped outS/inpS parameters always did.
+ *
+ * Wrap more than one output or input in std::tie(...); a single one
+ * goes in bare. This mirrors add()/operator() rather than replacing
+ * it: construction and binding still happen through them underneath,
+ * so ownership stays exactly as safe as any other add(new X(...))(...).
+ *
+ * A composite picks this up by also deriving from SY::mn_composite<Self>,
+ * alongside ForSyDe::composite:
+ *
+ *   FORSYDE_COMPOSITE(top), public SY::mn_composite<top>
+ */
+template <typename Derived>
+struct mn_composite
+{
+    template <typename... TOs, typename... TIs,
+              template <class> class... OIf, template <class> class... IIf>
+    auto& add_combMN(sc_module_name name,
+        typename combMN<std::tuple<TOs...>,std::tuple<TIs...>>::functype func,
+        std::tuple<OIf<TOs>&...> outs,
+        std::tuple<IIf<TIs>&...> ins)
+    {
+        auto& self = static_cast<Derived&>(*this);
+        auto& p = self.add(new combMN<std::tuple<TOs...>,std::tuple<TIs...>>(name, func));
+        std::apply([&](auto&... o){
+            std::apply([&](auto&... i){ p(o..., i...); }, ins);
+        }, outs);
+        return p;
+    }
+
+    template <typename... TOs, typename... TIs,
+              template <class> class... OIf, template <class> class... IIf>
+    auto& add_scombMN(sc_module_name name,
+        typename scombMN<std::tuple<TOs...>,std::tuple<TIs...>>::functype func,
+        std::tuple<OIf<TOs>&...> outs,
+        std::tuple<IIf<TIs>&...> ins)
+    {
+        auto& self = static_cast<Derived&>(*this);
+        auto& p = self.add(new scombMN<std::tuple<TOs...>,std::tuple<TIs...>>(name, func));
+        std::apply([&](auto&... o){
+            std::apply([&](auto&... i){ p(o..., i...); }, ins);
+        }, outs);
+        return p;
+    }
+};
+
 }
 }
 

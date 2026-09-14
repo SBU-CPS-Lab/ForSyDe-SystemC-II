@@ -21,26 +21,21 @@
 
 using namespace ForSyDe;
 
-FORSYDE_COMPOSITE(amplifier)
+FORSYDE_COMPOSITE(amplifier), public UT::mn_composite<amplifier>
 {
     UT::in_port<int>  iport1;
     UT::out_port<int> oport1;
-    
+
     UT::signal<int> s2, s3, s4;
-    
+
     SC_CTOR(amplifier)
     {
-        auto& A2P1 = add(new UT::mealyMN<std::tuple<int>,std::tuple<int,int>,std::tuple<>>(
-                        "A2P1", A2p_gamma_func, A2p_ns_func, A2p_od_func, std::make_tuple()));
-        std::get<0>(A2P1.iport)(s3);
-        std::get<1>(A2P1.iport)(iport1);
-        std::get<0>(A2P1.oport)(s4);
-        std::get<0>(A2P1.oport)(oport1);
+        auto& a2p1 = add_mealyMN("A2P1", A2p_gamma_func, A2p_ns_func, A2p_od_func, std::make_tuple(),
+            std::tie(s4), std::tie(s3, iport1));
+        std::get<0>(a2p1.oport)(oport1);
 
-        auto& A3P1 = add(new UT::mealyMN<std::tuple<int>,std::tuple<int>,std::tuple<int>>(
-                        "A3P1", A3p_gamma_func, A3p_ns_func, A3p_od_func, std::make_tuple(10)));
-        std::get<0>(A3P1.iport)(s4);
-        std::get<0>(A3P1.oport)(s2);
+        add_mealyMN("A3P1", A3p_gamma_func, A3p_ns_func, A3p_od_func, std::make_tuple(10),
+            std::tie(s2), std::tie(s4));
 
         add(new UT::delay("A4p", 10))(s3, s2);
     }

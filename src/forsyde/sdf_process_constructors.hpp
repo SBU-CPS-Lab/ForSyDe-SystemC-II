@@ -1625,6 +1625,38 @@ template <class F> file_source(sc_module_name, F, std::string)
 template <class F> file_sink(sc_module_name, F, std::string)
     -> file_sink<ForSyDe::detail::arg_t<1,F>>;
 
+//! Construct-and-bind a combMN in one call, template arguments and all
+/*! See SY::mn_composite for why this needs a function template rather
+ * than a deduction guide: combMN's template arguments are the port
+ * tuples, which only the *port* arguments reveal, and a function
+ * template deduces from those directly. Wrap more than one output or
+ * input in std::tie(...); a single one goes in bare.
+ *
+ * A composite picks this up by also deriving from SDF::mn_composite<Self>:
+ *
+ *   FORSYDE_COMPOSITE(top), public SDF::mn_composite<top>
+ */
+template <typename Derived>
+struct mn_composite
+{
+    template <typename... TOs, typename... TIs,
+              template <class> class... OIf, template <class> class... IIf>
+    auto& add_combMN(sc_module_name name,
+        typename combMN<std::tuple<TOs...>,std::tuple<TIs...>>::functype func,
+        std::array<size_t,sizeof...(TOs)> otoks,
+        std::array<size_t,sizeof...(TIs)> itoks,
+        std::tuple<OIf<TOs>&...> outs,
+        std::tuple<IIf<TIs>&...> ins)
+    {
+        auto& self = static_cast<Derived&>(*this);
+        auto& p = self.add(new combMN<std::tuple<TOs...>,std::tuple<TIs...>>(name, func, otoks, itoks));
+        std::apply([&](auto&... o){
+            std::apply([&](auto&... i){ p(o..., i...); }, ins);
+        }, outs);
+        return p;
+    }
+};
+
 }
 }
 

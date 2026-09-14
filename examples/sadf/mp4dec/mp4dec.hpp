@@ -22,7 +22,7 @@
 using namespace ForSyDe;
 using namespace std;
 
-FORSYDE_COMPOSITE(mp4dec)
+FORSYDE_COMPOSITE(mp4dec), public SADF::mn_composite<mp4dec>
 {
     SADF::in_port<frame_type>  ft;
     SADF::in_port<MacroBlock<bs>>  mb;
@@ -43,9 +43,7 @@ FORSYDE_COMPOSITE(mp4dec)
         auto rc2mc   = new SADF::signal<Frame<fsr,fsc>>("rc2mc",100);
         auto rc2mcd  = new SADF::signal<Frame<fsr,fsc>>("rc2mcd",100);
 
-        using fd1_t = SADF::detectorMN<std::tuple<frame_type,frame_type,frame_type,frame_type>,
-                                       std::tuple<frame_type,bool>,frame_type>;
-        add(new fd1_t(
+        add_detectorMN(
             "fd1",
             fd_cds_func,
             fd_kss_func,
@@ -61,12 +59,10 @@ FORSYDE_COMPOSITE(mp4dec)
                 {P99, {99,99,1,1}}
             },
             I,
-            {1,1}
-        ))(*fd2idct,*fd2vld,*fd2mc,*fd2rc, ft,*rc2fdd);
+            {1,1},
+            std::tie(*fd2idct,*fd2vld,*fd2mc,*fd2rc), std::tie(ft,*rc2fdd));
 
-        using vld1_t = SADF::kernelMN<std::tuple<MacroBlock<bs>,MotionVec>,frame_type,
-                                      std::tuple<MacroBlock<bs>>>;
-        auto& vld1 = add(new vld1_t(
+        add_kernelMN(
             "vld1",
             vld_func,
             {
@@ -79,14 +75,10 @@ FORSYDE_COMPOSITE(mp4dec)
                 {P70, {{1},{1,1}}},
                 {P80, {{1},{1,1}}},
                 {P99, {{1},{1,1}}}
-            }
-        ));
-        vld1.cport1(*fd2vld);
-        vld1(*vld2idct,*vld2mc, mb);
+            },
+            std::tie(*vld2idct,*vld2mc), *fd2vld, std::tie(mb));
 
-        using idct1_t = SADF::kernelMN<std::tuple<MacroBlock<bs>>,frame_type,
-                                       std::tuple<MacroBlock<bs>>>;
-        auto& idct1 = add(new idct1_t(
+        add_kernelMN(
             "idct1",
             idct_func,
             {
@@ -99,14 +91,10 @@ FORSYDE_COMPOSITE(mp4dec)
                 {P70, {{1},{1}}},
                 {P80, {{1},{1}}},
                 {P99, {{1},{1}}}
-            }
-        ));
-        idct1.cport1(*fd2idct);
-        idct1(*idct2rc, *vld2idct);
+            },
+            std::tie(*idct2rc), *fd2idct, std::tie(*vld2idct));
 
-        using mc1_t = SADF::kernelMN<std::tuple<Frame<fsr,fsc>>,frame_type,
-                                     std::tuple<MotionVec,Frame<fsr,fsc>>>;
-        auto& mc1 = add(new mc1_t(
+        add_kernelMN(
             "mc1",
             mc_func,
             {
@@ -119,14 +107,10 @@ FORSYDE_COMPOSITE(mp4dec)
                 {P70, {{70,1},{1}}},
                 {P80, {{80,1},{1}}},
                 {P99, {{99,1},{1}}}
-            }
-        ));
-        mc1.cport1(*fd2mc);
-        mc1(*mc2rc, *vld2mc,*rc2mcd);
+            },
+            std::tie(*mc2rc), *fd2mc, std::tie(*vld2mc,*rc2mcd));
 
-        using rc1_t = SADF::kernelMN<std::tuple<Frame<fsr,fsc>,bool>,frame_type,
-                                     std::tuple<MacroBlock<bs>,Frame<fsr,fsc>>>;
-        auto& rc1 = add(new rc1_t(
+        auto& rc1 = add_kernelMN(
             "rc1",
             rc_func,
             {
@@ -139,11 +123,9 @@ FORSYDE_COMPOSITE(mp4dec)
                 {P70, {{70,1},{1,1}}},
                 {P80, {{80,1},{1,1}}},
                 {P99, {{99,1},{1,1}}}
-            }
-        ));
-        rc1.cport1(*fd2rc);
-        rc1(*rc2mc,*rc2fd, *idct2rc,*mc2rc);
-        get<0>(rc1.oport)(out);
+            },
+            std::tie(*rc2mc,*rc2fd), *fd2rc, std::tie(*idct2rc,*mc2rc));
+        std::get<0>(rc1.oport)(out);
 
         add(new SDF::delayn(
             "rc2fddelay",

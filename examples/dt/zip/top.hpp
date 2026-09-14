@@ -27,7 +27,7 @@ vector<tuple<size_t,int>> in_vecc =
     {make_tuple(0,1), make_tuple(1,2), make_tuple(3,0),
      make_tuple(5,0)};
 
-FORSYDE_COMPOSITE(top)
+FORSYDE_COMPOSITE(top), public DT::mn_composite<top>
 {
     DT::signal<int> src1, src2, src1p, src2p, srcc, src1pp, src2pp, report3, report4;
     DT::signal<tuple<vector<abst_ext<int>>,vector<abst_ext<int>>>> zipped1, zipped2;
@@ -42,12 +42,8 @@ FORSYDE_COMPOSITE(top)
         auto zip1_gamma = [] (auto& itoks, const auto& k) {itoks = k+1;};
         add(new DT::zip<int,int,int>("zip1", zip1_gamma))(zipped2, src1p, src2p, srcc);
 
-        auto& swap1 = add(new DT::mealyMN<tuple<int,int>,tuple<int,int>,int>(
-                        "swap1", swap_gamma, swap_ns_func, swap_od_func, 0));
-        get<0>(swap1.iport)(src1pp);
-        get<1>(swap1.iport)(src2pp);
-        get<0>(swap1.oport)(report3);
-        get<1>(swap1.oport)(report4);
+        add_mealyMN("swap1", swap_gamma, swap_ns_func, swap_od_func, 0,
+            std::tie(report3, report4), std::tie(src1pp, src2pp));
         
         add(new DT::sink("report1", report1_func))(zipped1);
         add(new DT::sink("report2", report2_func))(zipped2);

@@ -44,13 +44,11 @@ FORSYDE_COMPOSITE(top)
         add(new SDF::unzip<kernel1_scenario_type,kernel2_scenario_type>("unzip1", 1, 1))
             (from_detector1, from_detector2, to_zip);
 
-        auto& kernel1 = add(new SADF::kernel("kernel1", kernel1_func, kernel1_table));
-        kernel1.cport1(from_detector1);
-        kernel1(from_kernel1, to_kernel1);
+        add(new SADF::kernel("kernel1", kernel1_func, kernel1_table))
+            (from_kernel1, from_detector1, to_kernel1);
 
-        auto& kernel2 = add(new SADF::kernel("kernel2", kernel2_func, kernel2_table));
-        kernel2.cport1(from_detector2);
-        kernel2(from_kernel2, to_kernel2);
+        add(new SADF::kernel("kernel2", kernel2_func, kernel2_table))
+            (from_kernel2, from_detector2, to_kernel2);
 
         add(new SDF::source("source1", [] (int& out1, const int& inp1) {out1 = inp1 + 1;}, 1, 0))(to_kernel1);
 
