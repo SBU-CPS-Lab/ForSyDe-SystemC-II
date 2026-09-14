@@ -19,18 +19,16 @@
 
 using namespace ForSyDe;
 
-struct top : ForSyDe::composite
+FORSYDE_COMPOSITE(top)
 {
     SDF::signal<double> src, src2, upsrc, res, downres;
     SDF::signal<std::tuple<std::vector<double>,std::vector<double>>> zipped_res;
     
     SC_CTOR(top)
     {
-        auto& stimuli1 = add(new SDF::file_source("stimuli1", stimuli_func, 
+        add(new SDF::file_source("stimuli1", stimuli_func,
             "input.txt"
-        ));
-        stimuli1(src);
-        stimuli1.oport1(src2);
+        ))(readers(src, src2));
       
         add(new SDF::comb("upSampler1", upSampler_func, 2, 1))(upsrc, src);
 

@@ -19,7 +19,7 @@
 
 using namespace ForSyDe;
 
-struct controller : ForSyDe::composite
+FORSYDE_COMPOSITE(controller)
 {
 	DDE::in_port<double> voltage;
     DDE::out_port<double> drive;
@@ -29,9 +29,7 @@ struct controller : ForSyDe::composite
 	
     SC_CTOR(controller)
 	{
-        auto& fanout1 = add(new DDE::fanout<double>("fanout1"));
-        fanout1(trigger, voltage);
-        fanout1.oport1(voltage2);
+        add(new DDE::fanout<double>("fanout1"))(readers(trigger, voltage2), voltage);
         
         add(new DDE::comb("desired_v1", 
             [](abst_ext<double>& desv, const double& trig) {desv=abst_ext<double>(110.0);}

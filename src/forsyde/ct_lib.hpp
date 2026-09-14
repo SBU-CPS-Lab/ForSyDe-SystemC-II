@@ -332,7 +332,7 @@ inline mul* make_mul(std::string pName,
 /*! This class is used to create a continuous-time signal source which
  * produces a Random signal based on the Gaussian distribution
  */
-struct gaussian : ForSyDe::composite
+FORSYDE_COMPOSITE(gaussian)
 {
     CT_out oport1;          ///< port for the output channel
 
@@ -395,7 +395,7 @@ inline gaussian* make_gaussian(std::string pName,
  * It internally uses a DDE filter together with CT2DDE and DDE2CT MoC
  * interfaces.
  */
-struct filter : ForSyDe::composite
+FORSYDE_COMPOSITE(filter)
 {
     CT_in iport1;           ///< port for the input channel
     CT_out oport1;          ///< port for the output channel;
@@ -464,7 +464,7 @@ inline filter* make_filter(std::string pName,
  * It internally uses a DDE filter together with CT2DDEf and DDE2CT
  * MoC interfaces.
  */
-struct filterf : ForSyDe::composite
+FORSYDE_COMPOSITE(filterf)
 {
     CT_in iport1;           ///< port for the input channel
     CT_out oport1;          ///< port for the output channel;
@@ -576,7 +576,7 @@ inline filterf* make_integratorf(std::string pName,
  * based on the proportional and integral gain parameters.
  * It internally uses a scale, an integrator and an adder.
  */
-struct pif : ForSyDe::composite
+FORSYDE_COMPOSITE(pif)
 {
     CT_in iport1;           ///< port for the input channel
     CT_out oport1;          ///< port for the output channel;

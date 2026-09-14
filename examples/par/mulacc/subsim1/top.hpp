@@ -15,7 +15,7 @@
 
 using namespace ForSyDe::SY;
 
-struct top : ForSyDe::composite
+FORSYDE_COMPOSITE(top)
 {
     SY2SY<int> srca, srcb, result;
 

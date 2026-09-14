@@ -29,7 +29,7 @@
 
 using namespace ForSyDe::SY;
 
-struct button_control : ForSyDe::composite
+FORSYDE_COMPOSITE(button_control)
 {
     SY::in_port<OverrideMsg> overrides;
     SY::in_port<Sensor> bassDn;

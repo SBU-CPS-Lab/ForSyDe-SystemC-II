@@ -25,7 +25,7 @@
 using namespace sc_core;
 using namespace ForSyDe;
 
-struct top : ForSyDe::composite
+FORSYDE_COMPOSITE(top)
 {
     DDE::signal<bool> on_off, fault;
 	DDE::signal<double> load_impedance, load_impedance_d,

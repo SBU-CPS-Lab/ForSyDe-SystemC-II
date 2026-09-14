@@ -24,16 +24,13 @@ void abssin_func(CTTYPE& out1, const sc_time& inp1)
 #pragma ForSyDe end
 }
 
-struct top : ForSyDe::composite
+FORSYDE_COMPOSITE(top)
 {
     CT2CT src1, src2, src3, des1, des2, del;
     
     SC_CTOR(top)
     {
-        auto& stimuli1 = add(new source("stimuli1", abssin_func, sc_time(3,SC_SEC)));
-        stimuli1(src1);
-        stimuli1.oport1(src2);
-        stimuli1.oport1(src3);
+        add(new source("stimuli1", abssin_func, sc_time(3,SC_SEC)))(readers(src1, src2, src3));
         
         add(new comb2("add1", add_func))(des1, src2, src3);
         

@@ -19,7 +19,7 @@
 
 using namespace ForSyDe;
 
-struct top : ForSyDe::composite
+FORSYDE_COMPOSITE(top)
 {
     SDF::signal<double> src, upsrc, res, downres;
     

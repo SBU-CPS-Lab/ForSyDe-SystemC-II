@@ -21,7 +21,7 @@
 using namespace std;
 using namespace ForSyDe::SY;
 
-struct mlpnn : ForSyDe::composite
+FORSYDE_COMPOSITE(mlpnn)
 {
 	SY_in<float> iport[NN_NUM_INPUTS];
 	SY_out<float> oport[NN_NUM_OUTPUTS];

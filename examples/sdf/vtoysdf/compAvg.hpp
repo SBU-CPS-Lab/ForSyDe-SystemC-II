@@ -35,7 +35,7 @@ constexpr std::array<size_t,2> otoks = {2,2};
 using namespace ForSyDe;
 using namespace std;
 
-struct compAvg : ForSyDe::composite
+FORSYDE_COMPOSITE(compAvg)
 {
     SDF::in_port<float>  iport;
     SDF::out_port<float> oport;

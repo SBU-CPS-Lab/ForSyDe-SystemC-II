@@ -22,7 +22,7 @@
 
 using namespace ForSyDe::SY;
 
-struct sorter : ForSyDe::composite
+FORSYDE_COMPOSITE(sorter)
 {
     SY_in<int>  a, b, c;
     SY_out<int> biggest;
@@ -33,20 +33,11 @@ struct sorter : ForSyDe::composite
     
     SC_CTOR(sorter)
     {
-        auto& foa = add(new fanout<int>("foa"));
-        foa(c11, a);
-        foa.oport1(c32);
-        foa.oport1(m2);
-        
-        auto& fob = add(new fanout<int>("fob"));
-        fob(c12, b);
-        fob.oport1(c21);
-        fob.oport1(m3);
-        
-        auto& foc = add(new fanout<int>("foc"));
-        foc(c22, c);
-        foc.oport1(c31);
-        foc.oport1(m4);
+        add(new fanout<int>("foa"))(readers(c11, c32, m2), a);
+
+        add(new fanout<int>("fob"))(readers(c12, c21, m3), b);
+
+        add(new fanout<int>("foc"))(readers(c22, c31, m4), c);
         
         add(new comb2("comparator1", comparator_func))(dec1, c11, c12);
         

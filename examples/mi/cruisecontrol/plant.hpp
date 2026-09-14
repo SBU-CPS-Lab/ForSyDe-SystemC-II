@@ -23,7 +23,7 @@ using namespace ForSyDe;
 #define b 50
 #define DEAT_TIME .1  // transport delay of the plant in seconds
 
-struct plant : ForSyDe::composite
+FORSYDE_COMPOSITE(plant)
 {
         CT::in_port u;
     CT::out_port v;

@@ -139,7 +139,7 @@ static const char* verdict(moc_id from, moc_id to)
 // particular had no interface of any kind -- it could not be entered or
 // left -- which is checked here as a round trip, since SY2DT and DT2SY
 // at the same lambda have to compose to the identity.
-struct through_an_interface : ForSyDe::composite
+FORSYDE_COMPOSITE(through_an_interface)
 {
     SY::signal<int> sy_src, sy_out, sy_src2, sy_back, sy_last;
     UT::signal<int> ut_mid, ut_src;

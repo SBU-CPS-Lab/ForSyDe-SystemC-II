@@ -16,7 +16,7 @@
 
 using namespace ForSyDe;
 
-struct top : ForSyDe::composite
+FORSYDE_COMPOSITE(top)
 {
     SADF::signal<MacroBlock<bs>> src;
     SADF::signal<Frame<fsr,fsc>> result;

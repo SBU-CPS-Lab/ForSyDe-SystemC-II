@@ -19,7 +19,7 @@
 
 using namespace ForSyDe;
 
-struct generator : ForSyDe::composite
+FORSYDE_COMPOSITE(generator)
 {
 	CT::in_port drive;
 	CT::in_port load_impedance;

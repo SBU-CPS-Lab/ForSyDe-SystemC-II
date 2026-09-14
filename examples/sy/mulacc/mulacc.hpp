@@ -20,21 +20,19 @@
 
 using namespace ForSyDe;
 
-struct mulacc : ForSyDe::composite
+FORSYDE_COMPOSITE(mulacc)
 {
     SY::in_port<int>  a, b;
     SY::out_port<int> result;
-    
+
     SY::signal<int> addi1, addi2, acci;
-    
+
     SC_CTOR(mulacc)
     {
         add(new SY::scomb2("mul1", mul_func))(addi1, a, b);
 
-        auto& add1 = add(new SY::scomb2("add1", add_func));
-        add1(acci, addi1, addi2);
-        add1.oport1(result);
-        
+        add(new SY::scomb2("add1", add_func))(readers(acci, result), addi1, addi2);
+
         add(new SY::sdelay("accum", 0))(addi2, acci);
     }
 };

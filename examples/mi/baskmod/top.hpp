@@ -20,7 +20,7 @@ using namespace ForSyDe;
 using namespace ForSyDe::SY;
 using namespace ForSyDe::CT;
 
-struct top : ForSyDe::composite
+FORSYDE_COMPOSITE(top)
 {
 	SY2SY<double> from_bit_src;
 	
@@ -30,9 +30,7 @@ struct top : ForSyDe::composite
 	{
 		add(new SY::source("bit_src1", bit_src_func, abst_ext<double>(0), 0))(from_bit_src);
         
-		auto& sy2ct1 = add(new SY2CT("sy2ct1", sc_time(100,SC_NS), HOLD));
-		sy2ct1(in_bits, from_bit_src);
-		sy2ct1.oport1(to_report1);
+		add(new SY2CT("sy2ct1", sc_time(100,SC_NS), HOLD))(readers(in_bits, to_report1), from_bit_src);
 		
 		auto& bask_mod1 = add(new bask_mod("bm"));
         bask_mod1.iport1(in_bits);

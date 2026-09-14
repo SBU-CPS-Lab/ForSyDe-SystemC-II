@@ -26,7 +26,7 @@
 
 using namespace ForSyDe::SY;
 
-struct equalizer : ForSyDe::composite
+FORSYDE_COMPOSITE(equalizer)
 {
     SY::in_port<Sensor> bassDn;
     SY::in_port<Sensor> bassUp;

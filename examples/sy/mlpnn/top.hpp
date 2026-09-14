@@ -19,7 +19,7 @@
 using namespace std;
 using namespace ForSyDe::SY;
 
-struct top : ForSyDe::composite
+FORSYDE_COMPOSITE(top)
 {
     SY2SY<float> nn_input_sig[NN_NUM_INPUTS];
     SY2SY<float> nn_output_sig[NN_NUM_OUTPUTS];

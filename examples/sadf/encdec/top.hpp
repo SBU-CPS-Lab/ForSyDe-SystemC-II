@@ -20,7 +20,7 @@ using namespace std;
 // Define an enumerated tupe for the graph scenarios with values Sp, Sm, Sc
 enum scen {Sp, Sm, Sc};
 
-struct top : ForSyDe::composite
+FORSYDE_COMPOSITE(top)
 {
     SADF::signal<int> ttot, ttotd, ttoep, ttoem, ttoec, eptod, emtod, ectod, dtor;
     SADF::signal<scen> ktot, ktoep, ktoem, ktoec, ktod;

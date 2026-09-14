@@ -18,7 +18,7 @@
 
 using namespace ForSyDe;
 
-struct top : ForSyDe::composite
+FORSYDE_COMPOSITE(top)
 {
     DDE::signal<int> srca, feedback, addi1, addi2, result, addi1p, addi2p, buf_result;
     DDE::signal<std::tuple<abst_ext<int>,abst_ext<int>>> zip_result;
@@ -27,17 +27,12 @@ struct top : ForSyDe::composite
     {
         add(new DDE::delay("delay1", abst_ext<int>(0), sc_time(10, SC_NS)))(srca, feedback);
         
-        auto& inc1 = add(new DDE::comb("inc1", inc_func));
-        inc1(feedback, srca);
-        inc1.oport1(addi1);
-        inc1.oport1(addi1p);
-        
-        auto& const1 = add(new DDE::vsource<int>("const1",
+        add(new DDE::comb("inc1", inc_func))(readers(feedback, addi1, addi1p), srca);
+
+        add(new DDE::vsource<int>("const1",
                 std::vector<int>(1,7),
                 std::vector<sc_time>(1,sc_time(50,SC_NS))
-        ));
-        const1(addi2);
-        const1.oport1(addi2p);
+        ))(readers(addi2, addi2p));
         
         add(new DDE::comb2("add1", add_func))(result, addi1, addi2);
         

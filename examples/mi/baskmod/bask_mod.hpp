@@ -19,7 +19,7 @@
 using namespace sc_core;
 using namespace ForSyDe::CT;
 
-struct bask_mod : ForSyDe::composite
+FORSYDE_COMPOSITE(bask_mod)
 {
 	CT_in iport1;
 	CT_out oport1;

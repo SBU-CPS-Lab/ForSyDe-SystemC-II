@@ -20,7 +20,7 @@
 
 using namespace ForSyDe;
 
-struct mulacc : ForSyDe::composite
+FORSYDE_COMPOSITE(mulacc)
 {
     SY::in_port<int>  a, b;
     SY::out_port<int> result;

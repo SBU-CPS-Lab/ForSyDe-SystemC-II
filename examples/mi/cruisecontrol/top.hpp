@@ -23,7 +23,7 @@ void sub_func(double& out, const double& inp1, const double& inp2)
     out = inp1 - inp2;
 }
 
-struct top : ForSyDe::composite
+FORSYDE_COMPOSITE(top)
 {
   CT::signal u, v, vout;
   SY::signal<double> r, e, du, dv;

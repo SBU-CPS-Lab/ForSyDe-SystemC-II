@@ -34,13 +34,13 @@ Three consequences at each call site:
    the token type (`fanout`, `zip`, `unzip`) -- write them out. The
    compiler says so; it does not deduce something wrong.
 
-3. **A process bound to more than one signal on one port** keeps the
-   extra bind explicit, as it is today:
+3. **A process bound to more than one signal on one port** wraps the
+   extra signals for that slot in `readers(...)`, rather than a second
+   statement after the main bind:
 
    ```cpp
    auto& add1 = add(new SY::scomb2("add1", add_func));
-   add1(acci, addi1, addi2);
-   add1.oport1(result);          // the second reader of oport1
+   add1(readers(acci, result), addi1, addi2);
    ```
 
 A composite's *own* ports are still bound by name (`m.a(sig)`).

@@ -20,7 +20,7 @@ using namespace sc_core;
 using namespace ForSyDe;
 using namespace ForSyDe::CT;
 
-struct top : ForSyDe::composite
+FORSYDE_COMPOSITE(top)
 {
     CT2CT cosSrc, NoiseSrc1, NoiseSrc2, filtInp, filtOut;
     SY::SY2SY<double> dig_in, dig_out;
@@ -33,9 +33,7 @@ struct top : ForSyDe::composite
         auto& gaussian1 = add(new CT::gaussian("gaussian1", 0.01, 0, sc_time(1, SC_MS)));
         gaussian1.oport1(NoiseSrc1);
         
-        auto& ctadd1 = add(new CT::comb2("ctadd1", ctadd_func));
-        ctadd1(filtInp, cosSrc, NoiseSrc1);
-        ctadd1.oport1(NoiseSrc2);
+        add(new CT::comb2("ctadd1", ctadd_func))(readers(filtInp, NoiseSrc2), cosSrc, NoiseSrc1);
         
         add(new CT2SY("a2d", samplingPeriod))(dig_in, filtInp);
         

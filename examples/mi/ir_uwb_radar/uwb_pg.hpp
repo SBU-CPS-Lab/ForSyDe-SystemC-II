@@ -29,7 +29,7 @@ sc_time t_bw = sc_time(1/1.0e9,SC_SEC);
 // Duty cycle = Firing period/Pulse pepetition period
 double duty_cycle = 0.05;
 
-struct uwb_pg : ForSyDe::composite
+FORSYDE_COMPOSITE(uwb_pg)
 {
     // Define the output
     CT::out_port out;

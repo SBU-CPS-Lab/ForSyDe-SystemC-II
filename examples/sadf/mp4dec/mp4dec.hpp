@@ -22,7 +22,7 @@
 using namespace ForSyDe;
 using namespace std;
 
-struct mp4dec : ForSyDe::composite
+FORSYDE_COMPOSITE(mp4dec)
 {
     SADF::in_port<frame_type>  ft;
     SADF::in_port<MacroBlock<bs>>  mb;

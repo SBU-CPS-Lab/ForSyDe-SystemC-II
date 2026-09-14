@@ -19,7 +19,7 @@ using namespace sc_core;
 using namespace ForSyDe;
 using namespace std;
 
-struct top : ForSyDe::composite
+FORSYDE_COMPOSITE(top)
 {
 
     SADF::signal<kernel1_scenario_type> from_detector1;

@@ -48,7 +48,7 @@ void tri_adder_func(double& out1,
 }
 
 
-struct audio_filter : ForSyDe::composite
+FORSYDE_COMPOSITE(audio_filter)
 {
     SY::in_port<double> bass;
     SY::in_port<double> treble;
@@ -81,10 +81,7 @@ struct audio_filter : ForSyDe::composite
         add(new smealy("fir3", fir_ns_func, fir_od_func<hpCoeff>,
             std::vector<double>(hpCoeff.size()-1, 0)))(filteredHigh, fAudioIn3);
 
-        auto& fanout1 = add(new fanout<double>("fanout1"));
-        fanout1(fAudioIn1, audioIn);
-        fanout1.oport1(fAudioIn2);
-        fanout1.oport1(fAudioIn3);
+        add(new fanout<double>("fanout1"))(readers(fAudioIn1, fAudioIn2, fAudioIn3), audioIn);
     }
 };
 

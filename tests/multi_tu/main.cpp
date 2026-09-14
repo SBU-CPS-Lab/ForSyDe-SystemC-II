@@ -12,7 +12,7 @@
 
 using namespace ForSyDe;
 
-struct top : ForSyDe::composite
+FORSYDE_COMPOSITE(top)
 {
     SY::signal<sample> src, result;
 

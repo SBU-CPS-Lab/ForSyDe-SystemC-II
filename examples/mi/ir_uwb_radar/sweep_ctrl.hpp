@@ -17,7 +17,7 @@
 using namespace sc_core;
 using namespace ForSyDe;
 
-struct sweep_ctrl : ForSyDe::composite
+FORSYDE_COMPOSITE(sweep_ctrl)
 {
     SY::in_port<int>        clk;      // "Clock"
     SY::out_port<int>       smpl_en;  // Sample enable signal
@@ -31,10 +31,7 @@ struct sweep_ctrl : ForSyDe::composite
     SC_CTOR(sweep_ctrl)
     {
 
-        auto& fo1 = add(new SY::fanout<int>("fo1"));
-        fo1(sc_in, clk);
-        fo1.oport1(ac_in);
-        fo1.oport1(a2_in);
+        add(new SY::fanout<int>("fo1"))(readers(sc_in, ac_in, a2_in), clk);
 
         add(new SY::smoore("avg_ctrl1",
             avg_ctrl_ns_func,

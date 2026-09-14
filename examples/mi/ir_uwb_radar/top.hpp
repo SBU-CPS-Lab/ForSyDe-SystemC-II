@@ -48,7 +48,7 @@ std::vector<CTTYPE> dens = {1.0, 2.6912e9, 2.5302e21, 5.0585e30, 2.2986e42, 2.99
 using namespace sc_core;
 using namespace ForSyDe;
 
-struct top : ForSyDe::composite
+FORSYDE_COMPOSITE(top)
 {
     CT::signal  from_pg, from_anttx, from_channel, from_antrx, src2;
     std::vector<SY::signal<int>>    from_sampler;

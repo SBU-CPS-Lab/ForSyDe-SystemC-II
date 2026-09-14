@@ -17,7 +17,7 @@
 
 using namespace ForSyDe;
 
-struct top : ForSyDe::composite
+FORSYDE_COMPOSITE(top)
 {
     UT::signal<int> src, result;
     

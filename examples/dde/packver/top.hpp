@@ -16,7 +16,7 @@
 
 using namespace ForSyDe;
 
-struct top : ForSyDe::composite
+FORSYDE_COMPOSITE(top)
 {
     DDE::signal<int> si, s1, s2;
     DDE::signal<char> sp1, sp2, so1, so2, sf;
@@ -37,9 +37,7 @@ struct top : ForSyDe::composite
         
         add(new DDE::comb("pv2", pv_func))(sp2, s2);
         
-        auto& merge1 = add(new DDE::comb2("merge1", merge_func));
-        merge1(so1, sp1, sp2);
-        merge1.oport1(so2);
+        add(new DDE::comb2("merge1", merge_func))(readers(so1, so2), sp1, sp2);
         
         add(new DDE::delay("delay1", abst_ext<char>(), sc_time(15,SC_MS)))(sf, so2);
         

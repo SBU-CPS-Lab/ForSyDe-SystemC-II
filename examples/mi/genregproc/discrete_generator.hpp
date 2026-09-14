@@ -21,7 +21,7 @@
 
 using namespace ForSyDe;
 
-struct discrete_generator : ForSyDe::composite
+FORSYDE_COMPOSITE(discrete_generator)
 {
 	DDE::in_port<double> drive;
 	DDE::in_port<double> load_impedance;

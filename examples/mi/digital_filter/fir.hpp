@@ -21,7 +21,7 @@ using namespace ForSyDe;
 
 #define TAPS 5
 
-struct fir : ForSyDe::composite
+FORSYDE_COMPOSITE(fir)
 {
     SY_in<double> iport1;
     SY_out<double> oport1;
@@ -39,9 +39,7 @@ struct fir : ForSyDe::composite
                   res_line(TAPS-1)
     
     {
-        auto& fo = add(new SY::fanout<double>("fo"));
-        fo(del_line[0], iport1);
-        fo.oport1(coef_line[0]);
+        add(new SY::fanout<double>("fo"))(readers(del_line[0], coef_line[0]), iport1);
         
         add(new SY::constant("coef0", abst_ext<double>(coefs[0]), 0))(coef_src_line[0]);
         

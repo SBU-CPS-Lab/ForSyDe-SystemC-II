@@ -22,7 +22,7 @@ using namespace std;
 //std::array<int,10> inpval = {{0,1,2,3,4,5,6,7,8,9}};
 std::array<int,10000> inpval;
 
-struct top : ForSyDe::composite
+FORSYDE_COMPOSITE(top)
 {
     SY::signal<std::array<int,10000>> srca, srcb, scanned;
     SY::signal<int> result;

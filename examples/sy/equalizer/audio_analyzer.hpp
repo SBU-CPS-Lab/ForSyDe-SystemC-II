@@ -103,7 +103,7 @@ void check_bass_func(abst_ext<AnalyzerMsg>& out, abst_ext<std::vector<double>> i
     }
 }
 
-struct audio_analyzer : ForSyDe::composite
+FORSYDE_COMPOSITE(audio_analyzer)
 {
     SY::in_port<double> audioIn;
 

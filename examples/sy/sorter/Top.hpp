@@ -17,7 +17,7 @@
 
 using namespace ForSyDe::SY;
 
-struct Top : ForSyDe::composite
+FORSYDE_COMPOSITE(Top)
 {
     SY2SY<int> srca, srcb, srcc, biggest;
     

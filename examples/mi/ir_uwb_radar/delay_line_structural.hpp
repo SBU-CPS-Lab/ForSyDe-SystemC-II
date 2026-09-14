@@ -18,7 +18,7 @@ using namespace sc_core;
 using namespace ForSyDe;
 
 
-struct delay_line : ForSyDe::composite
+FORSYDE_COMPOSITE(delay_line)
 {
     SY::in_port<int>                iport;
 

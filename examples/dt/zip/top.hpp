@@ -27,21 +27,15 @@ vector<tuple<size_t,int>> in_vecc =
     {make_tuple(0,1), make_tuple(1,2), make_tuple(3,0),
      make_tuple(5,0)};
 
-struct top : ForSyDe::composite
+FORSYDE_COMPOSITE(top)
 {
     DT::signal<int> src1, src2, src1p, src2p, srcc, src1pp, src2pp, report3, report4;
     DT::signal<tuple<vector<abst_ext<int>>,vector<abst_ext<int>>>> zipped1, zipped2;
     
     SC_CTOR(top)
     {        
-        auto& vsource1 = add(new DT::vsource<int>("vsource1", in_vec1));
-        vsource1(src1);
-        vsource1.oport1(src1p);
-        vsource1.oport1(src1pp);
-        auto& vsource2 = add(new DT::vsource<int>("vsource2", in_vec2));
-        vsource2(src2);
-        vsource2.oport1(src2p);
-        vsource2.oport1(src2pp);
+        add(new DT::vsource<int>("vsource1", in_vec1))(readers(src1, src1p, src1pp));
+        add(new DT::vsource<int>("vsource2", in_vec2))(readers(src2, src2p, src2pp));
         add(new DT::vsource<int>("vsourcec", in_vecc))(srcc);
         
         add(new DT::zips<int,int>("zips1", 3))(zipped1, src1, src2);

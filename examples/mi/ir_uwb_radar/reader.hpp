@@ -109,7 +109,7 @@ private:
 }
 }
 
-struct reader : ForSyDe::composite
+FORSYDE_COMPOSITE(reader)
 {
     std::vector<SY::in_port<int>>   iports;
 

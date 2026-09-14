@@ -54,7 +54,7 @@ std::vector<abst_ext<double>> input_vec =
          PrstF(0.0), PrstF(0.1), PrstF(0.2), PrstF(0.3),
          PrstF(0.5), PrstF(0.6), PrstF(0.7), PrstF(0.8)};
 
-struct top : ForSyDe::composite
+FORSYDE_COMPOSITE(top)
 {
     SY::signal<Sensor> bassDn_sig, bassUp_sig;
     SY::signal<Sensor> trebleDn_sig, trebleUp_sig;

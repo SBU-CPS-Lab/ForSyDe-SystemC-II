@@ -487,6 +487,18 @@ private:
     std::vector<std::unique_ptr<sc_module>> owned;
 };
 
+//! Declares a composite process the way SC_MODULE declares a plain one
+/*! Expands to `struct name : public ForSyDe::composite` -- the
+ * constructor, any parameters beyond the name, and everything else
+ * about the class body are written exactly as they would be without
+ * the macro; a composite's constructor already takes arbitrary extra
+ * parameters today, the same as any other SystemC module's. It exists
+ * for the same reason SC_MODULE does: so a composite process reads as
+ * one recognizable declaration rather than an inheritance clause
+ * someone has to notice.
+ */
+#define FORSYDE_COMPOSITE(name) struct name : public ForSyDe::composite
+
 }
 
 #endif

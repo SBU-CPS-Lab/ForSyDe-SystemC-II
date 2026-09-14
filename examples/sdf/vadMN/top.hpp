@@ -27,7 +27,7 @@
 
 using namespace ForSyDe;
 
-struct top : ForSyDe::composite
+FORSYDE_COMPOSITE(top)
 {
     SDF::signal<short> e5, e9, e11, e15, e16, e18, e19;
     SDF::signal<L_av_t> e1, e2;
@@ -80,9 +80,7 @@ struct top : ForSyDe::composite
         std::get<0>(ACFAveraging1.oport)(e1);
         std::get<1>(ACFAveraging1.oport)(e2);
         
-        auto& PredictorValues1 = add(new SDF::comb("PredictorValues1", PredictorValues_func, 1, 1));
-        PredictorValues1(e3, e2);
-        PredictorValues1.oport1(e4);
+        add(new SDF::comb("PredictorValues1", PredictorValues_func, 1, 1))(readers(e3, e4), e2);
         
         add(new SDF::comb2("SpectralComparison1", SpectralComparison_func, 1, 1, 1))(e5, e1, e3);
         

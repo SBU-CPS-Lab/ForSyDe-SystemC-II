@@ -20,7 +20,7 @@
 
 using namespace ForSyDe::SY;
 
-struct mulacc : ForSyDe::composite
+FORSYDE_COMPOSITE(mulacc)
 {
     SY_in<int>  a, b;
     SY_out<int> result;
@@ -31,9 +31,7 @@ struct mulacc : ForSyDe::composite
     {
         add(new comb2("mul1", mul_func))(addi1, a, b);
 
-        auto& add1 = add(new comb2("add1", add_func));
-        add1(acci, addi1, addi2);
-        add1.oport1(result);
+        add(new comb2("add1", add_func))(readers(acci, result), addi1, addi2);
 
         add(new delay("accum", abst_ext<int>(0)))(addi2, acci);
     }

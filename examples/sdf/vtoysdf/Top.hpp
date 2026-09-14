@@ -28,7 +28,7 @@ void report_func(float inp1)
     std::cout << "output value: " << inp1 << std::endl;
 }
 
-struct Top : ForSyDe::composite
+FORSYDE_COMPOSITE(Top)
 {
     SDF::signal<float> src, upsrc, res, downres;
         

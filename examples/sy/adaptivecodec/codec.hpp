@@ -22,7 +22,7 @@
 using namespace ForSyDe::SY;
 using namespace std;
 
-struct codec : ForSyDe::composite
+FORSYDE_COMPOSITE(codec)
 {
     SY_in<int>  iport;
     SY_in<int>  code;

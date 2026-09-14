@@ -39,7 +39,7 @@ using namespace ForSyDe;
 /*
  * Toplevel radar module
  */
-struct radar_simplified : ForSyDe::composite
+FORSYDE_COMPOSITE(radar_simplified)
 {
     CT::in_port                 sig;         // Signal input
     std::vector<SY::out_port<int>>  oports;  // Sampler output

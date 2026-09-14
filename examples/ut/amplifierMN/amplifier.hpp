@@ -21,7 +21,7 @@
 
 using namespace ForSyDe;
 
-struct amplifier : ForSyDe::composite
+FORSYDE_COMPOSITE(amplifier)
 {
     UT::in_port<int>  iport1;
     UT::out_port<int> oport1;

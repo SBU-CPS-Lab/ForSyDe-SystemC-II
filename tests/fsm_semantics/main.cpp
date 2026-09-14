@@ -37,7 +37,7 @@ using namespace ForSyDe;
 // which is what (4.3)-(4.6) fix the synchronous ones at.
 static void one(unsigned int& n, const int&) {n = 1;}
 
-struct fsm_semantics : ForSyDe::composite
+FORSYDE_COMPOSITE(fsm_semantics)
 {
     SY::signal<int> sy_i1, sy_o1, sy_i2, sy_o2;
     UT::signal<int> ut_i1, ut_o1, ut_i2, ut_o2, ut_i3, ut_o3, ut_i4, ut_o4;

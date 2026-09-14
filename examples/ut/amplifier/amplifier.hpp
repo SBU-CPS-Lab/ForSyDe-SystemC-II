@@ -21,7 +21,7 @@
 
 using namespace ForSyDe;
 
-struct amplifier : ForSyDe::composite
+FORSYDE_COMPOSITE(amplifier)
 {
     UT::in_port<int>  iport1;
     UT::out_port<int> oport1;
@@ -33,9 +33,7 @@ struct amplifier : ForSyDe::composite
     {
         add(new UT::zips<int,int>("A1p", 1, 5))(s1, s3, iport1);
 
-        auto& A2p1 = add(new UT::comb("A2p1", A2p_func, 1));
-        A2p1(s4, s1);
-        A2p1.oport1(oport1);
+        add(new UT::comb("A2p1", A2p_func, 1))(readers(s4, oport1), s1);
 
         add(new UT::scan("A3p1", A3p_gamma_func, A3p_ns_func, 10))(s2, s4);
 

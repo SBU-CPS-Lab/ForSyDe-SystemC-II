@@ -28,7 +28,7 @@ vector<tuple<size_t,int>> in_vec1 =
      make_tuple(15,2), make_tuple(16,3), make_tuple(17,3),
      make_tuple(18,4), make_tuple(19,4)};
 
-struct top : ForSyDe::composite
+FORSYDE_COMPOSITE(top)
 {
     DT::signal<int> src, result;
     

@@ -39,11 +39,37 @@ struct PortInfo;                                       // abssemantics.hpp
 namespace detail
 {
 
+//! Wraps more than one signal meant for the same port
+/*! The value readers(...), below, builds. A process with one output
+ * read by more than one downstream signal used to need an extra
+ * statement per reader after the main bind -- this folds them back
+ * into the one positional slot the single reader would have taken.
+ */
+template <typename... Sigs>
+struct reader_group { std::tuple<Sigs&...> sigs; };
+
+template <typename T> struct is_reader_group : std::false_type {};
+template <typename... Sigs> struct is_reader_group<reader_group<Sigs...>>
+    : std::true_type {};
+
+//! Bind one port to whatever its positional slot holds
+/*! Usually one signal; a reader_group binds every signal inside it to
+ * the same port instead, in the order given.
+ */
+template <typename Port, typename Sig>
+inline void bind_one(Port& port, Sig&& sig)
+{
+    if constexpr (is_reader_group<std::decay_t<Sig>>::value)
+        std::apply([&](auto&... s){ (port(s), ...); }, sig.sigs);
+    else
+        port(sig);
+}
+
 //! Bind a tuple of ports to a tuple of signals, one for one, in order
 template <typename Ports, typename Sigs, std::size_t... I>
 inline void bind_positional(Ports& ports, Sigs sigs, std::index_sequence<I...>)
 {
-    (std::get<I>(ports)(std::get<I>(sigs)), ...);
+    (bind_one(std::get<I>(ports), std::get<I>(sigs)), ...);
 }
 
 #ifdef FORSYDE_INTROSPECTION
@@ -141,16 +167,24 @@ public:
      *
      * The count is checked here rather than at the port, so a missing or
      * an extra signal is a sentence about this process instead of a
-     * template error from inside sc_port.
+     * template error from inside sc_port. A slot may also hold a
+     * readers(...) group rather than one signal, for a port with more
+     * than one downstream reader; it still counts as one slot.
+     *
+     * Sigs&&, not Sigs&: a readers(...) argument is a temporary, and a
+     * plain signal argument binds exactly as before -- reference
+     * collapsing makes an lvalue argument's Sigs deduce to Sig&, same
+     * as the old Sigs&... did.
      */
     template <typename... Sigs>
-    Derived& operator()(Sigs&... sigs)
+    Derived& operator()(Sigs&&... sigs)
     {
         auto& self = static_cast<Derived&>(*this);
         auto ports = all_ports(self);
         static_assert(sizeof...(Sigs) == std::tuple_size<decltype(ports)>::value,
             "Wrong number of signals bound to this process. Give one per "
-            "port: the outputs first, in order, then the inputs.");
+            "port -- the outputs first, in order, then the inputs -- or "
+            "wrap more than one signal for the same port in readers(...).");
         bind_positional(ports, std::tie(sigs...),
                         std::index_sequence_for<Sigs...>{});
         return self;
@@ -200,6 +234,18 @@ using arg_t = typename token_value<
 >::type;
 
 } // namespace detail
+
+//! Bind more than one signal to the same port, in one positional slot
+/*! add1(readers(acci, result), addi1, addi2) reads as "acci and result
+ * both read this process's one output," in the same statement as the
+ * rest of the bind -- the port fans out, so the call does too, rather
+ * than a second add1.oport1(result) written after it.
+ */
+template <typename... Sigs>
+inline detail::reader_group<Sigs...> readers(Sigs&... sigs)
+{
+    return {std::tie(sigs...)};
+}
 
 } // namespace ForSyDe
 

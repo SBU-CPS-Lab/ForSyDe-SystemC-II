@@ -18,7 +18,7 @@
 
 using namespace ForSyDe;
 
-struct splitter : ForSyDe::composite
+FORSYDE_COMPOSITE(splitter)
 {
     DDE::in_port<char> iport1;
     DDE::in_port<int> iport2;

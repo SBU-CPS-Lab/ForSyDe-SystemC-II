@@ -73,7 +73,7 @@ void supervisor_fsm_od(abst_ext<double>& la,
     }
 }
 
-struct supervisor : ForSyDe::composite
+FORSYDE_COMPOSITE(supervisor)
 {
     DDE::in_port<bool> on_off;
     DDE::in_port<bool> fault;

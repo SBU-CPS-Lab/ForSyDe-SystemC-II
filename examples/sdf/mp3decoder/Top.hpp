@@ -96,7 +96,7 @@ typedef zipN<
     ChanuleSamples
     > MergeZipper;
 
-struct Top : ForSyDe::composite
+FORSYDE_COMPOSITE(Top)
 {
 public:
     /* Actors */

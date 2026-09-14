@@ -20,7 +20,7 @@
 
 using namespace ForSyDe;
 
-struct compAvg : ForSyDe::composite
+FORSYDE_COMPOSITE(compAvg)
 {
     SDF::in_port<double>  iport1;
     SDF::out_port<double> oport1;

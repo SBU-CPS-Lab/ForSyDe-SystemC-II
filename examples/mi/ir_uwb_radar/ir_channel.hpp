@@ -27,7 +27,7 @@ std::vector<sc_time> ch_shift = {sc_time(500.0e-12,SC_SEC),
                                  sc_time(900.0e-12,SC_SEC)};
 std::vector<CTTYPE> ch_attn = {0.5, -0.3, 0.18, -0.2, 0.1};
 
-struct ir_channel : ForSyDe::composite
+FORSYDE_COMPOSITE(ir_channel)
 {
     //----Input(s) and output(s)----
     CT::in_port	    in;

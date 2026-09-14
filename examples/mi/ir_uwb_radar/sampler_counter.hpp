@@ -18,7 +18,7 @@
 using namespace sc_core;
 using namespace ForSyDe;
 
-struct sampler_counter : ForSyDe::composite
+FORSYDE_COMPOSITE(sampler_counter)
 {
     std::vector<SY::in_port<int>>   iports;
     SY::in_port<int>                clk;

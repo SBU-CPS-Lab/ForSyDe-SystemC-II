@@ -19,7 +19,7 @@ using namespace sc_core;
 using namespace ForSyDe;
 using namespace std;
 
-struct top : ForSyDe::composite
+FORSYDE_COMPOSITE(top)
 {
     SADF::signal<int> from_source;
     SADF::signal<int> to_kernel1, from_kernel1, to_kernel2, from_kernel2;

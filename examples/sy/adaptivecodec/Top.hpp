@@ -42,7 +42,7 @@ void report_func(abst_ext<int> inp1)
 #pragma ForSyDe end
 }
 
-struct Top : ForSyDe::composite
+FORSYDE_COMPOSITE(Top)
 {
     SY2SY<int> srcval, srccode, result;
     
