@@ -27,7 +27,7 @@
 
 using namespace ForSyDe;
 
-FORSYDE_COMPOSITE(top), public SDF::mn_composite<top>
+FORSYDE_COMPOSITE(top)
 {
     SDF::signal<short> e5, e9, e11, e15, e16, e18, e19;
     SDF::signal<L_av_t> e1, e2;
@@ -43,36 +43,35 @@ FORSYDE_COMPOSITE(top), public SDF::mn_composite<top>
     {
         add(new SDF::file_source("VADFilesource1", VADFilesource_func, "source_data.txt"))
             (e12_13_14_15_16_17_18);
-        add(new SDF::unzipN<r_t,r_t,r_t,short,short,rc_t,short>(
-            "VADFilesource1_unzip", {1,1,1,1,1,1,1}))
-            (e12, e13, e14, e15, e16, e17, e18, e12_13_14_15_16_17_18);
+        add_unzipN(*this, "VADFilesource1_unzip", {1,1,1,1,1,1,1},
+            e12_13_14_15_16_17_18, e12, e13, e14, e15, e16, e17, e18);
 
         add(new SDF::comb("ToneDetection1", ToneDetection_func, 1, 1))(e9, e17);
 
-        add_combMN(
+        add_combMN(*this,
             "EnergyComputation1",
             EnergyComputation_func,
             {1,1},
             {1,1,1},
-            std::tie(e6, e8), std::tie(e7d, e13, e16));
+            outs(e6, e8), ins(e7d, e13, e16));
 
-        add_combMN(
+        add_combMN(*this,
             "ACFAveraging1",
             ACFAveraging_func,
             {1,1},
             {1,1,1},
-            std::tie(e1, e2), std::tie(e12, e14, e15));
+            outs(e1, e2), ins(e12, e14, e15));
 
         add(new SDF::comb("PredictorValues1", PredictorValues_func, 1, 1))(readers(e3, e4), e2);
 
         add(new SDF::comb2("SpectralComparison1", SpectralComparison_func, 1, 1, 1))(e5, e1, e3);
 
-        add_combMN(
+        add_combMN(*this,
             "ThresholdAdaptation1",
             ThresholdAdaptation_func,
             {1,1},
             {1,1,1,1,1},
-            std::tie(e7, e10), std::tie(e4, e5, e6, e9, e18));
+            outs(e7, e10), ins(e4, e5, e6, e9, e18));
         
         std::array<short,9> rvad_init = {{0x6000,0,0,0,0,0,0,0,0}}; short scal_init = 7;
         add(new SDF::delay("e7_init", std::make_tuple(rvad_init,scal_init)))(e7d, e7);

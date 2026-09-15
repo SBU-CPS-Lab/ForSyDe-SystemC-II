@@ -31,7 +31,7 @@ FORSYDE_COMPOSITE(amplifier)
 
     SC_CTOR(amplifier)
     {
-        add(new UT::zips<int,int>("A1p", 1, 5))(s1, s3, iport1);
+        add_zips(*this, "A1p", 1, 5, s1, s3, iport1);
 
         add(new UT::comb("A2p1", A2p_func, 1))(readers(s4, oport1), s1);
 

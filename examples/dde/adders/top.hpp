@@ -40,7 +40,7 @@ FORSYDE_COMPOSITE(top)
             std::make_tuple((int)0,(int)0),
             sc_time(0,SC_NS)))(buf_result, addi1p, addi2p);
         
-        add(new DDE::zip<int,int>("zip1"))(zip_result, result, buf_result);
+        add_zip(*this, "zip1", zip_result, result, buf_result);
         
         add(new DDE::sink("report1", report_func))(zip_result);
     }

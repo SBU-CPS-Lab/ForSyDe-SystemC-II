@@ -50,7 +50,7 @@ FORSYDE_COMPOSITE(button_control)
         add(new comb4("button_interface1", button_interface_func))
                     (button, bassUp, bassDn, trebleUp, trebleDn);
 
-        add(new zip<Button,OverrideMsg>("zip1"))(tup_btn_ovr, button, overrides);
+        add_zip(*this, "zip1", tup_btn_ovr, button, overrides);
 
         add(new mealy("level_control1", level_control_ns_func, level_control_od_func,
                     std::make_tuple(initState,initLevel)))(levelCntrl, tup_btn_ovr);
@@ -59,7 +59,7 @@ FORSYDE_COMPOSITE(button_control)
                 std::make_tuple(abst_ext<Bass>(0),abst_ext<Treble>(0))))
                 (levels, levelCntrl);
 
-        add(new unzip<Bass,Treble>("unzip1"))(bass, treble, levels);
+        add_unzip(*this, "unzip1", levels, bass, treble);
     }
 };
 

@@ -52,6 +52,28 @@ template <typename T> struct is_reader_group : std::false_type {};
 template <typename... Sigs> struct is_reader_group<reader_group<Sigs...>>
     : std::true_type {};
 
+//! The token type an add_*'s output slot carries -- a plain port
+//! reference, or a readers(...) group fanning one output out to more
+//! than one downstream signal.
+/*! outs(...) (below) forwards each output argument as given, so a slot
+ * is either Tpl<T>& (an ordinary port/signal, whatever single-argument
+ * class template it happens to be) or a reader_group<Sig0,...> (every
+ * member of which carries the same T, by construction -- that is the
+ * whole point of fanning one output out). Either way this recovers T,
+ * so add_combMN and friends can deduce their TOs... from the outs(...)
+ * tuple regardless of which slots are plain and which fan out, instead
+ * of requiring a separate std::get(...)-based bind statement after
+ * construction for any output with more than one reader.
+ */
+template <typename Slot> struct out_slot_type;
+template <template <class> class Tpl, typename T>
+struct out_slot_type<Tpl<T>&> { using type = T; };
+template <typename Sig0, typename... Rest>
+struct out_slot_type<reader_group<Sig0,Rest...>>
+{
+    using type = typename out_slot_type<Sig0&>::type;
+};
+
 //! Bind one port to whatever its positional slot holds
 /*! Usually one signal; a reader_group binds every signal inside it to
  * the same port instead, in the order given.
@@ -274,6 +296,40 @@ inline detail::reader_group<Sigs...> readers(Sigs&... sigs)
 {
     return {std::tie(sigs...)};
 }
+
+//! Groups the output (or input) signals of an add_*MN(...) call
+/*! A class whose template arguments are themselves tuples --
+ * combMN, scombMN, kernelMN, detectorMN, mooreMN, mealyMN -- has two
+ * independently-sized groups of ports, and a flat argument list cannot
+ * say where one ends and the other begins: the compiler has no way to
+ * tell "2 outputs then 3 inputs" apart from "0 outputs then 5 inputs"
+ * from the call site alone (verified directly -- it does not even
+ * reject the wrong split, it silently picks one). outs(...)/ins(...)
+ * mark the boundary; they are otherwise exactly std::tie, spelled to
+ * say which group they are.
+ *
+ * Every other combined helper (add_zipN, add_unzipN, add_scombN,
+ * add_zip, add_unzip, ...) has at most one variable-sized side and
+ * takes its ports flat, with no wrapper at all -- this is only for
+ * the six classes that are genuinely ambiguous without one.
+ *
+ * outs(...)'s parameters are forwarding references, not plain Sigs&,
+ * so that a slot may be a readers(...) group (an rvalue) as well as an
+ * ordinary port (an lvalue) -- outs(readers(oport1, din), other) fans
+ * the first output out to two downstream signals in the same
+ * statement as the rest of the bind, exactly like the non-MN
+ * add1(readers(...), ...) form, instead of a separate
+ * std::get<0>(p.oport)(din) written after construction. ins(...) has
+ * no such case (an input only ever has one upstream signal) and stays
+ * plain references.
+ */
+template <typename... Slots>
+inline std::tuple<Slots...> outs(Slots&&... slots)
+{
+    return std::tuple<Slots...>(std::forward<Slots>(slots)...);
+}
+template <typename... Sigs>
+inline std::tuple<Sigs&...> ins(Sigs&... sigs) { return std::tie(sigs...); }
 
 } // namespace ForSyDe
 

@@ -45,7 +45,7 @@ FORSYDE_COMPOSITE(codec)
         add(new comb<tuple<abst_ext<functype>,abst_ext<functype>>,int>("keygen1", keygen_func))
             (keys, code);
         
-        add(new unzip<functype,functype>("unzip1"))(key1, key2, keys);
+        add_unzip(*this, "unzip1", keys, key1, key2);
     }
 };
 

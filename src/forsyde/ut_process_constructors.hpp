@@ -1837,58 +1837,71 @@ template <class G, class NS, class OD, class ST> moore(sc_module_name, G, NS, OD
 template <class G, class NS, class OD, class ST> mealy(sc_module_name, G, NS, OD, const ST&)
     -> mealy<ForSyDe::detail::arg_t<2,NS>, ST, ForSyDe::detail::arg_t<0,OD>>;
 
-//! Construct-and-bind a mooreMN/mealyMN in one call, template arguments and all
-/*! See SDF::mn_composite for why this needs a function template rather
- * than a deduction guide. TSs, unlike TOs/TIs, comes from init_st
- * directly (the caller already writes std::make_tuple(...) for it, the
- * same as moore/mealy's own ST); only the ports need std::tie(...) to
- * carry more than one signal.
+//! Construct-and-bind a process in one call, template arguments and all
+/*! See SY's own add_* block for the full reasoning. mooreMN/mealyMN's
+ * TSs, unlike TOs/TIs, comes from init_st directly (the caller already
+ * writes std::make_tuple(...) for it, the same as moore/mealy's own
+ * ST above); only the ports need outs(...)/ins(...) (binding.hpp), and
+ * only because there are two independently-sized groups of them --
+ * checked directly, not assumed: a flat, unwrapped port list compiles
+ * and silently binds the wrong ports rather than failing.
  *
- * A composite picks this up by also deriving from UT::mn_composite<Self>:
+ * zips has no function argument at all, and only one variable-sized
+ * side (there is no side that isn't fixed at 2, in fact), so it takes
+ * its ports flat, no wrapper.
  *
- *   FORSYDE_COMPOSITE(top), public UT::mn_composite<top>
+ * Called as a free function, composite first: add_mealyMN(*this, ...).
  */
-template <typename Derived>
-struct mn_composite
+template <typename... TOs, typename... TIs, typename... TSs,
+          template <class> class... OIf, template <class> class... IIf>
+auto& add_mooreMN(composite& top, sc_module_name name,
+    typename mooreMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>>::gamma_functype gamma_func,
+    typename mooreMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>>::ns_functype ns_func,
+    typename mooreMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>>::od_functype od_func,
+    const std::tuple<TSs...>& init_st,
+    std::tuple<OIf<TOs>&...> outs, std::tuple<IIf<TIs>&...> ins)
 {
-    template <typename... TOs, typename... TIs, typename... TSs,
-              template <class> class... OIf, template <class> class... IIf>
-    auto& add_mooreMN(sc_module_name name,
-        typename mooreMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>>::gamma_functype gamma_func,
-        typename mooreMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>>::ns_functype ns_func,
-        typename mooreMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>>::od_functype od_func,
-        const std::tuple<TSs...>& init_st,
-        std::tuple<OIf<TOs>&...> outs,
-        std::tuple<IIf<TIs>&...> ins)
-    {
-        auto& self = static_cast<Derived&>(*this);
-        auto& p = self.add(new mooreMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>>(
-            name, gamma_func, ns_func, od_func, init_st));
-        std::apply([&](auto&... o){
-            std::apply([&](auto&... i){ p(o..., i...); }, ins);
-        }, outs);
-        return p;
-    }
+    auto& p = top.add(new mooreMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>>(
+        name, gamma_func, ns_func, od_func, init_st));
+    std::apply([&](auto&... o){
+        std::apply([&](auto&... i){ p(o..., i...); }, ins);
+    }, outs);
+    return p;
+}
 
-    template <typename... TOs, typename... TIs, typename... TSs,
-              template <class> class... OIf, template <class> class... IIf>
-    auto& add_mealyMN(sc_module_name name,
-        typename mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>>::gamma_functype gamma_func,
-        typename mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>>::ns_functype ns_func,
-        typename mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>>::od_functype od_func,
-        const std::tuple<TSs...>& init_st,
-        std::tuple<OIf<TOs>&...> outs,
-        std::tuple<IIf<TIs>&...> ins)
-    {
-        auto& self = static_cast<Derived&>(*this);
-        auto& p = self.add(new mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,std::tuple<TSs...>>(
-            name, gamma_func, ns_func, od_func, init_st));
-        std::apply([&](auto&... o){
-            std::apply([&](auto&... i){ p(o..., i...); }, ins);
-        }, outs);
-        return p;
-    }
-};
+//! outs(...)'s slots deduce individually (ForSyDe::detail::out_slot_type,
+//! binding.hpp), so any one of them may be a readers(...) group instead
+//! of a plain port -- see SDF::add_combMN's comment for the same thing.
+template <typename... OutSlots, typename... TIs, typename... TSs, template <class> class... IIf>
+auto& add_mealyMN(composite& top, sc_module_name name,
+    typename mealyMN<std::tuple<typename ForSyDe::detail::out_slot_type<OutSlots>::type...>,
+                      std::tuple<TIs...>,std::tuple<TSs...>>::gamma_functype gamma_func,
+    typename mealyMN<std::tuple<typename ForSyDe::detail::out_slot_type<OutSlots>::type...>,
+                      std::tuple<TIs...>,std::tuple<TSs...>>::ns_functype ns_func,
+    typename mealyMN<std::tuple<typename ForSyDe::detail::out_slot_type<OutSlots>::type...>,
+                      std::tuple<TIs...>,std::tuple<TSs...>>::od_functype od_func,
+    const std::tuple<TSs...>& init_st,
+    std::tuple<OutSlots...> outs, std::tuple<IIf<TIs>&...> ins)
+{
+    using TOsTuple = std::tuple<typename ForSyDe::detail::out_slot_type<OutSlots>::type...>;
+    auto& p = top.add(new mealyMN<TOsTuple,std::tuple<TIs...>,std::tuple<TSs...>>(
+        name, gamma_func, ns_func, od_func, init_st));
+    std::apply([&](auto&... o){
+        std::apply([&](auto&... i){ p(o..., i...); }, ins);
+    }, outs);
+    return p;
+}
+
+template <typename T1, typename T2,
+          template <class> class OIf, template <class> class I1If, template <class> class I2If>
+auto& add_zips(composite& top, sc_module_name name,
+    unsigned int i1toks, unsigned int i2toks,
+    OIf<std::tuple<std::vector<T1>,std::vector<T2>>>& out, I1If<T1>& in1, I2If<T2>& in2)
+{
+    auto& p = top.add(new zips<T1,T2>(name, i1toks, i2toks));
+    p(out, in1, in2);
+    return p;
+}
 
 }
 }

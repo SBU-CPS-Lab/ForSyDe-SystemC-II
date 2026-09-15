@@ -214,36 +214,28 @@ private:
 };
 
 //! Construct-and-bind a mealyMN in one call, template arguments and all
-/*! See DT::mn_composite (dt_process_constructors.hpp) for the reasoning;
- * this is the same thing for the P variant, which has no deduction
- * guide of its own either.
+/*! See DT's own add_mealyMN (dt_process_constructors.hpp) for the
+ * reasoning; this is the same thing for the P variant, which has no
+ * deduction guide of its own either.
  *
- * A composite picks this up by also deriving from DT::P::mn_composite<Self>:
- *
- *   FORSYDE_COMPOSITE(top), public DT::P::mn_composite<top>
+ * Called as a free function, composite first: add_mealyMN(*this, ...).
  */
-template <typename Derived>
-struct mn_composite
+template <typename... TOs, typename... TIs, typename TS,
+          template <class> class... OIf, template <class> class... IIf>
+auto& add_mealyMN(composite& top, sc_module_name name,
+    typename mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::gamma_functype gamma_func,
+    typename mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::ns_functype ns_func,
+    typename mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::od_functype od_func,
+    const TS& init_st,
+    std::tuple<OIf<TOs>&...> outs, std::tuple<IIf<TIs>&...> ins)
 {
-    template <typename... TOs, typename... TIs, typename TS,
-              template <class> class... OIf, template <class> class... IIf>
-    auto& add_mealyMN(sc_module_name name,
-        typename mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::gamma_functype gamma_func,
-        typename mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::ns_functype ns_func,
-        typename mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::od_functype od_func,
-        const TS& init_st,
-        std::tuple<OIf<TOs>&...> outs,
-        std::tuple<IIf<TIs>&...> ins)
-    {
-        auto& self = static_cast<Derived&>(*this);
-        auto& p = self.add(new mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>(
-            name, gamma_func, ns_func, od_func, init_st));
-        std::apply([&](auto&... o){
-            std::apply([&](auto&... i){ p(o..., i...); }, ins);
-        }, outs);
-        return p;
-    }
-};
+    auto& p = top.add(new mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>(
+        name, gamma_func, ns_func, od_func, init_st));
+    std::apply([&](auto&... o){
+        std::apply([&](auto&... i){ p(o..., i...); }, ins);
+    }, outs);
+    return p;
+}
 
 }
 }

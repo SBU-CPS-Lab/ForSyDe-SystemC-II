@@ -20,7 +20,7 @@
 
 using namespace ForSyDe;
 
-FORSYDE_COMPOSITE(mulacc), public SY::mn_composite<mulacc>
+FORSYDE_COMPOSITE(mulacc)
 {
     SY::in_port<int>  a, b;
     SY::out_port<int> result;
@@ -29,10 +29,9 @@ FORSYDE_COMPOSITE(mulacc), public SY::mn_composite<mulacc>
 
     SC_CTOR(mulacc)
     {
-        add_scombMN("mul1", mul_func, std::tie(addi1), std::tie(a, b));
+        add_scombMN(*this, "mul1", mul_func, outs(addi1), ins(a, b));
 
-        auto& add1 = add_scombMN("add1", add_func, std::tie(acci), std::tie(addi1, addi2));
-        std::get<0>(add1.oport)(result);
+        add_scombMN(*this, "add1", add_func, outs(readers(acci, result)), ins(addi1, addi2));
 
         add(new SY::sdelay("accum", 0))(addi2, acci);
     }

@@ -907,101 +907,96 @@ detector(sc_module_name, CDS, KSS, Table, const TS&, size_t)
  * whole tuple, so no deduction guide can reach TOs/TC/TIs, but a
  * function template can -- add_kernelMN and add_detectorMN deduce them
  * from the port arguments directly, the way make_kernelMN's tie()-
- * wrapped outS/inpS parameters always did. Wrap more than one output
- * or input in std::tie(...); a single one goes in bare. kernelMN's
- * control port sits between the outputs and the inputs, unwrapped,
- * exactly where bindable's own control_ports() slot sits.
+ * wrapped outS/inpS parameters always did.
+ *
+ * Called as a free function, composite first: add_kernelMN(*this, ...).
+ *
+ * Both classes have two independently-sized port groups (outputs and
+ * inputs both vary), which a flat argument list cannot disambiguate --
+ * checked directly, not assumed: the no-marker form compiles and
+ * silently binds the wrong ports. outs(...)/ins(...) (binding.hpp)
+ * mark the boundary. kernelMN's control port sits between them,
+ * unwrapped -- a single argument needs no marker -- exactly where
+ * bindable's own control_ports() slot sits.
  *
  * Two overloads each, like the constructors themselves: the one with
  * a report_pipe argument requires FORSYDE_SELF_REPORTING (D10) and is
  * a compile-time error without it, so a model that wants self-reporting
  * still selects it with the same #ifdef the constructor itself needs.
  *
- * A composite picks this up by also deriving from SADF::mn_composite<Self>:
- *
- *   FORSYDE_COMPOSITE(top), public SADF::mn_composite<top>
+ * outs(...)'s slots deduce individually (ForSyDe::detail::out_slot_type,
+ * binding.hpp), so any one of them may be a readers(...) group instead
+ * of a plain port -- see SDF::add_combMN's comment for the same thing.
  */
-template <typename Derived>
-struct mn_composite
+template <typename... OutSlots, typename TC, typename... TIs,
+          template <class> class CIf, template <class> class... IIf>
+auto& add_kernelMN(composite& top, sc_module_name name,
+    typename kernelMN<std::tuple<typename ForSyDe::detail::out_slot_type<OutSlots>::type...>,
+                       TC,std::tuple<TIs...>>::functype func,
+    typename kernelMN<std::tuple<typename ForSyDe::detail::out_slot_type<OutSlots>::type...>,
+                       TC,std::tuple<TIs...>>::scenario_table_type table,
+    std::tuple<OutSlots...> outs, CIf<TC>& cport, std::tuple<IIf<TIs>&...> ins)
 {
-    template <typename... TOs, typename TC, typename... TIs,
-              template <class> class... OIf, template <class> class CIf,
-              template <class> class... IIf>
-    auto& add_kernelMN(sc_module_name name,
-        typename kernelMN<std::tuple<TOs...>,TC,std::tuple<TIs...>>::functype func,
-        typename kernelMN<std::tuple<TOs...>,TC,std::tuple<TIs...>>::scenario_table_type table,
-        std::tuple<OIf<TOs>&...> outs,
-        CIf<TC>& cport,
-        std::tuple<IIf<TIs>&...> ins)
-    {
-        auto& self = static_cast<Derived&>(*this);
-        auto& p = self.add(new kernelMN<std::tuple<TOs...>,TC,std::tuple<TIs...>>(name, func, table));
-        std::apply([&](auto&... o){
-            std::apply([&](auto&... i){ p(o..., cport, i...); }, ins);
-        }, outs);
-        return p;
-    }
+    using TOsTuple = std::tuple<typename ForSyDe::detail::out_slot_type<OutSlots>::type...>;
+    auto& p = top.add(new kernelMN<TOsTuple,TC,std::tuple<TIs...>>(name, func, table));
+    std::apply([&](auto&... o){
+        std::apply([&](auto&... i){ p(o..., cport, i...); }, ins);
+    }, outs);
+    return p;
+}
 
-    template <typename... TOs, typename TC, typename... TIs,
-              template <class> class... OIf, template <class> class CIf,
-              template <class> class... IIf>
-    auto& add_kernelMN(sc_module_name name,
-        typename kernelMN<std::tuple<TOs...>,TC,std::tuple<TIs...>>::functype func,
-        typename kernelMN<std::tuple<TOs...>,TC,std::tuple<TIs...>>::scenario_table_type table,
-        FILE** report_pipe,
-        std::tuple<OIf<TOs>&...> outs,
-        CIf<TC>& cport,
-        std::tuple<IIf<TIs>&...> ins)
-    {
-        auto& self = static_cast<Derived&>(*this);
-        auto& p = self.add(new kernelMN<std::tuple<TOs...>,TC,std::tuple<TIs...>>(name, func, table, report_pipe));
-        std::apply([&](auto&... o){
-            std::apply([&](auto&... i){ p(o..., cport, i...); }, ins);
-        }, outs);
-        return p;
-    }
+template <typename... OutSlots, typename TC, typename... TIs,
+          template <class> class CIf, template <class> class... IIf>
+auto& add_kernelMN(composite& top, sc_module_name name,
+    typename kernelMN<std::tuple<typename ForSyDe::detail::out_slot_type<OutSlots>::type...>,
+                       TC,std::tuple<TIs...>>::functype func,
+    typename kernelMN<std::tuple<typename ForSyDe::detail::out_slot_type<OutSlots>::type...>,
+                       TC,std::tuple<TIs...>>::scenario_table_type table,
+    FILE** report_pipe,
+    std::tuple<OutSlots...> outs, CIf<TC>& cport, std::tuple<IIf<TIs>&...> ins)
+{
+    using TOsTuple = std::tuple<typename ForSyDe::detail::out_slot_type<OutSlots>::type...>;
+    auto& p = top.add(new kernelMN<TOsTuple,TC,std::tuple<TIs...>>(name, func, table, report_pipe));
+    std::apply([&](auto&... o){
+        std::apply([&](auto&... i){ p(o..., cport, i...); }, ins);
+    }, outs);
+    return p;
+}
 
-    template <typename... TOs, typename... TIs, typename TS,
-              template <class> class... OIf, template <class> class... IIf>
-    auto& add_detectorMN(sc_module_name name,
-        typename detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::cds_functype cds_func,
-        typename detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::kss_functype kss_func,
-        typename detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::scenario_table_type table,
-        const TS& init_sc,
-        const std::array<size_t,sizeof...(TIs)>& itoks,
-        std::tuple<OIf<TOs>&...> outs,
-        std::tuple<IIf<TIs>&...> ins)
-    {
-        auto& self = static_cast<Derived&>(*this);
-        auto& p = self.add(new detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>(
-            name, cds_func, kss_func, table, init_sc, itoks));
-        std::apply([&](auto&... o){
-            std::apply([&](auto&... i){ p(o..., i...); }, ins);
-        }, outs);
-        return p;
-    }
+template <typename... TOs, typename... TIs, typename TS,
+          template <class> class... OIf, template <class> class... IIf>
+auto& add_detectorMN(composite& top, sc_module_name name,
+    typename detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::cds_functype cds_func,
+    typename detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::kss_functype kss_func,
+    typename detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::scenario_table_type table,
+    const TS& init_sc, const std::array<size_t,sizeof...(TIs)>& itoks,
+    std::tuple<OIf<TOs>&...> outs, std::tuple<IIf<TIs>&...> ins)
+{
+    auto& p = top.add(new detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>(
+        name, cds_func, kss_func, table, init_sc, itoks));
+    std::apply([&](auto&... o){
+        std::apply([&](auto&... i){ p(o..., i...); }, ins);
+    }, outs);
+    return p;
+}
 
-    template <typename... TOs, typename... TIs, typename TS,
-              template <class> class... OIf, template <class> class... IIf>
-    auto& add_detectorMN(sc_module_name name,
-        typename detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::cds_functype cds_func,
-        typename detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::kss_functype kss_func,
-        typename detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::scenario_table_type table,
-        const TS& init_sc,
-        const std::array<size_t,sizeof...(TIs)>& itoks,
-        FILE** report_pipe,
-        std::tuple<OIf<TOs>&...> outs,
-        std::tuple<IIf<TIs>&...> ins)
-    {
-        auto& self = static_cast<Derived&>(*this);
-        auto& p = self.add(new detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>(
-            name, cds_func, kss_func, table, init_sc, itoks, report_pipe));
-        std::apply([&](auto&... o){
-            std::apply([&](auto&... i){ p(o..., i...); }, ins);
-        }, outs);
-        return p;
-    }
-};
+template <typename... TOs, typename... TIs, typename TS,
+          template <class> class... OIf, template <class> class... IIf>
+auto& add_detectorMN(composite& top, sc_module_name name,
+    typename detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::cds_functype cds_func,
+    typename detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::kss_functype kss_func,
+    typename detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::scenario_table_type table,
+    const TS& init_sc, const std::array<size_t,sizeof...(TIs)>& itoks,
+    FILE** report_pipe,
+    std::tuple<OIf<TOs>&...> outs, std::tuple<IIf<TIs>&...> ins)
+{
+    auto& p = top.add(new detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>(
+        name, cds_func, kss_func, table, init_sc, itoks, report_pipe));
+    std::apply([&](auto&... o){
+        std::apply([&](auto&... i){ p(o..., i...); }, ins);
+    }, outs);
+    return p;
+}
 
 }
 }

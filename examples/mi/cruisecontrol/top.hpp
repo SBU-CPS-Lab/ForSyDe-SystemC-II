@@ -35,7 +35,7 @@ FORSYDE_COMPOSITE(top)
     #ifndef FORSYDE_WITH_GDB
     add(new SY::scomb2("sub1", sub_func))(e, r, dv);
     #else
-    add(new SY::pipewrap2<double,double,double>("sub1", -1, "simulink"))(e, r, dv);
+    add_pipewrap2(*this, "sub1", -1, "simulink", e, r, dv);
     #endif
 
     #ifndef FORSYDE_WITH_GDB
@@ -45,9 +45,7 @@ FORSYDE_COMPOSITE(top)
               std::make_tuple(0.0, 0.0)
         ))(du, e);
     #else
-    add(new SY::gdbwrap<double,double>("controller1",
-              "software/controller"
-        ))(du, e);
+    add_gdbwrap(*this, "controller1", "software/controller", du, e);
     #endif
 
     add(new SY2CT("d2a", sc_time(20,SC_MS), HOLD))(u, du);

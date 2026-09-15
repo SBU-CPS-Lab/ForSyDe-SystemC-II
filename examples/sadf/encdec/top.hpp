@@ -20,7 +20,7 @@ using namespace std;
 // Define an enumerated tupe for the graph scenarios with values Sp, Sm, Sc
 enum scen {Sp, Sm, Sc};
 
-FORSYDE_COMPOSITE(top), public SADF::mn_composite<top>
+FORSYDE_COMPOSITE(top)
 {
     SADF::signal<int> ttot, ttotd, ttoep, ttoem, ttoec, eptod, emtod, ectod, dtor;
     SADF::signal<scen> ktot, ktoep, ktoem, ktoec, ktod;
@@ -56,23 +56,23 @@ FORSYDE_COMPOSITE(top), public SADF::mn_composite<top>
         };
 
         #ifdef FORSYDE_SELF_REPORTING
-        add_detectorMN("k", k_cds_func, k_kss_func,
+        add_detectorMN(*this, "k", k_cds_func, k_kss_func,
             {
                 {Sp,{1,1,0,0,1}},
                 {Sm,{1,0,1,0,1}},
                 {Sc,{2,0,0,1,1}}
             }, // k_table
             Sc, {}, &report_pipe,
-            std::tie(ktot, ktoep, ktoem, ktoec, ktod), std::tie());
+            outs(ktot, ktoep, ktoem, ktoec, ktod), ins());
         #else
-        add_detectorMN("k", k_cds_func, k_kss_func,
+        add_detectorMN(*this, "k", k_cds_func, k_kss_func,
             {
                 {Sp,{1,1,0,0,1}},
                 {Sm,{1,0,1,0,1}},
                 {Sc,{2,0,0,1,1}}
             }, // k_table
             Sc, {},
-            std::tie(ktot, ktoep, ktoem, ktoec, ktod), std::tie());
+            outs(ktot, ktoep, ktoem, ktoec, ktod), ins());
         #endif
 
         // The kernel T        
@@ -91,22 +91,22 @@ FORSYDE_COMPOSITE(top), public SADF::mn_composite<top>
         };
         
         #ifdef FORSYDE_SELF_REPORTING
-        add_kernelMN("t", t_func,
+        add_kernelMN(*this, "t", t_func,
             {
                 {Sp,{{1},{1,1,0,0}}},
                 {Sm,{{1},{1,0,1,0}}},
                 {Sc,{{1},{1,0,0,1}}}
             }, // t_table
             &report_pipe,
-            std::tie(ttot, ttoep, ttoem, ttoec), ktot, std::tie(ttotd));
+            outs(ttot, ttoep, ttoem, ttoec), ktot, ins(ttotd));
         #else
-        add_kernelMN("t", t_func,
+        add_kernelMN(*this, "t", t_func,
             {
                 {Sp,{{1},{1,1,0,0}}},
                 {Sm,{{1},{1,0,1,0}}},
                 {Sc,{{1},{1,0,0,1}}}
             }, // t_table
-            std::tie(ttot, ttoep, ttoem, ttoec), ktot, std::tie(ttotd));
+            outs(ttot, ttoep, ttoem, ttoec), ktot, ins(ttotd));
         #endif
 
         add(new SADF::delayn<int>("totd", 0, 1))(ttotd, ttot);
@@ -121,22 +121,22 @@ FORSYDE_COMPOSITE(top), public SADF::mn_composite<top>
         };
         
         #ifdef FORSYDE_SELF_REPORTING
-        add_kernelMN("ep", ep_func,
+        add_kernelMN(*this, "ep", ep_func,
             {
                 {Sp,{{1},{1}}},
                 {Sm,{{0},{0}}},
                 {Sc,{{0},{0}}}
             }, // e_table
             &report_pipe,
-            std::tie(eptod), ktoep, std::tie(ttoep));
+            outs(eptod), ktoep, ins(ttoep));
         #else
-        add_kernelMN("ep", ep_func,
+        add_kernelMN(*this, "ep", ep_func,
             {
                 {Sp,{{1},{1}}},
                 {Sm,{{0},{0}}},
                 {Sc,{{0},{0}}}
             }, // e_table
-            std::tie(eptod), ktoep, std::tie(ttoep));
+            outs(eptod), ktoep, ins(ttoep));
         #endif
 
         // The kernel E-
@@ -149,22 +149,22 @@ FORSYDE_COMPOSITE(top), public SADF::mn_composite<top>
         };
 
         #ifdef FORSYDE_SELF_REPORTING
-        add_kernelMN("em", em_func,
+        add_kernelMN(*this, "em", em_func,
             {
                 {Sp,{{0},{0}}},
                 {Sm,{{1},{1}}},
                 {Sc,{{0},{0}}}
             }, // e_table
             &report_pipe,
-            std::tie(emtod), ktoem, std::tie(ttoem));
+            outs(emtod), ktoem, ins(ttoem));
         #else
-        add_kernelMN("em", em_func,
+        add_kernelMN(*this, "em", em_func,
             {
                 {Sp,{{0},{0}}},
                 {Sm,{{1},{1}}},
                 {Sc,{{0},{0}}}
             }, // e_table
-            std::tie(emtod), ktoem, std::tie(ttoem));
+            outs(emtod), ktoem, ins(ttoem));
         #endif
 
         // The kernel Ec
@@ -178,22 +178,22 @@ FORSYDE_COMPOSITE(top), public SADF::mn_composite<top>
         };
         
         #ifdef FORSYDE_SELF_REPORTING
-        add_kernelMN("ec", ec_func,
+        add_kernelMN(*this, "ec", ec_func,
             {
                 {Sp,{{0},{0}}},
                 {Sm,{{0},{0}}},
                 {Sc,{{2},{2}}}
             }, // ec_table
             &report_pipe,
-            std::tie(ectod), ktoec, std::tie(ttoec));
+            outs(ectod), ktoec, ins(ttoec));
         #else
-        add_kernelMN("ec", ec_func,
+        add_kernelMN(*this, "ec", ec_func,
             {
                 {Sp,{{0},{0}}},
                 {Sm,{{0},{0}}},
                 {Sc,{{2},{2}}}
             }, // ec_table
-            std::tie(ectod), ktoec, std::tie(ttoec));
+            outs(ectod), ktoec, ins(ttoec));
         #endif
 
         // The kernel D
@@ -217,22 +217,22 @@ FORSYDE_COMPOSITE(top), public SADF::mn_composite<top>
         };
 
         #ifdef FORSYDE_SELF_REPORTING
-        add_kernelMN("d", d_func,
+        add_kernelMN(*this, "d", d_func,
             {
                 {Sp,{{1,0,0},{1}}},
                 {Sm,{{0,1,0},{1}}},
                 {Sc,{{0,0,2},{2}}}
             }, // d_table
             &report_pipe,
-            std::tie(dtor), ktod, std::tie(eptod, emtod, ectod));
+            outs(dtor), ktod, ins(eptod, emtod, ectod));
         #else
-        add_kernelMN("d", d_func,
+        add_kernelMN(*this, "d", d_func,
             {
                 {Sp,{{1,0,0},{1}}},
                 {Sm,{{0,1,0},{1}}},
                 {Sc,{{0,0,2},{2}}}
             }, // d_table
-            std::tie(dtor), ktod, std::tie(eptod, emtod, ectod));
+            outs(dtor), ktod, ins(eptod, emtod, ectod));
         #endif
 
         // The SDF sink actor r

@@ -61,58 +61,18 @@ typedef comb3<
     >,
     FrameHeader,FrameSideInfo,GranuleData> ProcessGranule;
 
-typedef unzipN<
-        FrameHeader,
-        FrameSideInfo,
-        ChanuleData,
-        FrameHeader,
-        FrameSideInfo,
-        ChanuleData
-    > GranuelUnzipper;
-
-typedef unzipN<
-        ChanuleSamples,
-        VecType
-    > ChanuleUnzipper;
-
-typedef unzipN<
-        float,
-        bool,
-        FrameHeader,
-        FrameHeader,
-        FrameSideInfo,
-        GranuleData,
-        FrameHeader,
-        FrameSideInfo,
-        GranuleData
-    > InputUnzipper;
-
-typedef zipN<
-    ChanuleSamples,
-    ChanuleSamples,
-    bool,
-    FrameHeader,
-    ChanuleSamples,
-    ChanuleSamples
-    > MergeZipper;
-
 FORSYDE_COMPOSITE(Top)
 {
 public:
     /* Actors */
     ReadBitstreamAndExtractFrames *a_ReadBitstreamAndExtractFrames;
-    InputUnzipper *a_InputUnzipper;
     delayn<float> *a_DummyLoopDelay;
     ProcessChanule *a_ProcessChanule0Left;
-    MergeZipper *a_MergeZipper;
     sink<MergeType> *a_Merge;
     ProcessGranule *a_ProcessGranule0, *a_ProcessGranule1;
-    GranuelUnzipper *a_Granuel0Unzipper, *a_Granuel1Unzipper;
     ProcessChanule *a_ProcessChanule0Right;
     ProcessChanule *a_ProcessChanule1Right;
     ProcessChanule *a_ProcessChanule1Left;
-    ChanuleUnzipper *a_Chanule0LUnzipper, *a_Chanule0RUnzipper,
-                    *a_Chanule1LUnzipper, *a_Chanule1RUnzipper;
     delayn<VecType> *a_ch_1r_0r, *a_ch_1l_0l;
 
     /* Channels */
@@ -203,17 +163,9 @@ public:
         a_ReadBitstreamAndExtractFrames->oport1(*zippedInput);
         //
         array<size_t,9> inputUnzipperRates = {1,1,1,1,1,1,1,1,1};
-        a_InputUnzipper = &add(new InputUnzipper("InputUnzipper",inputUnzipperRates));
-        a_InputUnzipper->iport1(*zippedInput);
-        get<0>(a_InputUnzipper->oport)(*dummyloopi);
-        get<1>(a_InputUnzipper->oport)(*lastFrame);
-        get<2>(a_InputUnzipper->oport)(*headerMerge);
-        get<3>(a_InputUnzipper->oport)(*headerGranule0);
-        get<4>(a_InputUnzipper->oport)(*sideInfoGranule0);
-        get<5>(a_InputUnzipper->oport)(*granuleData0);
-        get<6>(a_InputUnzipper->oport)(*headerGranule1);
-        get<7>(a_InputUnzipper->oport)(*sideInfoGranule1);
-        get<8>(a_InputUnzipper->oport)(*granuleData1);
+        add_unzipN(*this, "InputUnzipper", inputUnzipperRates, *zippedInput,
+            *dummyloopi, *lastFrame, *headerMerge, *headerGranule0, *sideInfoGranule0,
+            *granuleData0, *headerGranule1, *sideInfoGranule1, *granuleData1);
         //
         a_DummyLoopDelay = &add(new delayn<float>("DummyLoopDelay",1,1));
         a_DummyLoopDelay->iport1(*dummyloopi);
@@ -227,20 +179,12 @@ public:
         a_ProcessChanule0Left->oport1(*zippedChanule0LOut);
         //
         array<size_t,2> chanuleUnzipperRates = {1,1};
-        a_Chanule0LUnzipper = &add(new ChanuleUnzipper("ChanuleUnzipperL0",chanuleUnzipperRates));
-        a_Chanule0LUnzipper->iport1(*zippedChanule0LOut);
-        get<0>(a_Chanule0LUnzipper->oport)(*samples_0_Left);
-        get<1>(a_Chanule0LUnzipper->oport)(*sync_0l_1l);
-        
+        add_unzipN(*this, "ChanuleUnzipperL0", chanuleUnzipperRates, *zippedChanule0LOut,
+            *samples_0_Left, *sync_0l_1l);
+
         array<size_t,6> mergeZipperRates = {1,1,1,1,1,1};
-        a_MergeZipper = &add(new MergeZipper("MergeZipper",mergeZipperRates));
-        get<0>(a_MergeZipper->iport)(*samples_1_Right);
-        get<1>(a_MergeZipper->iport)(*samples_0_Left);
-        get<2>(a_MergeZipper->iport)(*lastFrame);
-        get<3>(a_MergeZipper->iport)(*headerMerge);
-        get<4>(a_MergeZipper->iport)(*samples_1_Left);
-        get<5>(a_MergeZipper->iport)(*samples_0_Right);
-        a_MergeZipper->oport1(*zippedMerge);
+        add_zipN(*this, "MergeZipper", mergeZipperRates, *zippedMerge,
+            *samples_1_Right, *samples_0_Left, *lastFrame, *headerMerge, *samples_1_Left, *samples_0_Right);
         //
         a_Merge = &add(new sink<MergeType>("Merge", Merge_func));
         a_Merge->iport1(*zippedMerge);
@@ -252,14 +196,9 @@ public:
         a_ProcessGranule0->oport1(*zippedGranuel0Out);
         //
         array<size_t,6> granuelUnzipperRates = {1,1,1,1,1,1};
-        a_Granuel0Unzipper = &add(new GranuelUnzipper("GranuelUnzipper0",granuelUnzipperRates));
-        a_Granuel0Unzipper->iport1(*zippedGranuel0Out);
-        get<0>(a_Granuel0Unzipper->oport)(*headerChanule0Left);
-        get<1>(a_Granuel0Unzipper->oport)(*sideInfoChanule0Left);
-        get<2>(a_Granuel0Unzipper->oport)(*chanuleData0Left);
-        get<3>(a_Granuel0Unzipper->oport)(*headerChanule0Right);
-        get<4>(a_Granuel0Unzipper->oport)(*sideInfoChanule0Right);
-        get<5>(a_Granuel0Unzipper->oport)(*chanuleData0Right);
+        add_unzipN(*this, "GranuelUnzipper0", granuelUnzipperRates, *zippedGranuel0Out,
+            *headerChanule0Left, *sideInfoChanule0Left, *chanuleData0Left,
+            *headerChanule0Right, *sideInfoChanule0Right, *chanuleData0Right);
 
         a_ProcessGranule1 = &add(new ProcessGranule("ProcessGranuleOne0",ProcessGranuleOne_func,1,1,1,1));
         a_ProcessGranule1->iport1(*headerGranule1);
@@ -267,14 +206,9 @@ public:
         a_ProcessGranule1->iport3(*granuleData1);
         a_ProcessGranule1->oport1(*zippedGranuel1Out);
         //
-        a_Granuel1Unzipper = &add(new GranuelUnzipper("GranuelUnzipper1",granuelUnzipperRates));
-        a_Granuel1Unzipper->iport1(*zippedGranuel1Out);
-        get<0>(a_Granuel1Unzipper->oport)(*headerChanule1Left);
-        get<1>(a_Granuel1Unzipper->oport)(*sideInfoChanule1Left);
-        get<2>(a_Granuel1Unzipper->oport)(*chanuleData1Left);
-        get<3>(a_Granuel1Unzipper->oport)(*headerChanule1Right);
-        get<4>(a_Granuel1Unzipper->oport)(*sideInfoChanule1Right);
-        get<5>(a_Granuel1Unzipper->oport)(*chanuleData1Right);
+        add_unzipN(*this, "GranuelUnzipper1", granuelUnzipperRates, *zippedGranuel1Out,
+            *headerChanule1Left, *sideInfoChanule1Left, *chanuleData1Left,
+            *headerChanule1Right, *sideInfoChanule1Right, *chanuleData1Right);
         
         a_ProcessChanule0Right = &add(new ProcessChanule("ProcessChanuleZeroRight0",ProcessChanuleZeroRight_func,1,1,1,1,1));
         a_ProcessChanule0Right->iport1(*headerChanule0Right);
@@ -283,10 +217,8 @@ public:
         a_ProcessChanule0Right->iport4(*sync_1r_0r_aftdel);
         a_ProcessChanule0Right->oport1(*zippedChanule0ROut);
         //
-        a_Chanule0RUnzipper = &add(new ChanuleUnzipper("ChanuleUnzipperR0",chanuleUnzipperRates));
-        a_Chanule0RUnzipper->iport1(*zippedChanule0ROut);
-        get<0>(a_Chanule0RUnzipper->oport)(*samples_0_Right);
-        get<1>(a_Chanule0RUnzipper->oport)(*sync_0r_1r);
+        add_unzipN(*this, "ChanuleUnzipperR0", chanuleUnzipperRates, *zippedChanule0ROut,
+            *samples_0_Right, *sync_0r_1r);
         
         a_ProcessChanule1Right = &add(new ProcessChanule("ProcessChanuleOneRight0",ProcessChanuleOneRight_func,1,1,1,1,1));
         a_ProcessChanule1Right->iport1(*headerChanule1Right);
@@ -295,10 +227,8 @@ public:
         a_ProcessChanule1Right->iport4(*sync_0r_1r);
         a_ProcessChanule1Right->oport1(*zippedChanule1ROut);
         //
-        a_Chanule1RUnzipper = &add(new ChanuleUnzipper("ChanuleUnzipperR1",chanuleUnzipperRates));
-        a_Chanule1RUnzipper->iport1(*zippedChanule1ROut);
-        get<0>(a_Chanule1RUnzipper->oport)(*samples_1_Right);
-        get<1>(a_Chanule1RUnzipper->oport)(*sync_1r_0r_predel);
+        add_unzipN(*this, "ChanuleUnzipperR1", chanuleUnzipperRates, *zippedChanule1ROut,
+            *samples_1_Right, *sync_1r_0r_predel);
         
         a_ProcessChanule1Left = &add(new ProcessChanule("ProcessChanuleOneLeft0",ProcessChanuleOneLeft_func,1,1,1,1,1));
         a_ProcessChanule1Left->iport1(*headerChanule1Left);
@@ -307,10 +237,8 @@ public:
         a_ProcessChanule1Left->iport4(*sync_0l_1l);
         a_ProcessChanule1Left->oport1(*zippedChanule1LOut);
         //
-        a_Chanule1LUnzipper = &add(new ChanuleUnzipper("ChanuleUnzipperL1",chanuleUnzipperRates));
-        a_Chanule1LUnzipper->iport1(*zippedChanule1LOut);
-        get<0>(a_Chanule1LUnzipper->oport)(*samples_1_Left);
-        get<1>(a_Chanule1LUnzipper->oport)(*sync_1l_0l_predel);
+        add_unzipN(*this, "ChanuleUnzipperL1", chanuleUnzipperRates, *zippedChanule1LOut,
+            *samples_1_Left, *sync_1l_0l_predel);
         
         a_ch_1r_0r = &add(new delayn<VecType>("ch_1r_0r",zeroVec,1));
         a_ch_1r_0r->iport1(*sync_1r_0r_predel);

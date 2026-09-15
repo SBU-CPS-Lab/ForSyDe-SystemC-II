@@ -1572,6 +1572,45 @@ template <class T> vsource(sc_module_name, const std::vector<T>&, const std::vec
     -> vsource<T>;
 template <class F> sink(sc_module_name, F) -> sink<ForSyDe::detail::arg_t<0,F>>;
 
+//! zip/unzip have no function argument to deduce from; T1/T2 come from the ports
+/*! See SY's own add_* block for the full reasoning. Neither class has
+ * a variable-sized side -- there are always exactly two of the thing
+ * that isn't the Pack -- so no wrapper is needed either.
+ *
+ * Called as a free function, composite first: add_zip(*this, ...).
+ */
+template <typename T1, typename T2,
+          template <class> class OIf, template <class> class I1If, template <class> class I2If>
+auto& add_zip(composite& top, sc_module_name name,
+    OIf<std::tuple<abst_ext<T1>,abst_ext<T2>>>& out, I1If<T1>& in1, I2If<T2>& in2)
+{
+    auto& p = top.add(new zip<T1,T2>(name));
+    p(out, in1, in2);
+    return p;
+}
+
+template <typename T1, typename T2,
+          template <class> class IIf, template <class> class O1If, template <class> class O2If>
+auto& add_unzip(composite& top, sc_module_name name,
+    IIf<std::tuple<abst_ext<T1>,abst_ext<T2>>>& in, O1If<T1>& out1, O2If<T2>& out2)
+{
+    auto& p = top.add(new unzip<T1,T2>(name));
+    p(out1, out2, in);
+    return p;
+}
+
+//! fanout<T>: T never appears in the constructor (just the module
+//! name), only in the ports; single in, single out, so it takes them
+//! flat, no wrapper. out is forwarded as-is so a readers(...) group
+//! still works for fanning out to more than one downstream signal.
+template <typename T, typename Out, template <class> class IIf>
+auto& add_fanout(composite& top, sc_module_name name, Out&& out, IIf<T>& in)
+{
+    auto& p = top.add(new fanout<T>(name));
+    p(std::forward<Out>(out), in);
+    return p;
+}
+
 }
 }
 

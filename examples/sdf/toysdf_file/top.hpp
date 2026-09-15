@@ -38,7 +38,7 @@ FORSYDE_COMPOSITE(top)
 
         add(new SDF::comb("downSampler1", downSampler_func, 2, 3))(downres, res);
         
-        add(new SDF::zip<double,double>("zip1", 4, 3))(zipped_res, src2, downres);
+        add_zip(*this, "zip1", 4, 3, zipped_res, src2, downres);
         
         add(new SDF::file_sink("report1", report_func, "output.txt"))(zipped_res);
     }

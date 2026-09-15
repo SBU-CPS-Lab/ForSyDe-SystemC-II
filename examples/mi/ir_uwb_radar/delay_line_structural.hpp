@@ -51,7 +51,7 @@ FORSYDE_COMPOSITE(delay_line)
         for(int i=0;i<N;i++){
             std::stringstream name;
             name << "delay" << i;
-            delay_vec.push_back(&add(new SY::sdelay<int>( name.str().c_str(), 0)));
+            delay_vec.push_back(&add(new SY::sdelay( name.str().c_str(), 0)));
         }
 
         //////////////////////////////

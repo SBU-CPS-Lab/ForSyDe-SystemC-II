@@ -3483,58 +3483,183 @@ template <class T> svsource(sc_module_name, const std::vector<T>&) -> svsource<T
 template <class F> sink(sc_module_name, F) -> sink<ForSyDe::detail::arg_t<0,F>>;
 template <class F> ssink(sc_module_name, F) -> ssink<ForSyDe::detail::arg_t<0,F>>;
 
-//! Construct-and-bind combMN/scombMN in one call, template arguments and all
-/*! combMN and scombMN have no deduction guide above: their template
- * arguments are the port tuples themselves, not something a single
- * constructor argument reveals, so CTAD cannot reach them. A *function*
- * template has no such limit -- it deduces from every parameter at
- * once -- so add_combMN/add_scombMN take the ports as well as the
- * constructor's own arguments, and deduce TOs/TIs from the ports the
- * way make_combMN's tie()-wrapped outS/inpS parameters always did.
+//! Construct-and-bind a process in one call, template arguments and all
+/*! None of the classes below have a deduction guide: combMN/scombMN's
+ * template arguments are the port tuples themselves, and zip/unzip/
+ * zipN/unzipN/szipX/scombN have no function argument that reveals a
+ * token type at all (zip and unzip have no function; scombN's and
+ * combN's inputs arrive at the class as one std::tuple parameter, not
+ * one per input). A deduction guide only ever sees the *constructor's*
+ * arguments, so none of that is reachable from one.
  *
- * Wrap more than one output or input in std::tie(...); a single one
- * goes in bare. This mirrors add()/operator() rather than replacing
- * it: construction and binding still happen through them underneath,
- * so ownership stays exactly as safe as any other add(new X(...))(...).
+ * A plain function template has no such limit -- it deduces from
+ * every parameter, including the ports -- so each add_* below takes
+ * the ports alongside the constructor's own arguments and deduces the
+ * token types from them, the way the old make_* helpers always did.
+ * Construction and binding still happen through composite::add() and
+ * the process's own operator() underneath, so ownership is exactly as
+ * safe as any other add(new X(...))(...); add_* is a shorthand for the
+ * two statements together, not a different mechanism.
  *
- * A composite picks this up by also deriving from SY::mn_composite<Self>,
- * alongside ForSyDe::composite:
+ * Called as a free function, composite first: add_zip(*this, "z", ...).
  *
- *   FORSYDE_COMPOSITE(top), public SY::mn_composite<top>
+ * combMN and scombMN are the one case here with two independently-
+ * sized port groups (outputs and inputs both vary), and a flat
+ * argument list cannot say where one ends and the other begins -- not
+ * a design choice, a checked fact: the two-pack-no-marker form
+ * compiles and silently binds the wrong ports. outs(...)/ins(...)
+ * (binding.hpp) mark the boundary for exactly these two; every other
+ * add_* below takes its ports flat, no wrapper, because it has at
+ * most one variable-sized side.
  */
-template <typename Derived>
-struct mn_composite
+template <typename... TOs, typename... TIs,
+          template <class> class... OIf, template <class> class... IIf>
+auto& add_combMN(composite& top, sc_module_name name,
+    typename combMN<std::tuple<TOs...>,std::tuple<TIs...>>::functype func,
+    std::tuple<OIf<TOs>&...> outs, std::tuple<IIf<TIs>&...> ins)
 {
-    template <typename... TOs, typename... TIs,
-              template <class> class... OIf, template <class> class... IIf>
-    auto& add_combMN(sc_module_name name,
-        typename combMN<std::tuple<TOs...>,std::tuple<TIs...>>::functype func,
-        std::tuple<OIf<TOs>&...> outs,
-        std::tuple<IIf<TIs>&...> ins)
-    {
-        auto& self = static_cast<Derived&>(*this);
-        auto& p = self.add(new combMN<std::tuple<TOs...>,std::tuple<TIs...>>(name, func));
-        std::apply([&](auto&... o){
-            std::apply([&](auto&... i){ p(o..., i...); }, ins);
-        }, outs);
-        return p;
-    }
+    auto& p = top.add(new combMN<std::tuple<TOs...>,std::tuple<TIs...>>(name, func));
+    std::apply([&](auto&... o){
+        std::apply([&](auto&... i){ p(o..., i...); }, ins);
+    }, outs);
+    return p;
+}
 
-    template <typename... TOs, typename... TIs,
-              template <class> class... OIf, template <class> class... IIf>
-    auto& add_scombMN(sc_module_name name,
-        typename scombMN<std::tuple<TOs...>,std::tuple<TIs...>>::functype func,
-        std::tuple<OIf<TOs>&...> outs,
-        std::tuple<IIf<TIs>&...> ins)
-    {
-        auto& self = static_cast<Derived&>(*this);
-        auto& p = self.add(new scombMN<std::tuple<TOs...>,std::tuple<TIs...>>(name, func));
-        std::apply([&](auto&... o){
-            std::apply([&](auto&... i){ p(o..., i...); }, ins);
-        }, outs);
-        return p;
-    }
-};
+//! outs(...)'s slots deduce individually (ForSyDe::detail::out_slot_type,
+//! binding.hpp), so any one of them may be a readers(...) group instead
+//! of a plain port -- see SDF::add_combMN's comment for the same thing.
+template <typename... OutSlots, typename... TIs, template <class> class... IIf>
+auto& add_scombMN(composite& top, sc_module_name name,
+    typename scombMN<std::tuple<typename ForSyDe::detail::out_slot_type<OutSlots>::type...>,
+                      std::tuple<TIs...>>::functype func,
+    std::tuple<OutSlots...> outs, std::tuple<IIf<TIs>&...> ins)
+{
+    using TOsTuple = std::tuple<typename ForSyDe::detail::out_slot_type<OutSlots>::type...>;
+    auto& p = top.add(new scombMN<TOsTuple,std::tuple<TIs...>>(name, func));
+    std::apply([&](auto&... o){
+        std::apply([&](auto&... i){ p(o..., i...); }, ins);
+    }, outs);
+    return p;
+}
+
+//! scombN's one variable side is its inputs; deduced flat, no wrapper.
+//! out is a forwarding reference (ForSyDe::detail::out_slot_type) so it
+//! may be a readers(...) group, same reasoning as above.
+template <typename Out, typename... Ts, template <class> class... IIf>
+auto& add_scombN(composite& top, sc_module_name name,
+    typename scombN<typename ForSyDe::detail::out_slot_type<Out>::type,Ts...>::functype func,
+    Out&& out, IIf<Ts>&... ins)
+{
+    using T0 = typename ForSyDe::detail::out_slot_type<Out>::type;
+    auto& p = top.add(new scombN<T0,Ts...>(name, func));
+    p(std::forward<Out>(out), ins...);
+    return p;
+}
+
+template <typename T0, typename... Ts,
+          template <class> class OIf, template <class> class... IIf>
+auto& add_combN(composite& top, sc_module_name name,
+    typename combN<T0,Ts...>::functype func, OIf<T0>& out, IIf<Ts>&... ins)
+{
+    auto& p = top.add(new combN<T0,Ts...>(name, func));
+    p(out, ins...);
+    return p;
+}
+
+//! zip/unzip have no function argument at all; T1/T2 come from the ports
+template <typename T1, typename T2,
+          template <class> class OIf, template <class> class I1If, template <class> class I2If>
+auto& add_zip(composite& top, sc_module_name name,
+    OIf<std::tuple<abst_ext<T1>,abst_ext<T2>>>& out, I1If<T1>& in1, I2If<T2>& in2)
+{
+    auto& p = top.add(new zip<T1,T2>(name));
+    p(out, in1, in2);
+    return p;
+}
+
+template <typename T1, typename T2,
+          template <class> class IIf, template <class> class O1If, template <class> class O2If>
+auto& add_unzip(composite& top, sc_module_name name,
+    IIf<std::tuple<abst_ext<T1>,abst_ext<T2>>>& in, O1If<T1>& out1, O2If<T2>& out2)
+{
+    auto& p = top.add(new unzip<T1,T2>(name));
+    p(out1, out2, in);
+    return p;
+}
+
+//! szipX<T1,N>: N is however many input ports are given, T1 their type
+/*! ins... has to be a real pack -- Ts..., one deduced type per
+ * argument -- for the "... ins" syntax to mean anything at all; T1
+ * itself isn't a pack, so it can't drive one. All of Ts... are the
+ * same T1 in practice (szipX's own ports are), checked below rather
+ * than assumed. out's own type isn't part of deduction (N depends on
+ * the trailing pack, not the other way around, and a parameter can't
+ * reference a pack declared after it) -- oport1(out) checks it the
+ * ordinary way, as a function call, once the process actually exists.
+ */
+template <typename OutT, template <class> class IIf, typename... Ts>
+auto& add_szipX(composite& top, sc_module_name name, OutT& out, IIf<Ts>&... ins)
+{
+    using T1 = std::tuple_element_t<0, std::tuple<Ts...>>;
+    static_assert((std::is_same_v<Ts,T1> && ...),
+        "add_szipX: every input must carry the same token type.");
+    auto& p = top.add(new szipX<T1,sizeof...(ins)>(name));
+    p.oport1(out);
+    std::size_t i = 0;
+    (p.iport[i++](ins), ...);
+    return p;
+}
+
+//! sdpmap/sdpscan/sdpreduce: single in, single out, no packs -- but N
+/*! (the array length) never appears in any constructor argument, only
+ * in the port types, so ordinary CTAD can never reach it no matter how
+ * the function argument is written; these take their one in and one
+ * out port flat, no wrapper, exactly like a two-argument function call.
+ */
+template <typename T0, typename T1, std::size_t N,
+          template <class> class OIf, template <class> class IIf>
+auto& add_sdpmap(composite& top, sc_module_name name,
+    typename sdpmap<T0,T1,N>::functype func,
+    OIf<std::array<T0,N>>& out, IIf<std::array<T1,N>>& in)
+{
+    auto& p = top.add(new sdpmap<T0,T1,N>(name, func));
+    p(out, in);
+    return p;
+}
+
+template <typename T0, typename T1, std::size_t N,
+          template <class> class OIf, template <class> class IIf>
+auto& add_sdpscan(composite& top, sc_module_name name,
+    typename sdpscan<T0,T1,N>::functype func, const T0& init_res,
+    OIf<std::array<T0,N>>& out, IIf<std::array<T1,N>>& in)
+{
+    auto& p = top.add(new sdpscan<T0,T1,N>(name, func, init_res));
+    p(out, in);
+    return p;
+}
+
+template <typename T0, std::size_t N,
+          template <class> class OIf, template <class> class IIf>
+auto& add_sdpreduce(composite& top, sc_module_name name,
+    typename sdpreduce<T0,N>::functype func,
+    OIf<T0>& out, IIf<std::array<T0,N>>& in)
+{
+    auto& p = top.add(new sdpreduce<T0,N>(name, func));
+    p(out, in);
+    return p;
+}
+
+//! fanout<T>: T never appears in the constructor (just the module
+//! name), only in the ports; single in, single out, so it takes them
+//! flat, no wrapper. out is forwarded as-is so a readers(...) group
+//! still works for fanning out to more than one downstream signal.
+template <typename T, typename Out, template <class> class IIf>
+auto& add_fanout(composite& top, sc_module_name name, Out&& out, IIf<T>& in)
+{
+    auto& p = top.add(new fanout<T>(name));
+    p(std::forward<Out>(out), in);
+    return p;
+}
 
 }
 }

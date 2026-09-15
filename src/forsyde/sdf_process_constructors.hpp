@@ -1625,37 +1625,85 @@ template <class F> file_source(sc_module_name, F, std::string)
 template <class F> file_sink(sc_module_name, F, std::string)
     -> file_sink<ForSyDe::detail::arg_t<1,F>>;
 
-//! Construct-and-bind a combMN in one call, template arguments and all
-/*! See SY::mn_composite for why this needs a function template rather
- * than a deduction guide: combMN's template arguments are the port
- * tuples, which only the *port* arguments reveal, and a function
- * template deduces from those directly. Wrap more than one output or
- * input in std::tie(...); a single one goes in bare.
+//! Construct-and-bind a process in one call, template arguments and all
+/*! See SY's own add_* block for the full reasoning -- combMN has no
+ * deduction guide because its template arguments are the port tuples;
+ * zip/unzip/zipN/unzipN have no function argument to deduce from at
+ * all. A plain function template deduces from the *port* arguments
+ * instead, the way the old make_* helpers always did.
  *
- * A composite picks this up by also deriving from SDF::mn_composite<Self>:
+ * Called as a free function, composite first: add_zip(*this, "z", ...).
  *
- *   FORSYDE_COMPOSITE(top), public SDF::mn_composite<top>
+ * combMN alone has two independently-sized port groups, which a flat
+ * argument list cannot disambiguate (checked directly: it compiles
+ * and silently binds the wrong ports rather than failing) --
+ * outs(...)/ins(...) (binding.hpp) mark the boundary for it.
+ * unzipN's one variable side is its *outputs*, so its one fixed
+ * argument (the input) comes first here, ahead of them -- the
+ * variable side has to be the trailing one for deduction to reach it
+ * flat at all, so this is the one place add_* doesn't read outputs
+ * before inputs.
+ *
+ * outs(...)'s slots are deduced individually (ForSyDe::detail::
+ * out_slot_type, binding.hpp) rather than as one uniform OIf<TOs>&
+ * pattern, so any one of them may be a readers(...) group instead of
+ * a plain port -- an output with more than one reader still binds in
+ * this same call, no std::get<N>(p.oport)(...) needed afterward.
  */
-template <typename Derived>
-struct mn_composite
+template <typename... OutSlots, typename... TIs, template <class> class... IIf>
+auto& add_combMN(composite& top, sc_module_name name,
+    typename combMN<std::tuple<typename ForSyDe::detail::out_slot_type<OutSlots>::type...>,
+                     std::tuple<TIs...>>::functype func,
+    std::array<size_t,sizeof...(OutSlots)> otoks, std::array<size_t,sizeof...(TIs)> itoks,
+    std::tuple<OutSlots...> outs, std::tuple<IIf<TIs>&...> ins)
 {
-    template <typename... TOs, typename... TIs,
-              template <class> class... OIf, template <class> class... IIf>
-    auto& add_combMN(sc_module_name name,
-        typename combMN<std::tuple<TOs...>,std::tuple<TIs...>>::functype func,
-        std::array<size_t,sizeof...(TOs)> otoks,
-        std::array<size_t,sizeof...(TIs)> itoks,
-        std::tuple<OIf<TOs>&...> outs,
-        std::tuple<IIf<TIs>&...> ins)
-    {
-        auto& self = static_cast<Derived&>(*this);
-        auto& p = self.add(new combMN<std::tuple<TOs...>,std::tuple<TIs...>>(name, func, otoks, itoks));
-        std::apply([&](auto&... o){
-            std::apply([&](auto&... i){ p(o..., i...); }, ins);
-        }, outs);
-        return p;
-    }
-};
+    using TOsTuple = std::tuple<typename ForSyDe::detail::out_slot_type<OutSlots>::type...>;
+    auto& p = top.add(new combMN<TOsTuple,std::tuple<TIs...>>(name, func, otoks, itoks));
+    std::apply([&](auto&... o){
+        std::apply([&](auto&... i){ p(o..., i...); }, ins);
+    }, outs);
+    return p;
+}
+
+template <typename T1, typename T2,
+          template <class> class OIf, template <class> class I1If, template <class> class I2If>
+auto& add_zip(composite& top, sc_module_name name, unsigned int i1toks, unsigned int i2toks,
+    OIf<std::tuple<std::vector<T1>,std::vector<T2>>>& out, I1If<T1>& in1, I2If<T2>& in2)
+{
+    auto& p = top.add(new zip<T1,T2>(name, i1toks, i2toks));
+    p(out, in1, in2);
+    return p;
+}
+
+template <typename T1, typename T2,
+          template <class> class IIf, template <class> class O1If, template <class> class O2If>
+auto& add_unzip(composite& top, sc_module_name name, unsigned int o1toks, unsigned int o2toks,
+    IIf<std::tuple<std::vector<T1>,std::vector<T2>>>& in, O1If<T1>& out1, O2If<T2>& out2)
+{
+    auto& p = top.add(new unzip<T1,T2>(name, o1toks, o2toks));
+    p(out1, out2, in);
+    return p;
+}
+
+//! zipN's one variable side is its inputs; deduced flat, no wrapper
+template <typename... Ts, template <class> class OIf, template <class> class... IIf>
+auto& add_zipN(composite& top, sc_module_name name, std::array<size_t,sizeof...(Ts)> itoks,
+    OIf<std::tuple<std::vector<Ts>...>>& out, IIf<Ts>&... ins)
+{
+    auto& p = top.add(new zipN<Ts...>(name, itoks));
+    p(out, ins...);
+    return p;
+}
+
+//! unzipN's variable side is its outputs -- in comes first here, see above
+template <typename... Ts, template <class> class IIf, template <class> class... OIf>
+auto& add_unzipN(composite& top, sc_module_name name, std::array<size_t,sizeof...(Ts)> otoks,
+    IIf<std::tuple<std::vector<Ts>...>>& in, OIf<Ts>&... outs)
+{
+    auto& p = top.add(new unzipN<Ts...>(name, otoks));
+    p(outs..., in);
+    return p;
+}
 
 }
 }

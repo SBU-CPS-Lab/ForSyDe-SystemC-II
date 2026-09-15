@@ -29,7 +29,7 @@ FORSYDE_COMPOSITE(controller)
 	
     SC_CTOR(controller)
 	{
-        add(new DDE::fanout<double>("fanout1"))(readers(trigger, voltage2), voltage);
+        add_fanout(*this, "fanout1", readers(trigger, voltage2), voltage);
         
         add(new DDE::comb("desired_v1", 
             [](abst_ext<double>& desv, const double& trig) {desv=abst_ext<double>(110.0);}

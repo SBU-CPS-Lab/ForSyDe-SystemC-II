@@ -45,11 +45,11 @@ FORSYDE_COMPOSITE(compAvg)
     
     SC_CTOR(compAvg)
     {
-        add(new SDF::zipN<float,float>("zip1",itoks))(zi, iport, dout);
+        add_zipN(*this, "zip1", itoks, zi, iport, dout);
 
         add(new SDF::comb("averager1", averager_func, 1, 1))(zo, zi);
 
-        add(new SDF::unzipN<float,float>("unzip1",otoks))(oport, din, zo);
+        add_unzipN(*this, "unzip1", otoks, zo, oport, din);
         
         add(new SDF::delayn("avginit1", (float)0, 2))(dout, din);
     }

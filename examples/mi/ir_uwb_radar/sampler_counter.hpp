@@ -41,8 +41,7 @@ FORSYDE_COMPOSITE(sampler_counter)
         ) : iports(N), oports(N), sel_vec(N), sig_vec(N)
     {
         // Connect the fanout module input to the module input
-        auto& fo1 = add(new SY::fanout<int>("fo1"));
-        fo1(sel_vec[0], clk);
+        auto& fo1 = add_fanout(*this, "fo1", sel_vec[0], clk);
         for(int i=1;i<N;i++) fo1.oport1(sel_vec[i]);
 
         // Create sampler modules

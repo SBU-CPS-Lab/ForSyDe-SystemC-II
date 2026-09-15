@@ -578,11 +578,37 @@ inline pipewrap2<T0,T1,T2>* make_pipewrap2(const std::string& pName,
     )
 {
     auto p = new pipewrap2<T0,T1,T2>(pName.c_str(), offset, path_name);
-    
+
     (*p).iport1(inp1S);
     (*p).iport2(inp2S);
     (*p).oport1(outS);
-    
+
+    return p;
+}
+
+//! gdbwrap/pipewrap2: T0/T1[/T2] never appear in any constructor
+//! argument (just the module name and a path/offset), only in the
+//! ports, so ordinary CTAD can't reach them; single in/out or 1-out
+//! 2-in, no packs, so both take their ports flat, no wrapper.
+template <typename T0, typename T1,
+          template <class> class OIf, template <class> class IIf>
+auto& add_gdbwrap(composite& top, sc_module_name name,
+    const std::string& exec_name, OIf<T0>& out, IIf<T1>& in)
+{
+    auto& p = top.add(new gdbwrap<T0,T1>(name, exec_name));
+    p(out, in);
+    return p;
+}
+
+template <typename T0, typename T1, typename T2,
+          template <class> class OIf, template <class> class I1If,
+          template <class> class I2If>
+auto& add_pipewrap2(composite& top, sc_module_name name,
+    const int& offset, const std::string& pipe_path,
+    OIf<T0>& out, I1If<T1>& in1, I2If<T2>& in2)
+{
+    auto& p = top.add(new pipewrap2<T0,T1,T2>(name, offset, pipe_path));
+    p(out, in1, in2);
     return p;
 }
 

@@ -22,7 +22,7 @@
 using namespace ForSyDe;
 using namespace std;
 
-FORSYDE_COMPOSITE(mp4dec), public SADF::mn_composite<mp4dec>
+FORSYDE_COMPOSITE(mp4dec)
 {
     SADF::in_port<frame_type>  ft;
     SADF::in_port<MacroBlock<bs>>  mb;
@@ -43,7 +43,7 @@ FORSYDE_COMPOSITE(mp4dec), public SADF::mn_composite<mp4dec>
         auto rc2mc   = new SADF::signal<Frame<fsr,fsc>>("rc2mc",100);
         auto rc2mcd  = new SADF::signal<Frame<fsr,fsc>>("rc2mcd",100);
 
-        add_detectorMN(
+        add_detectorMN(*this,
             "fd1",
             fd_cds_func,
             fd_kss_func,
@@ -60,9 +60,9 @@ FORSYDE_COMPOSITE(mp4dec), public SADF::mn_composite<mp4dec>
             },
             I,
             {1,1},
-            std::tie(*fd2idct,*fd2vld,*fd2mc,*fd2rc), std::tie(ft,*rc2fdd));
+            outs(*fd2idct,*fd2vld,*fd2mc,*fd2rc), ins(ft,*rc2fdd));
 
-        add_kernelMN(
+        add_kernelMN(*this,
             "vld1",
             vld_func,
             {
@@ -76,9 +76,9 @@ FORSYDE_COMPOSITE(mp4dec), public SADF::mn_composite<mp4dec>
                 {P80, {{1},{1,1}}},
                 {P99, {{1},{1,1}}}
             },
-            std::tie(*vld2idct,*vld2mc), *fd2vld, std::tie(mb));
+            outs(*vld2idct,*vld2mc), *fd2vld, ins(mb));
 
-        add_kernelMN(
+        add_kernelMN(*this,
             "idct1",
             idct_func,
             {
@@ -92,9 +92,9 @@ FORSYDE_COMPOSITE(mp4dec), public SADF::mn_composite<mp4dec>
                 {P80, {{1},{1}}},
                 {P99, {{1},{1}}}
             },
-            std::tie(*idct2rc), *fd2idct, std::tie(*vld2idct));
+            outs(*idct2rc), *fd2idct, ins(*vld2idct));
 
-        add_kernelMN(
+        add_kernelMN(*this,
             "mc1",
             mc_func,
             {
@@ -108,9 +108,9 @@ FORSYDE_COMPOSITE(mp4dec), public SADF::mn_composite<mp4dec>
                 {P80, {{80,1},{1}}},
                 {P99, {{99,1},{1}}}
             },
-            std::tie(*mc2rc), *fd2mc, std::tie(*vld2mc,*rc2mcd));
+            outs(*mc2rc), *fd2mc, ins(*vld2mc,*rc2mcd));
 
-        auto& rc1 = add_kernelMN(
+        add_kernelMN(*this,
             "rc1",
             rc_func,
             {
@@ -124,8 +124,7 @@ FORSYDE_COMPOSITE(mp4dec), public SADF::mn_composite<mp4dec>
                 {P80, {{80,1},{1,1}}},
                 {P99, {{99,1},{1,1}}}
             },
-            std::tie(*rc2mc,*rc2fd), *fd2rc, std::tie(*idct2rc,*mc2rc));
-        std::get<0>(rc1.oport)(out);
+            outs(readers(*rc2mc, out),*rc2fd), *fd2rc, ins(*idct2rc,*mc2rc));
 
         add(new SDF::delayn(
             "rc2fddelay",

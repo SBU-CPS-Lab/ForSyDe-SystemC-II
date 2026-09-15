@@ -1465,38 +1465,75 @@ mealy(sc_module_name, G, NS, OD, ST)
              ST,
              typename ForSyDe::detail::token_value<ForSyDe::detail::arg_t<0,OD>>::type>;
 
-//! Construct-and-bind a mealyMN in one call, template arguments and all
-/*! See SDF::mn_composite for why this needs a function template rather
- * than a deduction guide. TS comes from init_st directly, same as
- * mealy's own ST above; only the ports need std::tie(...) to carry
- * more than one signal.
+//! Construct-and-bind a process in one call, template arguments and all
+/*! See SY's own add_* block for the full reasoning. mealyMN's TS comes
+ * from init_st directly, same as mealy's own ST above; only the ports
+ * need outs(...)/ins(...) (binding.hpp), and only because there are
+ * two independently-sized groups of them -- checked directly, not
+ * assumed: a flat, unwrapped port list compiles and silently binds
+ * the wrong ports rather than failing.
  *
- * A composite picks this up by also deriving from DT::mn_composite<Self>:
+ * zips/zip/unzip have no function argument that reveals a token type
+ * (zip's gamma_func is generic, so even where there is one, arg_t
+ * cannot read it) and at most one variable-sized side each -- zip and
+ * zips have none at all, T1/T2[/TC] each coming from their own single
+ * port -- so they take their ports flat, no wrapper. unzip's one
+ * variable-shaped argument is its single input Pack, ahead of the two
+ * outputs it unpacks into, exactly the order bindable's own operator()
+ * already uses.
  *
- *   FORSYDE_COMPOSITE(top), public DT::mn_composite<top>
+ * Called as a free function, composite first: add_zip(*this, ...).
  */
-template <typename Derived>
-struct mn_composite
+template <typename... TOs, typename... TIs, typename TS,
+          template <class> class... OIf, template <class> class... IIf>
+auto& add_mealyMN(composite& top, sc_module_name name,
+    typename mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::gamma_functype gamma_func,
+    typename mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::ns_functype ns_func,
+    typename mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::od_functype od_func,
+    const TS& init_st,
+    std::tuple<OIf<TOs>&...> outs, std::tuple<IIf<TIs>&...> ins)
 {
-    template <typename... TOs, typename... TIs, typename TS,
-              template <class> class... OIf, template <class> class... IIf>
-    auto& add_mealyMN(sc_module_name name,
-        typename mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::gamma_functype gamma_func,
-        typename mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::ns_functype ns_func,
-        typename mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::od_functype od_func,
-        const TS& init_st,
-        std::tuple<OIf<TOs>&...> outs,
-        std::tuple<IIf<TIs>&...> ins)
-    {
-        auto& self = static_cast<Derived&>(*this);
-        auto& p = self.add(new mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>(
-            name, gamma_func, ns_func, od_func, init_st));
-        std::apply([&](auto&... o){
-            std::apply([&](auto&... i){ p(o..., i...); }, ins);
-        }, outs);
-        return p;
-    }
-};
+    auto& p = top.add(new mealyMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>(
+        name, gamma_func, ns_func, od_func, init_st));
+    std::apply([&](auto&... o){
+        std::apply([&](auto&... i){ p(o..., i...); }, ins);
+    }, outs);
+    return p;
+}
+
+template <typename T1, typename T2,
+          template <class> class OIf, template <class> class I1If, template <class> class I2If>
+auto& add_zips(composite& top, sc_module_name name, size_t itoks,
+    OIf<std::tuple<std::vector<abst_ext<T1>>,std::vector<abst_ext<T2>>>>& out,
+    I1If<T1>& in1, I2If<T2>& in2)
+{
+    auto& p = top.add(new zips<T1,T2>(name, itoks));
+    p(out, in1, in2);
+    return p;
+}
+
+template <typename T1, typename T2, typename TC, typename GammaF,
+          template <class> class OIf, template <class> class I1If,
+          template <class> class I2If, template <class> class I3If>
+auto& add_zip(composite& top, sc_module_name name, GammaF gamma_func,
+    OIf<std::tuple<std::vector<abst_ext<T1>>,std::vector<abst_ext<T2>>>>& out,
+    I1If<T1>& in1, I2If<T2>& in2, I3If<TC>& in3)
+{
+    auto& p = top.add(new zip<T1,T2,TC>(name, gamma_func));
+    p(out, in1, in2, in3);
+    return p;
+}
+
+template <typename T1, typename T2,
+          template <class> class IIf, template <class> class O1If, template <class> class O2If>
+auto& add_unzip(composite& top, sc_module_name name,
+    IIf<std::tuple<std::vector<abst_ext<T1>>,std::vector<abst_ext<T2>>>>& in,
+    O1If<T1>& out1, O2If<T2>& out2)
+{
+    auto& p = top.add(new unzip<T1,T2>(name));
+    p(out1, out2, in);
+    return p;
+}
 
 }
 }

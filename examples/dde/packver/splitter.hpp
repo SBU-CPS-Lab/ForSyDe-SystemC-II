@@ -32,7 +32,7 @@ FORSYDE_COMPOSITE(splitter)
         add(new DDE::mealy2("split", split_ns_func, split_od_func, 'V', SC_ZERO_TIME))
             (zout, iport1, iport2);
         
-        add(new DDE::unzip<int,int>("unzip1"))(oport1, oport2, zout);
+        add_unzip(*this, "unzip1", zout, oport1, oport2);
     }
     
     static void split_ns_func(char& nst, const char& st, 

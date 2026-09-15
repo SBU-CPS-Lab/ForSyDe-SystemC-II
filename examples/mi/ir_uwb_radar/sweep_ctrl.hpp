@@ -31,7 +31,7 @@ FORSYDE_COMPOSITE(sweep_ctrl)
     SC_CTOR(sweep_ctrl)
     {
 
-        add(new SY::fanout<int>("fo1"))(readers(sc_in, ac_in, a2_in), clk);
+        add_fanout(*this, "fo1", readers(sc_in, ac_in, a2_in), clk);
 
         add(new SY::smoore("avg_ctrl1",
             avg_ctrl_ns_func,

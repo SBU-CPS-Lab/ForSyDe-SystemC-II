@@ -28,7 +28,7 @@ vector<tuple<size_t,int>> in_vec1 =
      make_tuple(15,2), make_tuple(16,3), make_tuple(17,3),
      make_tuple(18,4), make_tuple(19,4)};
 
-FORSYDE_COMPOSITE(top), public DT::P::mn_composite<top>
+FORSYDE_COMPOSITE(top)
 {
     DT::signal<int> src, result;
 
@@ -36,8 +36,8 @@ FORSYDE_COMPOSITE(top), public DT::P::mn_composite<top>
     {
         add(new DT::vsource<int>("vsource1", in_vec1))(src);
 
-        add_mealyMN("swap1", swap_gamma, swap_ns_func, swap_od_func, 0,
-            std::tie(result), std::tie(src));
+        DT::P::add_mealyMN(*this, "swap1", swap_gamma, swap_ns_func, swap_od_func, 0,
+            outs(result), ins(src));
         
         add(new DT::sink("report1", report_func))(result);
     }

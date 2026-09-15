@@ -39,7 +39,7 @@ FORSYDE_COMPOSITE(fir)
                   res_line(TAPS-1)
     
     {
-        add(new SY::fanout<double>("fo"))(readers(del_line[0], coef_line[0]), iport1);
+        add_fanout(*this, "fo", readers(del_line[0], coef_line[0]), iport1);
         
         add(new SY::constant("coef0", abst_ext<double>(coefs[0]), 0))(coef_src_line[0]);
         

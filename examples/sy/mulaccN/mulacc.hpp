@@ -29,9 +29,9 @@ FORSYDE_COMPOSITE(mulacc)
     
     SC_CTOR(mulacc)
     {
-        add(new SY::scombN<int,int,int>("mul1", mul_func))(addi1, a, b);
+        add_scombN(*this, "mul1", mul_func, addi1, a, b);
 
-        add(new SY::scombN<int,int,int>("add1", add_func))(readers(acci, result), addi1, addi2);
+        add_scombN(*this, "add1", add_func, readers(acci, result), addi1, addi2);
         
         add(new SY::sdelay("accum", 0))(addi2, acci);
     }

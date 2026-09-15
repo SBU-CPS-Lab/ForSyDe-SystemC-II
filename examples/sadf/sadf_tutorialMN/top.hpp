@@ -19,7 +19,7 @@ using namespace sc_core;
 using namespace ForSyDe;
 using namespace std;
 
-FORSYDE_COMPOSITE(top), public SADF::mn_composite<top>
+FORSYDE_COMPOSITE(top)
 {
     SADF::signal<int> from_source;
     SADF::signal<int> to_kernel1, from_kernel1, to_kernel2, from_kernel2;
@@ -38,7 +38,7 @@ FORSYDE_COMPOSITE(top), public SADF::mn_composite<top>
         //! < -------------------------------- Using Helper--------------------------------> //!
 
         #ifdef FORSYDE_SELF_REPORTING
-        add_detectorMN("detector1",
+        add_detectorMN(*this, "detector1",
             detector1_cds_func,
             detector1_kss_func,
             {
@@ -50,9 +50,9 @@ FORSYDE_COMPOSITE(top), public SADF::mn_composite<top>
             S1,
             {1},
             &report_pipe,
-            std::tie(*from_detector1, *from_detector2), std::tie(from_source));
+            outs(*from_detector1, *from_detector2), ins(from_source));
         #else
-        add_detectorMN("detector1",
+        add_detectorMN(*this, "detector1",
             detector1_cds_func,
             detector1_kss_func,
             {
@@ -63,58 +63,58 @@ FORSYDE_COMPOSITE(top), public SADF::mn_composite<top>
             }, // detector1_table
             S1,
             {1},
-            std::tie(*from_detector1, *from_detector2), std::tie(from_source));
+            outs(*from_detector1, *from_detector2), ins(from_source));
         #endif
 
         #ifdef FORSYDE_SELF_REPORTING
-        add_kernelMN("kernel1",
+        add_kernelMN(*this, "kernel1",
             kernel1_func,
             {
                 {ADD,  {{3},{1}}},
                 {MINUS,{{2},{1}}}
             }, // kernel1_table
             &report_pipe,
-            std::tie(from_kernel1), *from_detector1, std::tie(to_kernel1));
+            outs(from_kernel1), *from_detector1, ins(to_kernel1));
         #else
-        add_kernelMN("kernel1",
+        add_kernelMN(*this, "kernel1",
             kernel1_func,
             {
                 {ADD,  {{3},{1}}},
                 {MINUS,{{2},{1}}}
             }, // kernel1_table
-            std::tie(from_kernel1), *from_detector1, std::tie(to_kernel1));
+            outs(from_kernel1), *from_detector1, ins(to_kernel1));
         #endif
 
         #ifdef FORSYDE_SELF_REPORTING
-        add_kernelMN("kernel2",
+        add_kernelMN(*this, "kernel2",
             kernel2_func,
             {
                 {MUL,{{2},{1}}},
                 {DIV,{{2},{1}}}
             }, // kernel2_table
             &report_pipe,
-            std::tie(from_kernel2), *from_detector2, std::tie(to_kernel2));
+            outs(from_kernel2), *from_detector2, ins(to_kernel2));
         #else
-        add_kernelMN("kernel2",
+        add_kernelMN(*this, "kernel2",
             kernel2_func,
             {
                 {MUL,{{2},{1}}},
                 {DIV,{{2},{1}}}
             }, // kernel2_table
-            std::tie(from_kernel2), *from_detector2, std::tie(to_kernel2));
+            outs(from_kernel2), *from_detector2, ins(to_kernel2));
         #endif
 
-        add(new SADF::source<int>("source1", [] (int& out1, const int& inp1) {out1 = inp1 + 1;}, 1, 0))(to_kernel1);
+        add(new SDF::source("source1", [] (int& out1, const int& inp1) {out1 = inp1 + 1;}, 1, 0))(to_kernel1);
 
-        add(new SADF::source<int>("source2", [] (int& out1, const int& inp1) {out1 = inp1 - 1;}, -1, 0))(to_kernel2);
+        add(new SDF::source("source2", [] (int& out1, const int& inp1) {out1 = inp1 - 1;}, -1, 0))(to_kernel2);
 
-        add(new SADF::sink<int>("sink1", [] (const int& out) {std::cout <<"kernel1 = " <<out << std::endl;}))(from_kernel1);
+        add(new SDF::sink("sink1", [] (const int& out) {std::cout <<"kernel1 = " <<out << std::endl;}))(from_kernel1);
 
-        add(new SADF::sink<int>("sink2", [] (const int& out) {std::cout <<"kernel2 = " <<out << std::endl;}))(from_kernel2);
+        add(new SDF::sink("sink2", [] (const int& out) {std::cout <<"kernel2 = " <<out << std::endl;}))(from_kernel2);
 
         //! < -------------------------------- Without Using Helper--------------------------------> //!
 
-        add(new SADF::source<int>("sourced", [] (int& out1, const int& inp1) {out1 = inp1 + 1;}, 1, 4))(from_source);
+        add(new SDF::source("sourced", [] (int& out1, const int& inp1) {out1 = inp1 + 1;}, 1, 4))(from_source);
 
         // auto detector1 = new SADF::detectorMN<
         //                         tuple<kernel1_scenario_type,kernel2_scenario_type>,

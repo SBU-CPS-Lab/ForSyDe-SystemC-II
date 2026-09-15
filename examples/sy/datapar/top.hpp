@@ -32,11 +32,11 @@ FORSYDE_COMPOSITE(top)
         inpval.fill(1);
         add(new SY::sconstant("constant1", inpval, 10))(srca);
         
-        add(new SY::sdpmap<int,int,10000>("inc1", inc_func))(srcb, srca);
-        
-        add(new SY::sdpscan<int,int,10000>("add1", add_func, 0))(scanned, srcb);
-        
-        add(new SY::sdpreduce<int,10000>("add2", add_func))(result, scanned);
+        add_sdpmap(*this, "inc1", inc_func, srcb, srca);
+
+        add_sdpscan(*this, "add1", add_func, 0, scanned, srcb);
+
+        add_sdpreduce(*this, "add2", add_func, result, scanned);
         
         add(new SY::ssink("report1", report_func))(result);
     }
