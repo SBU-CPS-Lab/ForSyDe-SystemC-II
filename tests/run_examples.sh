@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # tests/run_examples.sh -- build and run every example, in both the
 # introspective and non-introspective configuration, and diff stdout
-# against a captured golden file.
+# against a captured golden file. The "on" (introspective) configuration
+# additionally diffs every gen/*.xml an example writes against a golden
+# copy under tests/golden_ir/ -- see the IR_GOLDENS note below for why
+# this matters more than the stdout check.
 #
 # Usage:
 #   tests/run_examples.sh              # check mode: diff against goldens, used by CI
@@ -9,6 +12,17 @@
 #
 # Exit status: 0 if every example is either passing or listed in
 # tests/known_failures.txt; 1 if anything unregistered regressed.
+#
+# IR_GOLDENS (2g): standard output tells you the numbers agree; the
+# introspection XML tells you the *structure* agrees -- a mis-ordered
+# bind between two same-typed signals is invisible to the first and
+# obvious to the second (this is exactly what caught SystemC's own
+# operator() silently winning over ForSyDe's during 2f). gen/ and *.xml
+# are both gitignored (they are per-run build output), so the golden
+# copies live under tests/golden_ir/<example>__<file>.ir instead --
+# same content, an extension neither gitignore rule matches. Only "on"
+# writes any XML at all (FORSYDE_INTROSPECTION-gated), so this is a
+# no-op for "off" and for any example/test that never calls XMLExport.
 #
 # What this does NOT do yet: this drives the existing per-example
 # Makefiles, which is the only build system that exists at the moment.
@@ -44,6 +58,7 @@ set -u
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 ROOT="$(pwd)"
 GOLDEN_DIR="$ROOT/tests/golden"
+GOLDEN_IR_DIR="$ROOT/tests/golden_ir"
 KNOWN_FAILURES="$ROOT/tests/known_failures.txt"
 TIMEOUT=30
 CXXSTD="${CXXSTD:-c++17}"
@@ -296,6 +311,83 @@ run_dir() {
             continue
         fi
 
+        # IR goldens (2g): only "on" ever writes gen/*.xml
+        # (FORSYDE_INTROSPECTION-gated), and several directories in DIRS
+        # (tests/instantiate, tests/fsm_semantics, tests/moc_binding)
+        # never call XMLExport at all -- both are silent no-ops here,
+        # not failures, since there is nothing to check either way.
+        if [ "$cfg" = on ]; then
+            ir_key="$key ir"
+            escaped_name="${name//\//_}"
+            shopt -s nullglob
+            ir_files=("$dir"/gen/*.xml)
+            golden_ir_files=("$GOLDEN_IR_DIR/${escaped_name}"__*.ir)
+            shopt -u nullglob
+
+            if [ ${#ir_files[@]} -eq 0 ] && [ ${#golden_ir_files[@]} -eq 0 ]; then
+                : # this example/test never calls XMLExport -- nothing to check
+            elif [ $SEED -eq 1 ]; then
+                if is_known_failure "$key"; then
+                    echo "SEED  $ir_key (known -- not golden-tracked)"
+                    echo "KNOWN" >> "$tally"
+                else
+                    mkdir -p "$GOLDEN_IR_DIR"
+                    # Drop any golden this run no longer produces, the same
+                    # way seeding stdout overwrites rather than merges --
+                    # a golden set should describe the current tree, not
+                    # accumulate files from processes that no longer exist.
+                    rm -f "${golden_ir_files[@]}"
+                    for f in "${ir_files[@]}"; do
+                        base="$(basename "$f" .xml)"
+                        cp "$f" "$GOLDEN_IR_DIR/${escaped_name}__${base}.ir"
+                    done
+                    echo "SEED  $ir_key (${#ir_files[@]} file(s))"
+                    echo "PASS" >> "$tally"
+                fi
+            else
+                ir_missing=0
+                ir_mismatch=0
+                for f in "${ir_files[@]}"; do
+                    base="$(basename "$f" .xml)"
+                    g="$GOLDEN_IR_DIR/${escaped_name}__${base}.ir"
+                    if [ ! -f "$g" ]; then
+                        ir_missing=1
+                    elif ! diff -q "$f" "$g" >/dev/null 2>&1; then
+                        ir_mismatch=1
+                    fi
+                done
+                # A golden with no matching gen/*.xml is drift too -- a
+                # process that stopped writing XML is exactly the kind of
+                # silent structural change this check exists to catch.
+                for g in "${golden_ir_files[@]}"; do
+                    base="${g#"$GOLDEN_IR_DIR/${escaped_name}"__}"
+                    base="${base%.ir}"
+                    [ -f "$dir/gen/$base.xml" ] || ir_missing=1
+                done
+
+                if [ $ir_missing -eq 1 ]; then
+                    if is_known_failure "$key"; then
+                        echo "FAIL  $ir_key (known: no golden)"
+                        echo "KNOWN" >> "$tally"
+                    else
+                        echo "FAIL  $ir_key (no golden -- run with --seed) -- NEW"
+                        echo "NEWFAIL $ir_key (no golden)" >> "$tally"
+                    fi
+                elif [ $ir_mismatch -eq 1 ]; then
+                    if is_known_failure "$key"; then
+                        echo "FAIL  $ir_key (known: IR mismatch)"
+                        echo "KNOWN" >> "$tally"
+                    else
+                        echo "FAIL  $ir_key (IR differs from golden) -- NEW"
+                        echo "NEWFAIL $ir_key (IR mismatch)" >> "$tally"
+                    fi
+                else
+                    echo "PASS  $ir_key"
+                    echo "PASS" >> "$tally"
+                fi
+            fi
+        fi
+
         if [ $SEED -eq 1 ]; then
             if is_known_failure "$key"; then
                 # A registered failure that happens to exit 0 on this
@@ -362,6 +454,23 @@ wait
 # Print every job's output in DIRS order (the %04d prefix makes the glob
 # sort match it), so a parallel run reads exactly like a serial one.
 for f in "$WORK"/*.log; do [ -f "$f" ] && cat "$f"; done
+
+# tools/legacy-kinds (2g) is a pure text transform with no build, no
+# "on"/"off", and no environment dependency, so its self-test runs once
+# here rather than through the per-directory DIRS machinery above. It
+# is never a "known failure" -- there is no reason for it to be broken
+# and stay that way. Not meaningful in --seed mode (nothing to seed).
+if [ "$SEED" -eq 0 ]; then
+    if lk_out=$(tools/legacy-kinds --selftest 2>&1); then
+        echo "PASS  tools/legacy-kinds --selftest"
+        pass=$((pass+1))
+    else
+        echo "FAIL  tools/legacy-kinds --selftest -- NEW"
+        echo "$lk_out" | sed 's/^/      /'
+        new_fail=$((new_fail+1))
+        new_failures+=("tools/legacy-kinds --selftest")
+    fi
+fi
 
 while IFS= read -r tline; do
     case "$tline" in
