@@ -31,7 +31,7 @@ inline std::ostream& operator<< (std::ostream& os, const sample& s)
     return os;
 }
 
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
 DEFINE_TYPE(sample);
 #endif
 

@@ -75,7 +75,7 @@ public:
              fmuFileName(fmu_file), input_index(input_index),
              output_index(output_index), h(sample_period)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         arg_vec.push_back(std::make_tuple("fmuFileName",fmuFileName));
         std::stringstream ss;
         ss << input_index;
@@ -233,7 +233,7 @@ private:
         deleteUnzippedFiles();
     }
     
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundInChans, in_ports());

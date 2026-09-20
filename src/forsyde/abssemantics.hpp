@@ -28,6 +28,8 @@
  * Each MoC has its own sub-namespace.
  */
 
+#include "config.hpp"
+
 #include <systemc>
 #include <sstream>
 #include <fstream>
@@ -38,10 +40,10 @@
 // declared in types.hpp. forsyde.hpp includes types.hpp itself before
 // abssemantics.hpp, so this was masked there, but that made
 // abssemantics.hpp -- like the other 41 headers fixed alongside it --
-// not self-contained: including it on its own with FORSYDE_INTROSPECTION
+// not self-contained: including it on its own with FORSYDE_REFLECTION
 // defined failed to compile, needing a translation unit to happen to
 // have pulled in types.hpp first for unrelated reasons.
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
 #include "types.hpp"
 #endif
 
@@ -151,14 +153,14 @@ public:
 //! A ForSyDe signal is used to inter-connect processes
 template <typename T, typename TokenType>
 class signal: public sc_fifo<TokenType>
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
             , public ForSyDe::introspective_channel
 #endif
 {
 public:
     signal() : sc_fifo<TokenType>() {}
     signal(sc_module_name name, unsigned size) : sc_fifo<TokenType>(name, size) {}
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     typedef T type;
     
     // TODO: remove if proved not to be needed
@@ -205,14 +207,14 @@ public:
 //! The in_port port is used for input ports of ForSyDe processes
 template <typename T, typename TokenType, typename ChanType>
 class in_port: public sc_fifo_in<TokenType>
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
             , public ForSyDe::introspective_port
 #endif
 {
 public:
     in_port() : sc_fifo_in<TokenType>(){}
     in_port(const char* name) : sc_fifo_in<TokenType>(name){}
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     typedef T type;
     
     // NOTE: The following member functions could be overriden easier if
@@ -245,14 +247,14 @@ public:
 //! The UT_out port is used for output ports of UT processes
 template <typename T, typename TokenType, typename ChanType>
 class out_port: public sc_fifo_out<TokenType>
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
             , public ForSyDe::introspective_port
 #endif
 {
 public:
     out_port() : sc_fifo_out<TokenType>(){}
     out_port(const char* name) : sc_fifo_out<TokenType>(name){}
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     typedef T type;
     
     // NOTE: The following member functions could be overriden easier if
@@ -361,7 +363,7 @@ protected:
         clean();
     }
     
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
 
     //! This hook is used to collect additional structural information
     void end_of_elaboration()
@@ -379,7 +381,7 @@ protected:
 
 public:
 
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     //! Pointers to the input ports and their bound channels
     std::vector<PortInfo> boundInChans;
     //! Pointers to the output ports and their bound channels

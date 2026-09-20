@@ -42,7 +42,7 @@ public:
 
     UT2UT() : ForSyDe::signal<T,T>() {}
     UT2UT(sc_module_name name, unsigned size) : ForSyDe::signal<T,T>(name, size) {}
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     
     virtual std::string moc() const
     {
@@ -77,7 +77,7 @@ public:
 
     UT_in() : ForSyDe::in_port<T,T,signal<T>>(){}
     UT_in(const char* name) : ForSyDe::in_port<T,T,signal<T>>(name){}
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     
     virtual std::string moc() const
     {
@@ -112,7 +112,7 @@ public:
 
     UT_out() : ForSyDe::out_port<T,T,signal<T>>(){}
     UT_out(const char* name) : ForSyDe::out_port<T,T,signal<T>>(name){}
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     
     virtual std::string moc() const
     {

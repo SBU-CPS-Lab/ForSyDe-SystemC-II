@@ -197,7 +197,7 @@ private:
 
     void clean() {}
 
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundInChans, in_ports());
@@ -254,7 +254,7 @@ public:
         static_assert(timing_rank(To) > timing_rank(From),
             "insert adds timing information, so the destination has to "
             "carry more of it than the source.");
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         arg_vec.push_back(std::make_tuple("lambda", std::to_string(lambda)));
 #endif
     }
@@ -297,7 +297,7 @@ private:
 
     void clean() {}
 
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundInChans, in_ports());
@@ -361,7 +361,7 @@ public:
         static_assert(timing_rank(From) > timing_rank(To) && timing_rank(To) > 0,
             "group takes a timed signal to a synchronous one. To leave the "
             "timing behind entirely, use MI::strip.");
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         arg_vec.push_back(std::make_tuple("lambda", std::to_string(lambda)));
 #endif
     }
@@ -396,7 +396,7 @@ private:
 
     void clean() {}
 
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundInChans, in_ports());
@@ -443,7 +443,7 @@ public:
           ) : process(_name), iport1("iport1"), oport1("oport1"),
               sample_period(sample_period), op_mode(op_mode)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         std::stringstream ss;
         ss << sample_period;
         arg_vec.push_back(std::make_tuple("sample_period", ss.str()));
@@ -512,7 +512,7 @@ private:
     
     void clean() {}
     
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundInChans, in_ports());
@@ -548,7 +548,7 @@ public:
           ) : process(_name), iport1("iport1"), oport1("oport1"),
               sample_period(sample_period)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         std::stringstream ss;
         ss << sample_period;
         arg_vec.push_back(std::make_tuple("sample_period", ss.str()));
@@ -595,7 +595,7 @@ private:
     
     void clean() {}
     
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundInChans, in_ports());
@@ -738,7 +738,7 @@ private:
     
     void clean() {}
     
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundInChans, in_ports());
@@ -814,7 +814,7 @@ private:
     
     void clean() {}
     
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundInChans, in_ports());
@@ -854,7 +854,7 @@ public:
           ) : process(_name), iport1("iport1"), oport1("oport1"),
               op_mode(op_mode)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         std::stringstream ss;
         ss << op_mode;
         arg_vec.push_back(std::make_tuple("op_mode", ss.str()));
@@ -921,7 +921,7 @@ private:
     
     void clean() {}
     
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundInChans, in_ports());
@@ -995,7 +995,7 @@ public:
           ) : process(_name), iport1("iport1"), oport1("oport1"),
               sample_period(sample_period)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         std::stringstream ss;
         ss << sample_period;
         arg_vec.push_back(std::make_tuple("sample_period", ss.str()));
@@ -1047,7 +1047,7 @@ private:
         delete tok;
     }
     
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundInChans, in_ports());
@@ -1083,7 +1083,7 @@ public:
           ) : process(_name), iport1("iport1"), oport1("oport1"),
               sample_period(sample_period)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         std::stringstream ss;
         ss << sample_period;
         arg_vec.push_back(std::make_tuple("sample_period", ss.str()));
@@ -1137,7 +1137,7 @@ private:
     
     void clean() {}
     
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundInChans, in_ports());

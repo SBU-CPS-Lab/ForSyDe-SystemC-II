@@ -32,7 +32,7 @@
 #include <array>
 #include <type_traits>
 
-// Streams a std::vector under FORSYDE_INTROSPECTION via prettyprint.hpp's
+// Streams a std::vector under FORSYDE_REFLECTION via prettyprint.hpp's
 // generic container operator<<, which this file otherwise relies on
 // forsyde.hpp having included first.
 #include "prettyprint.hpp"
@@ -50,7 +50,7 @@ using namespace sc_core;
 namespace detail
 {
 
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
 //! Record a tuple of port references in one of a process's bound-channel vectors
 template <typename Ports>
 inline void bind_all(std::vector<PortInfo>& chans, Ports&& ports)
@@ -151,7 +151,7 @@ protected:
               const std::array<size_t,n_ins>& itoks         ///< consumption rates
               ) : sdf_process(_name), otoks(otoks), itoks(itoks)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         std::string func_name = std::string(basename());
         func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
         arg_vec.push_back(std::make_tuple("_func",func_name+std::string("_func")));
@@ -174,7 +174,7 @@ private:
 
     void prod() {write_all(self().out_ports(), ovals);}
 
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         bind_all(boundInChans, self().in_ports());
@@ -227,7 +227,7 @@ private:
 
     void prod() {write_multiport(oport1, ivals);}
 
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         bind_all(boundInChans, self().in_ports());
@@ -290,7 +290,7 @@ private:
 
     void prod() {write_all(self().out_ports(), in_val);}
 
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         boundInChans.resize(1);     // only one input port
@@ -337,7 +337,7 @@ public:
          ) : base(_name,{o1toks},{i1toks}), iport1("iport1"), oport1("oport1"),
              _func(_func)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         this->arg_vec.push_back(std::make_tuple("o1toks",std::to_string(o1toks)));
         this->arg_vec.push_back(std::make_tuple("i1toks",std::to_string(i1toks)));
 #endif
@@ -394,7 +394,7 @@ public:
           ) : base(_name,{o1toks},{i1toks,i2toks}),
               iport1("iport1"), iport2("iport2"), oport1("oport1"), _func(_func)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         this->arg_vec.push_back(std::make_tuple("o1toks",std::to_string(o1toks)));
         this->arg_vec.push_back(std::make_tuple("i1toks",std::to_string(i1toks)));
         this->arg_vec.push_back(std::make_tuple("i2toks",std::to_string(i2toks)));
@@ -460,7 +460,7 @@ public:
               iport1("iport1"), iport2("iport2"), iport3("iport3"),
               oport1("oport1"), _func(_func)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         this->arg_vec.push_back(std::make_tuple("o1toks",std::to_string(o1toks)));
         this->arg_vec.push_back(std::make_tuple("i1toks",std::to_string(i1toks)));
         this->arg_vec.push_back(std::make_tuple("i2toks",std::to_string(i2toks)));
@@ -531,7 +531,7 @@ public:
               iport1("iport1"), iport2("iport2"), iport3("iport3"), iport4("iport4"),
               oport1("oport1"), _func(_func)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         this->arg_vec.push_back(std::make_tuple("o1toks",std::to_string(o1toks)));
         this->arg_vec.push_back(std::make_tuple("i1toks",std::to_string(i1toks)));
         this->arg_vec.push_back(std::make_tuple("i2toks",std::to_string(i2toks)));
@@ -603,7 +603,7 @@ std::tuple<UT::UT_in<TIs>...>  iport;///< tuple of ports for the input channels
           std::array<size_t, sizeof...(TIs)> itoks  ///< consumption rates for the inputs
           ) : base(_name,otoks,itoks), _func(_func)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         // These two used to be reported the wrong way round: the value
         // streamed under the name "otoks" was itoks and vice versa, so
         // every SDF::combMN in every generated XML advertised its
@@ -666,7 +666,7 @@ public:
           ) : sdf_process(_name), iport1("iport1"), oport1("oport1"),
               init_val(init_val)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         std::stringstream ss;
         ss << init_val;
         arg_vec.push_back(std::make_tuple("init_val", ss.str()));
@@ -706,7 +706,7 @@ private:
     {
         delete val;
     }
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundInChans, in_ports());
@@ -756,7 +756,7 @@ public:
           ) : sdf_process(_name), iport1("iport1"), oport1("oport1"),
               init_val(init_val), ns(n)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         std::stringstream ss;
         ss << init_val;
         arg_vec.push_back(std::make_tuple("init_val", ss.str()));
@@ -799,7 +799,7 @@ private:
     {
         delete val;
     }
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundInChans, in_ports());
@@ -836,7 +836,7 @@ public:
                  init_val(init_val), take(take)
                  
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         std::stringstream ss;
         ss << init_val;
         arg_vec.push_back(std::make_tuple("init_val", ss.str()));
@@ -874,7 +874,7 @@ private:
     
     void clean() {}
 
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundOutChans, out_ports());
@@ -922,7 +922,7 @@ public:
           ) : sdf_process(_name), oport1("oport1"),
               init_st(init_val), take(take), _func(_func)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         std::string func_name = std::string(basename());
         func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
         arg_vec.push_back(std::make_tuple("_func",func_name+std::string("_func")));
@@ -976,7 +976,7 @@ private:
         delete cur_st;
     }
     
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundOutChans, out_ports());
@@ -1015,7 +1015,7 @@ public:
           ) : sdf_process(_name), oport1("oport1"),
               file_name(file_name), _func(_func)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         std::string func_name = std::string(basename());
         func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
         arg_vec.push_back(std::make_tuple("_func",func_name+std::string("_func")));
@@ -1072,7 +1072,7 @@ private:
         delete cur_val;
     }
     
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundOutChans, out_ports());
@@ -1104,7 +1104,7 @@ public:
             const std::vector<T>& in_vec  ///< Initial vector
             ) : sdf_process(_name), in_vec(in_vec)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         std::stringstream ss;
         ss << in_vec;
         arg_vec.push_back(std::make_tuple("in_vec", ss.str()));
@@ -1142,7 +1142,7 @@ private:
     
     void clean() {}
     
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundOutChans, out_ports());
@@ -1187,7 +1187,7 @@ public:
         ) : sdf_process(_name), iport1("iport1"), _func(_func)
             
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         std::string func_name = std::string(basename());
         func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
         arg_vec.push_back(std::make_tuple("_func",func_name+std::string("_func")));
@@ -1227,7 +1227,7 @@ private:
         delete val;
     }
     
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundInChans, in_ports());
@@ -1266,7 +1266,7 @@ public:
             _func(_func)
             
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         std::string func_name = std::string(basename());
         func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
         arg_vec.push_back(std::make_tuple("_func",func_name+std::string("_func")));
@@ -1320,7 +1320,7 @@ private:
         delete cur_val;
     }
     
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundInChans, in_ports());
@@ -1402,7 +1402,7 @@ public:
         unsigned int i2toks         ///< consumption rate for the second input
     ) : base(_name,{i1toks,i2toks}), iport1("iport1"), iport2("iport2")
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         this->arg_vec.push_back(std::make_tuple("i1toks",std::to_string(i1toks)));
         this->arg_vec.push_back(std::make_tuple("i2toks",std::to_string(i2toks)));
 #endif
@@ -1436,7 +1436,7 @@ public:
          std::array<size_t, sizeof...(Ts)> in_toks      ///< consumption rates
          ) : base(_name,in_toks)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         std::stringstream ss;
         ss << in_toks;
         this->arg_vec.push_back(std::make_tuple("itoks",ss.str()));
@@ -1475,7 +1475,7 @@ public:
            unsigned int o2toks       ///< consumption rate for the second output
            ) : base(_name), oport1("oport1"), oport2("oport2")
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         this->arg_vec.push_back(std::make_tuple("o1toks",std::to_string(o1toks)));
         this->arg_vec.push_back(std::make_tuple("o2toks",std::to_string(o2toks)));
 #endif
@@ -1509,7 +1509,7 @@ public:
             std::array<size_t, sizeof...(Ts)> out_toks  ///< production rates
             ) : base(_name)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         std::stringstream ss;
         ss << out_toks;
         this->arg_vec.push_back(std::make_tuple("otoks",ss.str()));
@@ -1584,7 +1584,7 @@ private:
     {
         delete val;
     }
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundInChans, in_ports());

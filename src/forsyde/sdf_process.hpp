@@ -47,7 +47,7 @@ public:
 
     SDF2SDF() : UT::UT2UT<T>() {}
     SDF2SDF(sc_module_name name, unsigned size) : UT::UT2UT<T>(name, size) {}
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     
     virtual std::string moc() const
     {
@@ -82,7 +82,7 @@ public:
 
     SDF_in() : ForSyDe::UT::UT_in<T>(){}
     SDF_in(const char* name) : ForSyDe::UT::UT_in<T>(name){}
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     
     virtual std::string moc() const
     {
@@ -117,7 +117,7 @@ public:
 
     SDF_out() : ForSyDe::UT::UT_out<T>(){}
     SDF_out(const char* name) : ForSyDe::UT::UT_out<T>(name){}
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     
     virtual std::string moc() const
     {

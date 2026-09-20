@@ -86,7 +86,7 @@ public:
               numerators(numerators), denominators(denominators),
               max_step(max_step), min_step(min_step), tol_error(tol_error)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         std::stringstream ss;
         ss << numerators;
         arg_vec.push_back(std::make_tuple("numerators", ss.str()));
@@ -353,7 +353,7 @@ private:
         y = boost::numeric::ublas::prod(c,x_) + boost::numeric::ublas::prod(d,u_k);
     }
 
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundInChans, in_ports());
@@ -391,7 +391,7 @@ public:
           ) : dde_process(_name), iport1("iport1"), oport1("oport1"),
               numerators(numerators), denominators(denominators)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         std::stringstream ss;
         ss << numerators;
         arg_vec.push_back(std::make_tuple("numerators", ss.str()));
@@ -576,7 +576,7 @@ private:
         y = boost::numeric::ublas::prod(c,x_) + boost::numeric::ublas::prod(d,u_k);
     }
 
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundInChans, in_ports());

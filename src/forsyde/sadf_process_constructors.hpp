@@ -170,7 +170,7 @@ protected:
                   ) : SADF_process(_name), sc_val(), init_sc(init_sc),
                       scenario_table(scenario_table)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         std::string func_name = std::string(basename());
         func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
         arg_vec.push_back(std::make_tuple("cds_func",func_name+std::string("cds_func")));
@@ -210,7 +210,7 @@ private:
 
     void prod() {SDF::detail::write_all(self().out_ports(), ovals);}
 
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         SDF::detail::bind_all(boundInChans, self().in_ports());
@@ -280,7 +280,7 @@ protected:
                 ) : SADF_process(_name), cport1("cport1"), cval1(),
                     scenario_table(scenario_table)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         std::string func_name = std::string(basename());
         func_name = func_name.substr(0, func_name.find_last_not_of("0123456789")+1);
         arg_vec.push_back(std::make_tuple("_func",func_name+std::string("_func")));
@@ -335,7 +335,7 @@ private:
         }
     }
 
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         // The control port is the kernel's first input, ahead of the
@@ -665,7 +665,7 @@ public:
           const size_t& i1toks                      ///< consumption rate for the first input
           ) : base(_name, scenario_table, init_sc), iport1("iport1"), oport1("oport1"), i1toks(i1toks), _cds_func(_cds_func), _kss_func(_kss_func)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         this->arg_vec.push_back(std::make_tuple("i1toks",std::to_string(i1toks)));
 #endif
     }
@@ -788,7 +788,7 @@ private:
     //! process's introspection arguments is registered by the core.
     void register_rate_args(const std::array<size_t,sizeof...(TIs)>& itoks)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         std::stringstream ss;
         ss << itoks;
         this->arg_vec.push_back(std::make_tuple("itoks",ss.str()));

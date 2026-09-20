@@ -41,10 +41,10 @@
 # of making ir_uwb_radar the critical path of the whole suite (~3min vs
 # the ~105s the other 30-odd examples take together), which is a
 # trade-off worth making deliberately rather than by default.
-ct/cttutorial on
-ct/cttutorial off
-mi/ir_uwb_radar on
-mi/ir_uwb_radar off
+ct/cttutorial on run
+ct/cttutorial off run
+mi/ir_uwb_radar on run
+mi/ir_uwb_radar off run
 
 # --- The FMU that mi/cruisecontrol loads (fmi2/car.fmu) is
 # Co-Simulation-only -- there is no ModelExchange element in its
@@ -89,4 +89,14 @@ mi/cruisecontrol on
 # length on the mi/cruisecontrol entry above. Fixing it properly means
 # per-example control over which macros the "off" pass removes, which
 # belongs with a real build system rather than this interim harness.
-sdf/mp3decoder off
+sdf/mp3decoder off build
+
+# The optional third field is *how* the row is expected to fail: build,
+# run, golden, no-golden or ir. A bare line still registers the row
+# however it fails, but pinning the reason is what makes a change of
+# reason visible. 3b is why: mi/ir_uwb_radar is registered for a runtime
+# failure, it silently stopped *building* when the reflection switch
+# moved, and the summary went on reporting new-fail=0 because the key
+# still matched. mi/cruisecontrol is deliberately left bare -- it is
+# skipped wherever FORSYDE_SKIP_GDB is set, so how it fails elsewhere
+# has not been observed from here.

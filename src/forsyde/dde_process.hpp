@@ -43,7 +43,7 @@ public:
 
     DDE2DDE() : ForSyDe::signal<T,ttn_event<T>>() {}
     DDE2DDE(sc_module_name name, unsigned size) : ForSyDe::signal<T,ttn_event<T>>(name, size) {}
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     
     virtual std::string moc() const
     {
@@ -78,7 +78,7 @@ public:
 
     DDE_in() : ForSyDe::in_port<T,ttn_event<T>,signal<T>>(){}
     DDE_in(const char* name) : ForSyDe::in_port<T,ttn_event<T>,signal<T>>(name){}
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     
     virtual std::string moc() const
     {
@@ -113,7 +113,7 @@ public:
 
     DDE_out() : ForSyDe::out_port<T,ttn_event<T>,signal<T>>(){}
     DDE_out(const char* name) : ForSyDe::out_port<T,ttn_event<T>,signal<T>>(name){}
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     
     virtual std::string moc() const
     {

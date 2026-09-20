@@ -43,7 +43,7 @@ public:
 
     SY2SY() : ForSyDe::signal<T,abst_ext<T>>() {}
     SY2SY(sc_module_name name, unsigned size) : ForSyDe::signal<T,abst_ext<T>>(name, size) {}
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     
     virtual std::string moc() const
     {
@@ -78,7 +78,7 @@ public:
 
     SY_in() : ForSyDe::in_port<T,abst_ext<T>,signal<T>>(){}
     SY_in(const char* name) : ForSyDe::in_port<T,abst_ext<T>,signal<T>>(name){}
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     
     virtual std::string moc() const
     {
@@ -113,7 +113,7 @@ public:
 
     SY_out() : ForSyDe::out_port<T,abst_ext<T>,signal<T>>(){}
     SY_out(const char* name) : ForSyDe::out_port<T,abst_ext<T>,signal<T>>(name){}
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     
     virtual std::string moc() const
     {

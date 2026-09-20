@@ -19,6 +19,8 @@
  * \brief One binder and one set of function-signature traits for all MoCs
  */
 
+#include "config.hpp"
+
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -32,7 +34,7 @@ namespace ForSyDe
 
 template <typename T> class abst_ext;      // abst_ext.hpp
 template <typename VT, typename TT> struct tt_event;   // tt_event.hpp
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
 struct PortInfo;                                       // abssemantics.hpp
 #endif
 
@@ -94,7 +96,7 @@ inline void bind_positional(Ports& ports, Sigs sigs, std::index_sequence<I...>)
     (bind_one(std::get<I>(ports), std::get<I>(sigs)), ...);
 }
 
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
 //! Record a tuple of port references in one of a process's bound-channel vectors
 /*! The other half of what the two port accessors buy. bindInfo() needs
  * exactly what the binder needs -- the input ports in order, the output

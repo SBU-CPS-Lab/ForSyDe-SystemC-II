@@ -28,12 +28,15 @@
 // (reflection always compiled in) and 3d (describe/instantiate) have to
 // keep true while changing how the thing is populated.
 //
-// The "off" configuration is the other half of what this records. The
-// IR is reachable only under FORSYDE_INTROSPECTION today, because it is
-// built from members -- arg_vec, boundInChans, boundOutChans -- that
-// the macro compiles away. That is the state 3b changes, and when it
-// does, the off golden below stops saying "unavailable" and starts
-// saying what the on golden says.
+// Both harness configurations now produce the same dump, and that is
+// the point of 3b. The structural record used to be gated on
+// FORSYDE_INTROSPECTION, so an ordinary build of a model held no
+// structure at all and the only way to get an IR was to also ask for
+// the XML export. Reflection is its own switch now, on by default, so
+// the "off" row here -- which is only "without the XML backend" --
+// has an IR exactly like the "on" row. What is left of the #else below
+// is the FORSYDE_NO_REFLECTION opt-out, which tests/no_reflection is
+// the thing that actually compiles.
 #include <forsyde.hpp>
 
 #include <iostream>
@@ -62,7 +65,7 @@ FORSYDE_COMPOSITE(inner)
     }
 };
 
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
 
 int failures = 0;
 
@@ -209,7 +212,7 @@ FORSYDE_COMPOSITE(top)
 
     void start_of_simulation()
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         // The IR outlives the call that built it, which is the whole
         // point of 3a: it is a value, not a traversal.
         const ir::model m = ir::build(this);
@@ -218,8 +221,8 @@ FORSYDE_COMPOSITE(top)
         std::cout << "--\n";
         check_invariants(m);
 #else
-        std::cout << "IR unavailable: this build has no FORSYDE_INTROSPECTION,\n";
-        std::cout << "so the members ir::build reads are not compiled in (3b).\n";
+        std::cout << "IR unavailable: built with FORSYDE_NO_REFLECTION,\n";
+        std::cout << "so the members ir::build reads are not compiled in.\n";
 #endif
     }
 };
@@ -229,7 +232,7 @@ int sc_main(int, char*[])
     top t("top1");
     sc_core::sc_start();
 
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     std::cout << (failures == 0 ? "all invariants hold\n" : "INVARIANTS BROKEN\n");
     return failures == 0 ? 0 : 1;
 #else

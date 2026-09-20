@@ -59,7 +59,7 @@ public:
          ) : sy_process(_name), iport1("iport1"),
              destination(destination), tag(tag)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         arg_vec.push_back(std::make_tuple("destination",std::to_string(destination)));
         arg_vec.push_back(std::make_tuple("tag",std::to_string(tag)));
 #endif
@@ -107,7 +107,7 @@ private:
         delete ival1;
     }
     
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundInChans, in_ports());
@@ -142,7 +142,7 @@ public:
          ) : sy_process(_name), oport1("oport1"),
              source(source), tag(tag)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         arg_vec.push_back(std::make_tuple("source",std::to_string(source)));
         arg_vec.push_back(std::make_tuple("tag",std::to_string(tag)));
 #endif
@@ -191,7 +191,7 @@ private:
         delete oval1;
     }
     
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundOutChans, out_ports());
@@ -234,7 +234,7 @@ public:
          ) : sdf_process(_name), iport1("iport1"),
              destination(destination), tag(tag)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         arg_vec.push_back(std::make_tuple("destination",std::to_string(destination)));
         arg_vec.push_back(std::make_tuple("tag",std::to_string(tag)));
 #endif
@@ -282,7 +282,7 @@ private:
         delete ival1;
     }
     
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundInChans, in_ports());
@@ -317,7 +317,7 @@ public:
          ) : sdf_process(_name), oport1("oport1"),
              source(source), tag(tag)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         arg_vec.push_back(std::make_tuple("source",std::to_string(source)));
         arg_vec.push_back(std::make_tuple("tag",std::to_string(tag)));
 #endif
@@ -366,7 +366,7 @@ private:
         delete oval1;
     }
     
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundOutChans, out_ports());

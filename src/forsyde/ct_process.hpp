@@ -42,7 +42,7 @@ public:
 
     CT2CT() : ForSyDe::signal<double,sub_signal>() {}
     CT2CT(sc_module_name name, unsigned size) : ForSyDe::signal<double,sub_signal>(name, size) {}
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     
     virtual std::string moc() const
     {
@@ -60,7 +60,7 @@ class CT_in: public ForSyDe::in_port<double,sub_signal,signal>
 public:
     CT_in() : ForSyDe::in_port<double,sub_signal,signal>(){}
     CT_in(const char* name) : ForSyDe::in_port<double,sub_signal,signal>(name){}
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     
     virtual std::string moc() const
     {
@@ -78,7 +78,7 @@ class CT_out: public ForSyDe::out_port<double,sub_signal,signal>
 public:
     CT_out() : ForSyDe::out_port<double,sub_signal,signal>(){}
     CT_out(const char* name) : ForSyDe::out_port<double,sub_signal,signal>(name){}
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     
     virtual std::string moc() const
     {

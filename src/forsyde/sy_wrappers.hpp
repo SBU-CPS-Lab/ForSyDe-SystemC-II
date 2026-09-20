@@ -75,7 +75,7 @@ public:
          ) : sy_process(_name), iport1("iport1"), oport1("oport1"),
              exec_name(exec_name)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         arg_vec.push_back(std::make_tuple("exec_name",exec_name));
 #endif
     }
@@ -174,7 +174,7 @@ private:
         SC_REPORT_ERROR(name(),mi_error_from_gdb);
     }
     
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundInChans, in_ports());
@@ -213,7 +213,7 @@ public:
          ) : sy_process(_name), iport1("iport1"), oport1("oport1"),
              offset(offset), pipe_path(pipe_path)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         arg_vec.push_back(std::make_tuple("pipe_path",pipe_path));
 #endif
     }
@@ -331,7 +331,7 @@ private:
       delete oval;
     }
     
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundInChans, in_ports());
@@ -371,7 +371,7 @@ public:
          ) : sy_process(_name), iport1("iport1"), iport2("iport2"), 
              oport1("oport1"), offset(offset), pipe_path(pipe_path)
     {
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
         arg_vec.push_back(std::make_tuple("pipe_path",pipe_path));
 #endif
     }
@@ -502,7 +502,7 @@ private:
       delete oval;
     }
     
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     void bindInfo()
     {
         ForSyDe::detail::record_ports(boundInChans, in_ports());

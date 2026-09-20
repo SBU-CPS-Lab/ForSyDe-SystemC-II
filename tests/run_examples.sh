@@ -70,7 +70,17 @@ BASE_CFLAGS="-Wall -Wno-deprecated -Wno-return-type -Wno-char-subscripts -pthrea
 
 is_known_failure() {
     # $1 = "path config", e.g. "examples/sy/adaptivecodec on"
-    grep -qxF "$1" "$KNOWN_FAILURES" 2>/dev/null
+    # $2 = how it failed: build | run | golden | no-golden | ir
+    #
+    # A bare "path config" line registers that row however it fails. A
+    # "path config reason" line registers only that failure mode, so a
+    # row that starts failing for a *different* reason is reported as
+    # new. That distinction is not academic: during 3b an example
+    # registered for a runtime failure silently stopped *building*, and
+    # because the key still matched, the summary went on saying
+    # new-fail=0. Recording the reason is what turns that into news.
+    grep -qxF "$1" "$KNOWN_FAILURES" 2>/dev/null && return 0
+    [ -n "${2:-}" ] && grep -qxF "$1 $2" "$KNOWN_FAILURES" 2>/dev/null
 }
 
 # How many example directories to build concurrently. This suite is
@@ -152,6 +162,14 @@ DIRS+=("tests/moc_binding")
 # corpus checks the view; this checks what the view is a view of. See
 # tests/ir/README.md.
 DIRS+=("tests/ir")
+
+# tests/no_reflection is the only thing in the tree that compiles the
+# FORSYDE_NO_REFLECTION opt-out, so that a whole build configuration
+# does not become the next thing nothing ever instantiated. Its "on" row
+# is the opt-out build (its Makefile defines the macro); its "off" row
+# drops it, as the CFLAGS override drops everything. See
+# tests/no_reflection/README.md.
+DIRS+=("tests/no_reflection")
 
 echo "CXXSTD=$CXXSTD $( [ $SEED = 1 ] && echo '(seed mode)' || echo '(check mode)' )"
 
@@ -236,7 +254,7 @@ run_dir() {
         build_rc=$?
 
         if [ $build_rc -ne 0 ] || [ ! -x "$dir/run.x" ]; then
-            if is_known_failure "$key"; then
+            if is_known_failure "$key" build; then
                 echo "FAIL  $key (known: build)"
                 echo "KNOWN" >> "$tally"
             else
@@ -309,7 +327,7 @@ run_dir() {
         pkill -9 -f 'gdb --interpreter[=]mi' >/dev/null 2>&1
 
         if [ $run_rc -ne 0 ]; then
-            if is_known_failure "$key"; then
+            if is_known_failure "$key" run; then
                 echo "FAIL  $key (known: run, exit $run_rc)"
                 echo "KNOWN" >> "$tally"
             else
@@ -374,7 +392,7 @@ run_dir() {
                 done
 
                 if [ $ir_missing -eq 1 ]; then
-                    if is_known_failure "$key"; then
+                    if is_known_failure "$key" ir; then
                         echo "FAIL  $ir_key (known: no golden)"
                         echo "KNOWN" >> "$tally"
                     else
@@ -382,7 +400,7 @@ run_dir() {
                         echo "NEWFAIL $ir_key (no golden)" >> "$tally"
                     fi
                 elif [ $ir_mismatch -eq 1 ]; then
-                    if is_known_failure "$key"; then
+                    if is_known_failure "$key" ir; then
                         echo "FAIL  $ir_key (known: IR mismatch)"
                         echo "KNOWN" >> "$tally"
                     else
@@ -417,7 +435,7 @@ run_dir() {
         fi
 
         if [ ! -f "$golden" ]; then
-            if is_known_failure "$key"; then
+            if is_known_failure "$key" no-golden; then
                 echo "FAIL  $key (known: no golden)"
                 echo "KNOWN" >> "$tally"
             else
@@ -431,7 +449,7 @@ run_dir() {
             echo "PASS  $key"
             echo "PASS" >> "$tally"
         else
-            if is_known_failure "$key"; then
+            if is_known_failure "$key" golden; then
                 echo "FAIL  $key (known: golden mismatch)"
                 echo "KNOWN" >> "$tally"
             else

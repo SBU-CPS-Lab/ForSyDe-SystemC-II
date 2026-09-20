@@ -69,7 +69,7 @@
 // include the main SystemC library
 #include <systemc>
 
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
 #include "forsyde/types.hpp"
 #else
 // DEFINE_TYPE / DEFINE_TYPE_NAME register a human-readable name for a
@@ -117,6 +117,12 @@
 
 #include "forsyde/adaptivity.hpp"
 
+// The IR exists whenever the data it is built from does.
+#ifdef FORSYDE_REFLECTION
+#include "forsyde/ir.hpp"
+#endif
+
+// The XML export is one backend over that IR, and optional.
 #ifdef FORSYDE_INTROSPECTION
 #include "forsyde/xml.hpp"
 #endif

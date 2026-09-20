@@ -43,7 +43,7 @@ public:
 
     DT2DT() : ForSyDe::signal<T,abst_ext<T>>() {}
     DT2DT(sc_module_name name, unsigned size) : ForSyDe::signal<T,abst_ext<T>>(name, size) {}
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     
     virtual std::string moc() const
     {
@@ -78,7 +78,7 @@ public:
 
     DT_in() : ForSyDe::in_port<T,abst_ext<T>,signal<T>>(){}
     DT_in(const char* name) : ForSyDe::in_port<T,abst_ext<T>,signal<T>>(name){}
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     
     virtual std::string moc() const
     {
@@ -113,7 +113,7 @@ public:
 
     DT_out() : ForSyDe::out_port<T,abst_ext<T>,signal<T>>(){}
     DT_out(const char* name) : ForSyDe::out_port<T,abst_ext<T>,signal<T>>(name){}
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
     
     virtual std::string moc() const
     {

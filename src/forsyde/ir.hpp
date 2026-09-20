@@ -31,6 +31,8 @@
  * nothing about how a model elaborates.
  */
 
+#include "config.hpp"
+
 #include <cstddef>
 #include <string>
 #include <vector>
@@ -170,6 +172,15 @@ struct model
 
     const network& top() const {return networks.front();}
 };
+
+//! Everything below reads the structural record FORSYDE_REFLECTION keeps
+/*! The data model above is plain data and is always available -- an
+ * ir::model can be held, copied or handed around by anything. Building
+ * one *from a running elaboration*, though, reads process::arg_vec and
+ * the bound-channel vectors, which exist only when the library is
+ * compiled with its reflection on (config.hpp).
+ */
+#ifdef FORSYDE_REFLECTION
 
 namespace detail
 {
@@ -336,6 +347,8 @@ inline model build(sc_core::sc_module* top)
     build_into(m, top);
     return m;
 }
+
+#endif // FORSYDE_REFLECTION
 
 } // namespace ir
 

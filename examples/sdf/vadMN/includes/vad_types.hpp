@@ -44,10 +44,10 @@ DEFINE_TYPE_NAME(pvad_acf0_t,"pvad_acf0_t");
 // These five spell out what DEFINE_TYPE_NAME would have expanded to,
 // because the macro cannot take a template-id containing commas -- the
 // preprocessor splits tuple_of_vectors<a,b> into two macro arguments.
-// Unlike the macro, which is a no-op without FORSYDE_INTROSPECTION,
+// Unlike the macro, which is a no-op without FORSYDE_REFLECTION,
 // they name get_type_name directly, which only exists when types.hpp is
 // included; so they need the guard the macro gets for free.
-#ifdef FORSYDE_INTROSPECTION
+#ifdef FORSYDE_REFLECTION
 //~ DEFINE_TYPE_NAME(tuple_of_vectors<L_av_t,L_av_t>,"r_t.r_t");
 template<> inline const char* get_type_name<tuple_of_vectors<L_av_t,L_av_t>>(){return "r_t.r_t";}
 //~ DEFINE_TYPE_NAME(tuple_of_vectors<rav1_t,short,pvad_acf0_t,short,short>,"rav1_t.short.pvad_acf0_t.short.short");
