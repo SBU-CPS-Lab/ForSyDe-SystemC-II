@@ -15,6 +15,10 @@
 #include "detectors.hpp"
 #include "globals.hpp"
 
+#include <cstdlib>   // getenv, for the runtime self-report opt-in
+#include <fcntl.h>   // open, for the report pipe
+#include <unistd.h>
+
 using namespace sc_core;
 using namespace ForSyDe;
 using namespace std;
@@ -125,13 +129,40 @@ FORSYDE_COMPOSITE(top)
         // sink2-> iport1(from_kernel2);
 
     }
-#ifdef FORSYDE_INTROSPECTION
+    // Self-reporting, as a runtime subscription (D10).
+    //
+    // Set FORSYDE_SELF_REPORT and have a reader on gen/self_report --
+    // e.g. `mkfifo gen/self_report && cat gen/self_report &` before
+    // running -- and every kernel and detector firing in this model is
+    // written to it. Asking at runtime rather than at compile time is
+    // what lets the path be built on every build; opening the write end
+    // of a named pipe blocks until a reader attaches, so a model that
+    // opened it unconditionally would hang with nothing listening.
     void start_of_simulation()
     {
+#ifdef FORSYDE_INTROSPECTION
         ForSyDe::XMLExport dumper("gen/");
         dumper.traverse(this);
-    }
 #endif
+        if (!std::getenv("FORSYDE_SELF_REPORT")) return;
+
+        while (report_pipe_fd <= 0)   // spins until a reader attaches
+        {
+            report_pipe_fd = open("gen/self_report", O_WRONLY|O_NONBLOCK);
+            if (report_pipe_fd > 0)
+                report_pipe = fdopen(report_pipe_fd, "w");
+        }
+        ForSyDe::reflection::observe(ForSyDe::reflection::to_pipe(&report_pipe));
+    }
+
+    void end_of_simulation()
+    {
+        if (report_pipe) fclose(report_pipe);
+    }
+
+private:
+    FILE* report_pipe = nullptr;
+    int report_pipe_fd = 0;
 
 };
 

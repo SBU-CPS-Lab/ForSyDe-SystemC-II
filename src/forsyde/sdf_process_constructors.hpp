@@ -158,13 +158,6 @@ protected:
 #endif
     }
 
-public:
-    //! One rate per port, in out_ports()/in_ports() order
-    ForSyDe::detail::port_rates rates() const override
-    {
-        return {{otoks.begin(),otoks.end()}, {itoks.begin(),itoks.end()}};
-    }
-
 private:
     Derived& self() {return static_cast<Derived&>(*this);}
 
@@ -220,15 +213,6 @@ protected:
     zip_core(sc_module_name _name,               ///< process name
              const std::array<size_t,n_ins>& itoks      ///< consumption rates
              ) : sdf_process(_name), oport1("oport1"), itoks(itoks) {}
-
-public:
-    //! oport1 always produces exactly one Pack token per firing,
-    //! regardless of what the individual inputs' rates are, so its
-    //! rate is the constant 1.
-    ForSyDe::detail::port_rates rates() const override
-    {
-        return {{1}, {itoks.begin(),itoks.end()}};
-    }
 
 private:
     Derived& self() {return static_cast<Derived&>(*this);}
@@ -288,29 +272,10 @@ public:
     auto in_ports() {return std::tie(iport1);}
 
 protected:
-    static constexpr std::size_t n_outs = std::tuple_size<Pack>::value;
-
-    //! Declared production rates, one per output -- see the class
-    //! comment above: nothing in exec()/prod() enforces these against
-    //! what actually gets written, so this is bookkeeping (arg_vec,
-    //! ir::build's rates()), not a constraint on behaviour.
-    std::array<std::size_t,n_outs> otoks;
-
     Pack in_val;            ///< the token read from iport1
 
-    unzip_core(sc_module_name _name,      ///< process name
-               const std::array<std::size_t,n_outs>& otoks  ///< declared production rates
-               ) : sdf_process(_name), iport1("iport1"), otoks(otoks) {}
-
-public:
-    //! iport1 always consumes exactly one Pack token per firing, so its
-    //! rate is the constant 1; see the class comment above for why
-    //! out_rates is only ever what was declared, not what prod()
-    //! actually writes.
-    ForSyDe::detail::port_rates rates() const override
-    {
-        return {{otoks.begin(),otoks.end()}, {1}};
-    }
+    unzip_core(sc_module_name _name      ///< process name
+               ) : sdf_process(_name), iport1("iport1") {}
 
 private:
     Derived& self() {return static_cast<Derived&>(*this);}
@@ -710,10 +675,7 @@ public:
     
     //! Specifying from which process constructor is the module built
     std::string forsyde_kind() const {return "SDF::delay";}
-
-    //! One token, written by init() before the first ordinary firing
-    std::size_t initial_tokens() const override {return 1;}
-
+    
 private:
     // Initial value
     T init_val;
@@ -804,10 +766,7 @@ public:
     
     //! Specifying from which process constructor is the module built
     std::string forsyde_kind() const {return "SDF::delayn";}
-
-    //! ns tokens, written by init() before the first ordinary firing
-    std::size_t initial_tokens() const override {return ns;}
-
+    
 private:
     // Initial value
     T init_val;
@@ -1514,7 +1473,7 @@ public:
     unzip(sc_module_name _name,         ///< process name
            unsigned int o1toks,      ///< consumption rate for the first output
            unsigned int o2toks       ///< consumption rate for the second output
-           ) : base(_name,{o1toks,o2toks}), oport1("oport1"), oport2("oport2")
+           ) : base(_name), oport1("oport1"), oport2("oport2")
     {
 #ifdef FORSYDE_REFLECTION
         this->arg_vec.push_back(std::make_tuple("o1toks",std::to_string(o1toks)));
@@ -1548,7 +1507,7 @@ public:
      */
     unzipN(sc_module_name _name,                        ///< process name
             std::array<size_t, sizeof...(Ts)> out_toks  ///< production rates
-            ) : base(_name,out_toks)
+            ) : base(_name)
     {
 #ifdef FORSYDE_REFLECTION
         std::stringstream ss;

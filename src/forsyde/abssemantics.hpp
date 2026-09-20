@@ -403,32 +403,7 @@ public:
     
     //! The ForSyDe process type represented by the current module
     virtual std::string forsyde_kind() const = 0;
-
-    //! This process's static per-port production/consumption rates, if any
-    /*! Empty for both directions by default, which is correct for the
-     * great majority of processes: a rate is meaningless for one whose
-     * firing consumes or produces a data-dependent or undeclared number
-     * of tokens. Overridden by the SDF comb/zip/unzip families
-     * (sdf_process_constructors.hpp), the only classes that currently
-     * declare theirs. See ForSyDe::detail::port_rates (binding.hpp) for
-     * why this has to be virtual rather than detected the way
-     * has_in_ports/has_out_ports are.
-     */
-    virtual ForSyDe::detail::port_rates rates() const {return {};}
-
-    //! Tokens this process places on its own output before its first
-    //! firing, if any
-    /*! Zero for every process except SDF::delay (1) and SDF::delayn (its
-     * declared depth): both write to their output port from init(),
-     * before prep()/exec()/prod() ever run, which is how ForSyDe models
-     * a unit delay -- as an actor with a head start, not as a token
-     * already sitting on a channel the way classical SDF puts it. An
-     * SDF3 export needs the latter (SDF3 graphs have no actor-side
-     * notion of this at all), so it reads this to mark the channel
-     * leaving such an actor instead.
-     */
-    virtual std::size_t initial_tokens() const {return 0;}
-
+    
 };
 
 //! A module that owns the processes and sub-modules built inside it

@@ -189,9 +189,11 @@ FORSYDE_COMPOSITE(top)
     // old flag had to exist is the loop below: gen/self_report is a
     // named pipe and opening the write end spins until a reader
     // attaches, so a model that always opened it would always hang. A
-    // model that asks at runtime keeps that property and still gets
-    // the reporting path compiled on every build, which the macro
-    // never did -- it was commented out in every Makefile in the tree.
+    // model that asks at runtime keeps that property, gets the
+    // reporting path compiled on every build rather than only in the
+    // configuration that enabled it, and can be switched on without a
+    // rebuild -- which is the point, since this is a thing you turn on
+    // to look at something and off again.
     void start_of_simulation()
     {
 #ifdef FORSYDE_INTROSPECTION
