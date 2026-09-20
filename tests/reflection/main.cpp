@@ -32,6 +32,7 @@
 // way of writing a model.
 #include <forsyde.hpp>
 
+#include <cstring>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -153,6 +154,98 @@ int main_checks()
     return 0;
 }
 
+// The TCP transport (reflection_tcp.hpp), against the three claims that
+// are the reason it exists next to to_pipe(): more than one client can
+// watch the same run, a client that leaves does not take the run with
+// it, and the bytes on the wire are as_report_line()'s format.
+//
+// The broadcaster is driven directly rather than through to_tcp(),
+// because port 0 asks the kernel for a free port and port() reports
+// which one it got -- a fixed number would make this test fail when
+// something else on the machine happens to hold it.
+namespace tcp_detail = ForSyDe::reflection::detail;
+
+//! Connect to a listener on the loopback interface
+static tcp_detail::socket_t connect_client(unsigned short port)
+{
+    tcp_detail::socket_t s = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (s == tcp_detail::bad_socket) return tcp_detail::bad_socket;
+
+    sockaddr_in addr;
+    std::memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+
+    if (::connect(s, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0)
+    {
+        tcp_detail::close_socket(s);
+        return tcp_detail::bad_socket;
+    }
+    return s;
+}
+
+//! Read whatever is waiting, as a string
+static std::string read_some(tcp_detail::socket_t s)
+{
+    char buf[512];
+#ifdef _WIN32
+    int n = ::recv(s, buf, static_cast<int>(sizeof(buf)), 0);
+#else
+    ssize_t n = ::recv(s, buf, sizeof(buf), 0);
+#endif
+    return n > 0 ? std::string(buf, static_cast<std::size_t>(n)) : std::string();
+}
+
+void tcp_checks()
+{
+    const reflection::firing sample{"SADF::kernelMN", "krn",
+                                    sc_core::SC_ZERO_TIME, "ADD", "1  1"};
+    const std::string expected = reflection::as_report_line(sample);
+
+    tcp_detail::tcp_broadcaster b(0, false);   // 0: let the kernel choose
+    const unsigned short port = b.port();
+    check(port != 0, "the broadcaster reports the port it bound");
+
+    // Two clients, because one-to-N is the whole point of preferring a
+    // socket to the named pipe it replaces.
+    tcp_detail::socket_t c1 = connect_client(port);
+    tcp_detail::socket_t c2 = connect_client(port);
+    check(c1 != tcp_detail::bad_socket && c2 != tcp_detail::bad_socket,
+          "two clients can connect to the same running model");
+
+    b.broadcast(expected);
+    const std::string got1 = read_some(c1);
+    const std::string got2 = read_some(c2);
+    check(got1 == expected && got2 == expected,
+          "every connected client receives the same report line");
+    check(got1 == "kernelMN  krn  ADD  1  1\n",
+          "the bytes on the wire are the format the pipe always carried");
+
+    // A client leaving must not take the simulation with it. On POSIX
+    // this is the SIGPIPE path: without MSG_NOSIGNAL/SO_NOSIGPIPE the
+    // next write would kill the process outright rather than return an
+    // error, so reaching the line after this at all is the check.
+    tcp_detail::close_socket(c1);
+    b.broadcast(expected);
+    b.broadcast(expected);
+    check(true, "a client disconnecting does not fault the reporting model");
+
+    const std::string still = read_some(c2);
+    check(!still.empty(), "the remaining client keeps receiving after the other left");
+
+    tcp_detail::close_socket(c2);
+
+    // And the public entry point works: an observer that a model
+    // installs exactly like to_pipe's.
+    reflection::forget_observers();
+    reflection::observe(reflection::to_tcp(0));
+    check(reflection::observed(), "to_tcp installs a working observer");
+    reflection::report(sample);          // no client attached; must not fault
+    check(true, "reporting with nobody connected is harmless");
+    reflection::forget_observers();
+}
+
 int sc_main(int, char*[])
 {
     check(!reflection::observed(), "nobody is listening before anything subscribes");
@@ -162,6 +255,7 @@ int sc_main(int, char*[])
 
 #ifdef FORSYDE_REFLECTION
     main_checks();
+    tcp_checks();
 #else
     // The opt-out: the same source compiles, and says so.
     check(heard.empty(), "with FORSYDE_NO_REFLECTION nothing is reported");

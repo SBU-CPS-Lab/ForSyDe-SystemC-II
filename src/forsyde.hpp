@@ -125,6 +125,11 @@
 
 #ifdef FORSYDE_REFLECTION
 #include "forsyde/ir.hpp"
+// A transport for the above, over the socket API every platform has.
+// Included here rather than left for a model to reach for, so that it
+// is compiled on every build -- a reporting path nothing compiles is
+// how the previous one rotted.
+#include "forsyde/reflection_tcp.hpp"
 #endif
 
 // The XML export is one backend over that IR, and optional.

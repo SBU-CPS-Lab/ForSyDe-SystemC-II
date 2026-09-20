@@ -21,4 +21,12 @@ ok   as_report_line renders the format the pipe has always carried
   detectorMN  det  S1  [1]
   detectorMN  det  S2  [1]
 ok   forget_observers leaves nobody listening
+ok   the broadcaster reports the port it bound
+ok   two clients can connect to the same running model
+ok   every connected client receives the same report line
+ok   the bytes on the wire are the format the pipe always carried
+ok   a client disconnecting does not fault the reporting model
+ok   the remaining client keeps receiving after the other left
+ok   to_tcp installs a working observer
+ok   reporting with nobody connected is harmless
 all reflection checks hold
