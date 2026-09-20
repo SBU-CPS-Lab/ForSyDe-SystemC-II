@@ -163,6 +163,13 @@ DIRS+=("tests/moc_binding")
 # tests/ir/README.md.
 DIRS+=("tests/ir")
 
+# tests/reflection subscribes to what a running model reports about
+# itself. Self-reporting used to be reached only through a macro that
+# was commented out in every Makefile here, so the path was compiled by
+# nothing; moving it onto a service does not fix that unless something
+# subscribes. See tests/reflection/README.md.
+DIRS+=("tests/reflection")
+
 # tests/no_reflection is the only thing in the tree that compiles the
 # FORSYDE_NO_REFLECTION opt-out, so that a whole build configuration
 # does not become the next thing nothing ever instantiated. Its "on" row

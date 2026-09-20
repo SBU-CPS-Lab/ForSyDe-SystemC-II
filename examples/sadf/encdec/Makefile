@@ -9,4 +9,3 @@ OBJS = $(SRCS:.cpp=.o)
 include ../../Makefile.defs
 
 CFLAGS += -DFORSYDE_INTROSPECTION
-#CFLAGS += -DFORSYDE_SELF_REPORTING

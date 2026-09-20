@@ -38,6 +38,9 @@
 // translation unit reached sdf_process_constructors.hpp by some other
 // path already.
 #include "sdf_process_constructors.hpp"
+// A kernel and a detector report their firings through this; named
+// here rather than relied on from forsyde.hpp's include order (D5).
+#include "reflection.hpp"
 
 namespace ForSyDe
 {
@@ -47,27 +50,6 @@ namespace SADF
 
 namespace detail
 {
-
-//! Whether this build compiles the SADF self-reporting code (D10).
-/*! Dependent on a template parameter at every use site, so the
- * static_assert it backs fires only when a self-reporting overload is
- * actually instantiated -- not merely because this header was included.
- */
-template <typename...>
-inline constexpr bool self_reporting_enabled =
-#ifdef FORSYDE_SELF_REPORTING
-    true;
-#else
-    false;
-#endif
-
-//! The diagnostic that a self-reporting overload emits without the macro.
-#define FORSYDE_REQUIRE_SELF_REPORTING(DEPENDENT_TYPE, WHAT)                  \
-    static_assert(::ForSyDe::SADF::detail::self_reporting_enabled<DEPENDENT_TYPE>, \
-        WHAT " was given a self-report pipe, but FORSYDE_SELF_REPORTING is "  \
-        "not defined, so no report would ever be written. Add "               \
-        "-DFORSYDE_SELF_REPORTING to this model's CFLAGS, or drop the pipe "  \
-        "argument to use the non-reporting overload.")
 
 //! Looks a scenario up in a scenario table, erroring if it is not there (D8).
 /*! Every one of these lookups used to be a plain scenario_table[scen] on
@@ -542,34 +524,18 @@ public:
      * applies the user-imlpemented function to them and writes the
      * results using the output ports
      */
-    //  D10: _report_pipe used to be appended to this one constructor only
-    //  #ifdef FORSYDE_SELF_REPORTING, so kernelMN had two mutually
-    //  incompatible signatures depending on a build macro -- a model
-    //  written against one could not be rebuilt against the other without
-    //  editing its call sites, which is exactly what enabling
-    //  self-reporting used to require in practice. There are now two
-    //  overloads instead, both always present: passing a pipe is a
-    //  deliberate choice at the call site rather than a macro-dependent
-    //  change of shape. The macro still decides whether the reporting
-    //  code is compiled at all, and passing a pipe without it is a
-    //  compile-time error rather than a silently-ignored argument.
+    //  D10, finished. This constructor used to come in two forms, the
+    //  second taking a FILE** to report its firings to -- so a model
+    //  that wanted to be observed had to be *built* differently, and
+    //  encdec was written twice over because of it. A kernel reports
+    //  through ForSyDe::reflection now (reflection.hpp) and whoever
+    //  wants the reports subscribes, so there is one constructor again
+    //  and the pipe, where a model still wants one, is a subscriber it
+    //  installs rather than an argument every process has to carry.
     kernelMN(sc_module_name _name,      ///< process name
           const functype& _func,        ///< function to be passed
           const scenario_table_type& scenario_table ///< the kernel scenario table
-          ) : base(_name,scenario_table), _func(_func), report_pipe(nullptr) {}
-
-    //! As above, additionally reporting each firing to a self-report pipe.
-    /*! Requires FORSYDE_SELF_REPORTING; without it this is a compile-time
-     * error rather than an argument that quietly does nothing.
-     */
-    kernelMN(sc_module_name _name,      ///< process name
-          const functype& _func,        ///< function to be passed
-          const scenario_table_type& scenario_table,///< the kernel scenario table
-          FILE** _report_pipe           ///< the report named pipe
-          ) : base(_name,scenario_table), _func(_func), report_pipe(_report_pipe)
-    {
-        FORSYDE_REQUIRE_SELF_REPORTING(TC, "SADF::kernelMN");
-    }
+          ) : base(_name,scenario_table), _func(_func) {}
 
     //! Specifying from which process constructor is the module built
     std::string forsyde_kind() const {return "SADF::kernelMN";}
@@ -577,12 +543,6 @@ public:
 private:
     //! The function passed to the process constructor
     functype _func;
-
-    //! Self-report string, built only when report_pipe is non-null
-    std::ostringstream report_str;
-
-    //! Optional self-report pipe; null unless the constructor was given one
-    FILE** report_pipe;
 
 public:
     auto in_ports()  {return std::apply([](auto&... p){return std::tie(p...);}, iport);}
@@ -600,20 +560,16 @@ private:
     {
         // Call the user-imlpemented kernel function with input and output vectors and the control value
         _func(this->ovals, this->cval1, this->ivals);
-#ifdef FORSYDE_SELF_REPORTING
-        if (report_pipe)
+        if (ForSyDe::reflection::observed())
         {
-            // Write the report to the pipe
             const auto& scen_rates = this->scenario_rates();
-            report_str << "kernelMN" << "  " << this->basename()
-                                    << "  " << this->cval1
-                                    << "  " << std::get<0>(scen_rates)
-                                    << "  " << std::get<1>(scen_rates) << std::endl;
-            fputs(report_str.str().c_str(), *report_pipe);
-            fflush(*report_pipe);
-            report_str.str("");
+            std::ostringstream scenario, rates;
+            scenario << this->cval1;
+            rates << std::get<0>(scen_rates) << "  " << std::get<1>(scen_rates);
+            ForSyDe::reflection::report({this->forsyde_kind(), this->basename(),
+                                         sc_core::sc_time_stamp(),
+                                         scenario.str(), rates.str()});
         }
-#endif
     }
 };
 
@@ -744,9 +700,9 @@ public:
      * applies the user-imlpemented function to them and writes the
      * results using the output ports
      */
-    //  D10: see the note on kernelMN's constructors above. Two always-
-    //  present overloads rather than one whose shape a build macro
-    //  changes; the reporting one requires FORSYDE_SELF_REPORTING.
+    //  D10: see the note on kernelMN's constructor above. One
+    //  constructor again; a detector reports through
+    //  ForSyDe::reflection and whoever wants the reports subscribes.
     detectorMN(sc_module_name _name,                ///< process name
           const cds_functype& _cds_func,            ///< current detector scenario function to be passed
           const kss_functype& _kss_func,            ///< kernel scenario function to be passed
@@ -754,28 +710,8 @@ public:
           const TS& init_sc,                        ///< Initial scenario
           const std::array<size_t,sizeof...(TIs)>& itoks    ///< consumption rate for the first input
           ) : base(_name, scenario_table, init_sc), itoks(itoks),
-          _cds_func(_cds_func), _kss_func(_kss_func),
-          report_pipe(nullptr)
+          _cds_func(_cds_func), _kss_func(_kss_func)
     {
-        register_rate_args(itoks);
-    }
-
-    //! As above, additionally reporting each firing to a self-report pipe.
-    /*! Requires FORSYDE_SELF_REPORTING; without it this is a compile-time
-     * error rather than an argument that quietly does nothing.
-     */
-    detectorMN(sc_module_name _name,                ///< process name
-          const cds_functype& _cds_func,            ///< current detector scenario function to be passed
-          const kss_functype& _kss_func,            ///< kernel scenario function to be passed
-          const scenario_table_type& scenario_table,///< the detector scenario table
-          const TS& init_sc,                        ///< Initial scenario
-          const std::array<size_t,sizeof...(TIs)>& itoks,   ///< consumption rate for the first input
-          FILE** _report_pipe                       ///< the report named pipe
-          ) : base(_name, scenario_table, init_sc), itoks(itoks),
-          _cds_func(_cds_func), _kss_func(_kss_func),
-          report_pipe(_report_pipe)
-    {
-        FORSYDE_REQUIRE_SELF_REPORTING(TS, "SADF::detectorMN");
         register_rate_args(itoks);
     }
 
@@ -804,12 +740,6 @@ private:
     cds_functype _cds_func;
     kss_functype _kss_func;
 
-    //! Self-report string, built only when report_pipe is non-null
-    std::ostringstream report_str;
-
-    //! Optional self-report pipe; null unless the constructor was given one
-    FILE** report_pipe;
-
 public:
     auto in_ports()  {return std::apply([](auto&... p){return std::tie(p...);}, iport);}
     auto out_ports() {return std::apply([](auto&... p){return std::tie(p...);}, oport);}
@@ -829,18 +759,15 @@ private:
         *   to determine scenario for each output port (control token for sending to the kernel)
         */
         _kss_func(this->ovals, this->sc_val, this->ivals);
-#ifdef FORSYDE_SELF_REPORTING
-        if (report_pipe)
+        if (ForSyDe::reflection::observed())
         {
-            // Write the report to the pipe
-            report_str << "detectorMN" << "  " << this->basename()
-                                       << "  " << this->sc_val
-                                       << "  " << this->scenario_rates() << std::endl;
-            fputs(report_str.str().c_str(), *report_pipe);
-            fflush(*report_pipe);
-            report_str.str("");
+            std::ostringstream scenario, rates;
+            scenario << this->sc_val;
+            rates << this->scenario_rates();
+            ForSyDe::reflection::report({this->forsyde_kind(), this->basename(),
+                                         sc_core::sc_time_stamp(),
+                                         scenario.str(), rates.str()});
         }
-#endif
     }
 };
 
@@ -919,10 +846,11 @@ detector(sc_module_name, CDS, KSS, Table, const TS&, size_t)
  * unwrapped -- a single argument needs no marker -- exactly where
  * bindable's own control_ports() slot sits.
  *
- * Two overloads each, like the constructors themselves: the one with
- * a report_pipe argument requires FORSYDE_SELF_REPORTING (D10) and is
- * a compile-time error without it, so a model that wants self-reporting
- * still selects it with the same #ifdef the constructor itself needs.
+ * One overload each, as the constructors now have. A kernel or
+ * detector reports its firings through ForSyDe::reflection
+ * (reflection.hpp) and whoever wants those reports subscribes, so
+ * there is no pipe to thread through construction and no second shape
+ * for a model to be written in (D10).
  *
  * outs(...)'s slots deduce individually (ForSyDe::detail::out_slot_type,
  * binding.hpp), so any one of them may be a readers(...) group instead
@@ -945,24 +873,6 @@ auto& add_kernelMN(composite& top, sc_module_name name,
     return p;
 }
 
-template <typename... OutSlots, typename TC, typename... TIs,
-          template <class> class CIf, template <class> class... IIf>
-auto& add_kernelMN(composite& top, sc_module_name name,
-    typename kernelMN<std::tuple<typename ForSyDe::detail::out_slot_type<OutSlots>::type...>,
-                       TC,std::tuple<TIs...>>::functype func,
-    typename kernelMN<std::tuple<typename ForSyDe::detail::out_slot_type<OutSlots>::type...>,
-                       TC,std::tuple<TIs...>>::scenario_table_type table,
-    FILE** report_pipe,
-    std::tuple<OutSlots...> outs, CIf<TC>& cport, std::tuple<IIf<TIs>&...> ins)
-{
-    using TOsTuple = std::tuple<typename ForSyDe::detail::out_slot_type<OutSlots>::type...>;
-    auto& p = top.add(new kernelMN<TOsTuple,TC,std::tuple<TIs...>>(name, func, table, report_pipe));
-    std::apply([&](auto&... o){
-        std::apply([&](auto&... i){ p(o..., cport, i...); }, ins);
-    }, outs);
-    return p;
-}
-
 template <typename... TOs, typename... TIs, typename TS,
           template <class> class... OIf, template <class> class... IIf>
 auto& add_detectorMN(composite& top, sc_module_name name,
@@ -974,24 +884,6 @@ auto& add_detectorMN(composite& top, sc_module_name name,
 {
     auto& p = top.add(new detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>(
         name, cds_func, kss_func, table, init_sc, itoks));
-    std::apply([&](auto&... o){
-        std::apply([&](auto&... i){ p(o..., i...); }, ins);
-    }, outs);
-    return p;
-}
-
-template <typename... TOs, typename... TIs, typename TS,
-          template <class> class... OIf, template <class> class... IIf>
-auto& add_detectorMN(composite& top, sc_module_name name,
-    typename detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::cds_functype cds_func,
-    typename detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::kss_functype kss_func,
-    typename detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>::scenario_table_type table,
-    const TS& init_sc, const std::array<size_t,sizeof...(TIs)>& itoks,
-    FILE** report_pipe,
-    std::tuple<OIf<TOs>&...> outs, std::tuple<IIf<TIs>&...> ins)
-{
-    auto& p = top.add(new detectorMN<std::tuple<TOs...>,std::tuple<TIs...>,TS>(
-        name, cds_func, kss_func, table, init_sc, itoks, report_pipe));
     std::apply([&](auto&... o){
         std::apply([&](auto&... i){ p(o..., i...); }, ins);
     }, outs);

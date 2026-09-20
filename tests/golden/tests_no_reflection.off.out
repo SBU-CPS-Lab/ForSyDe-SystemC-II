@@ -3,6 +3,7 @@
         Copyright (c) 1996-2025 by all Contributors,
         ALL RIGHTS RESERVED
 reflection: on
+observed() after subscribing: true
 dt 1
 sy 21
 sy 21

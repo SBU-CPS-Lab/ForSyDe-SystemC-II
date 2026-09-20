@@ -117,7 +117,12 @@
 
 #include "forsyde/adaptivity.hpp"
 
-// The IR exists whenever the data it is built from does.
+// The IR exists whenever the data it is built from does. The runtime
+// half of the same service -- what a process reports while it runs --
+// is always available: its vocabulary does not change with the switch,
+// only whether anything can listen (reflection.hpp).
+#include "forsyde/reflection.hpp"
+
 #ifdef FORSYDE_REFLECTION
 #include "forsyde/ir.hpp"
 #endif

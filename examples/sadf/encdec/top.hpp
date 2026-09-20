@@ -13,6 +13,10 @@
 
 #include <forsyde.hpp>
 
+#include <cstdlib>   // getenv, for the runtime self-report opt-in
+#include <fcntl.h>   // open, for the report pipe
+#include <unistd.h>
+
 using namespace sc_core;
 using namespace ForSyDe;
 using namespace std;
@@ -24,11 +28,6 @@ FORSYDE_COMPOSITE(top)
 {
     SADF::signal<int> ttot, ttotd, ttoep, ttoem, ttoec, eptod, emtod, ectod, dtor;
     SADF::signal<scen> ktot, ktoep, ktoem, ktoec, ktod;
-#ifdef FORSYDE_SELF_REPORTING
-    // Communication pipes
-    FILE* report_pipe;      // Report pipe
-    int report_pipe_fd = 0;     // Report pipe file descriptor
-#endif
 
     SC_CTOR(top)
     {
@@ -55,16 +54,6 @@ FORSYDE_COMPOSITE(top)
             }
         };
 
-        #ifdef FORSYDE_SELF_REPORTING
-        add_detectorMN(*this, "k", k_cds_func, k_kss_func,
-            {
-                {Sp,{1,1,0,0,1}},
-                {Sm,{1,0,1,0,1}},
-                {Sc,{2,0,0,1,1}}
-            }, // k_table
-            Sc, {}, &report_pipe,
-            outs(ktot, ktoep, ktoem, ktoec, ktod), ins());
-        #else
         add_detectorMN(*this, "k", k_cds_func, k_kss_func,
             {
                 {Sp,{1,1,0,0,1}},
@@ -73,7 +62,6 @@ FORSYDE_COMPOSITE(top)
             }, // k_table
             Sc, {},
             outs(ktot, ktoep, ktoem, ktoec, ktod), ins());
-        #endif
 
         // The kernel T        
         auto t_func = [&](auto&& out, const auto& sc, const auto& inp) {
@@ -90,16 +78,6 @@ FORSYDE_COMPOSITE(top)
             if (cur_st > 20) wait();
         };
         
-        #ifdef FORSYDE_SELF_REPORTING
-        add_kernelMN(*this, "t", t_func,
-            {
-                {Sp,{{1},{1,1,0,0}}},
-                {Sm,{{1},{1,0,1,0}}},
-                {Sc,{{1},{1,0,0,1}}}
-            }, // t_table
-            &report_pipe,
-            outs(ttot, ttoep, ttoem, ttoec), ktot, ins(ttotd));
-        #else
         add_kernelMN(*this, "t", t_func,
             {
                 {Sp,{{1},{1,1,0,0}}},
@@ -107,7 +85,6 @@ FORSYDE_COMPOSITE(top)
                 {Sc,{{1},{1,0,0,1}}}
             }, // t_table
             outs(ttot, ttoep, ttoem, ttoec), ktot, ins(ttotd));
-        #endif
 
         add(new SADF::delayn<int>("totd", 0, 1))(ttotd, ttot);
 
@@ -120,16 +97,6 @@ FORSYDE_COMPOSITE(top)
             outD[0] = inpT[0] + 1;
         };
         
-        #ifdef FORSYDE_SELF_REPORTING
-        add_kernelMN(*this, "ep", ep_func,
-            {
-                {Sp,{{1},{1}}},
-                {Sm,{{0},{0}}},
-                {Sc,{{0},{0}}}
-            }, // e_table
-            &report_pipe,
-            outs(eptod), ktoep, ins(ttoep));
-        #else
         add_kernelMN(*this, "ep", ep_func,
             {
                 {Sp,{{1},{1}}},
@@ -137,7 +104,6 @@ FORSYDE_COMPOSITE(top)
                 {Sc,{{0},{0}}}
             }, // e_table
             outs(eptod), ktoep, ins(ttoep));
-        #endif
 
         // The kernel E-
         
@@ -148,16 +114,6 @@ FORSYDE_COMPOSITE(top)
             outD[0] = {inpT[0] - 1};
         };
 
-        #ifdef FORSYDE_SELF_REPORTING
-        add_kernelMN(*this, "em", em_func,
-            {
-                {Sp,{{0},{0}}},
-                {Sm,{{1},{1}}},
-                {Sc,{{0},{0}}}
-            }, // e_table
-            &report_pipe,
-            outs(emtod), ktoem, ins(ttoem));
-        #else
         add_kernelMN(*this, "em", em_func,
             {
                 {Sp,{{0},{0}}},
@@ -165,7 +121,6 @@ FORSYDE_COMPOSITE(top)
                 {Sc,{{0},{0}}}
             }, // e_table
             outs(emtod), ktoem, ins(ttoem));
-        #endif
 
         // The kernel Ec
 
@@ -177,16 +132,6 @@ FORSYDE_COMPOSITE(top)
             outD[1] = inpT[0]-inpT[1];
         };
         
-        #ifdef FORSYDE_SELF_REPORTING
-        add_kernelMN(*this, "ec", ec_func,
-            {
-                {Sp,{{0},{0}}},
-                {Sm,{{0},{0}}},
-                {Sc,{{2},{2}}}
-            }, // ec_table
-            &report_pipe,
-            outs(ectod), ktoec, ins(ttoec));
-        #else
         add_kernelMN(*this, "ec", ec_func,
             {
                 {Sp,{{0},{0}}},
@@ -194,7 +139,6 @@ FORSYDE_COMPOSITE(top)
                 {Sc,{{2},{2}}}
             }, // ec_table
             outs(ectod), ktoec, ins(ttoec));
-        #endif
 
         // The kernel D
         
@@ -216,16 +160,6 @@ FORSYDE_COMPOSITE(top)
             }
         };
 
-        #ifdef FORSYDE_SELF_REPORTING
-        add_kernelMN(*this, "d", d_func,
-            {
-                {Sp,{{1,0,0},{1}}},
-                {Sm,{{0,1,0},{1}}},
-                {Sc,{{0,0,2},{2}}}
-            }, // d_table
-            &report_pipe,
-            outs(dtor), ktod, ins(eptod, emtod, ectod));
-        #else
         add_kernelMN(*this, "d", d_func,
             {
                 {Sp,{{1,0,0},{1}}},
@@ -233,7 +167,6 @@ FORSYDE_COMPOSITE(top)
                 {Sc,{{0,0,2},{2}}}
             }, // d_table
             outs(dtor), ktod, ins(eptod, emtod, ectod));
-        #endif
 
         // The SDF sink actor r
 
@@ -244,27 +177,46 @@ FORSYDE_COMPOSITE(top)
             }
         ))(dtor);
     }
-#ifdef FORSYDE_INTROSPECTION
+    // Self-reporting, as a subscription rather than a build (D10).
+    //
+    // Every kernel and detector in this model used to be constructed
+    // twice -- once plain and once with &report_pipe -- behind
+    // #ifdef FORSYDE_SELF_REPORTING, so the model was written twice to
+    // say one thing. The processes report unconditionally now, and
+    // this decides whether anything listens.
+    //
+    // A runtime choice, not a compile-time one, because the reason the
+    // old flag had to exist is the loop below: gen/self_report is a
+    // named pipe and opening the write end spins until a reader
+    // attaches, so a model that always opened it would always hang. A
+    // model that asks at runtime keeps that property and still gets
+    // the reporting path compiled on every build, which the macro
+    // never did -- it was commented out in every Makefile in the tree.
     void start_of_simulation()
     {
+#ifdef FORSYDE_INTROSPECTION
         ForSyDe::XMLExport dumper("gen/");
         dumper.traverse(this);
-#ifdef FORSYDE_SELF_REPORTING
-        while (report_pipe_fd<=0) // pipe is not open
+#endif
+        if (!std::getenv("FORSYDE_SELF_REPORT")) return;
+
+        while (report_pipe_fd <= 0)   // spins until a reader attaches
         {
             report_pipe_fd = open("gen/self_report", O_WRONLY|O_NONBLOCK);
             if (report_pipe_fd > 0)
                 report_pipe = fdopen(report_pipe_fd, "w");
         }
-#endif
+        ForSyDe::reflection::observe(ForSyDe::reflection::to_pipe(&report_pipe));
     }
-#endif
-#ifdef FORSYDE_SELF_REPORTING
+
     void end_of_simulation()
     {
-        fclose(report_pipe);
+        if (report_pipe) fclose(report_pipe);
     }
-#endif
+
+private:
+    FILE* report_pipe = nullptr;
+    int report_pipe_fd = 0;
 
 };
 

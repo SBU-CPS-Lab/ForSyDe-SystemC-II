@@ -3,6 +3,7 @@
         Copyright (c) 1996-2025 by all Contributors,
         ALL RIGHTS RESERVED
 reflection: off (FORSYDE_NO_REFLECTION)
+observed() after subscribing: false
 dt 1
 sy 21
 sy 21

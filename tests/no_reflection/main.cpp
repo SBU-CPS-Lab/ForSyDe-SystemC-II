@@ -79,6 +79,18 @@ int sc_main(int, char*[])
     std::cout << "reflection: off (FORSYDE_NO_REFLECTION)\n";
 #endif
 
+    // The runtime half of the service has to keep its shape under the
+    // opt-out, not disappear: a process reports through the same three
+    // lines either way, so turning reflection off is a decision about
+    // whether anything listens rather than a different way of writing a
+    // model. That only stays true if something compiles it this way --
+    // which is this directory's whole job.
+    ForSyDe::reflection::observe([](const ForSyDe::reflection::firing&){});
+    std::cout << "observed() after subscribing: "
+              << (ForSyDe::reflection::observed() ? "true" : "false") << "\n";
+    ForSyDe::reflection::report({"test::kind", "p", sc_core::SC_ZERO_TIME, "s", "r"});
+    ForSyDe::reflection::forget_observers();
+
     top t("top1");
     sc_core::sc_start();
     return 0;

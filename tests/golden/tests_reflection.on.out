@@ -1,0 +1,24 @@
+
+        SystemC 3.0.2-Accellera --- <build-date-elided>
+        Copyright (c) 1996-2025 by all Contributors,
+        ALL RIGHTS RESERVED
+ok   nobody is listening before anything subscribes
+out 0
+out 3
+out 2
+out 5
+ok   a subscriber heard something at all
+ok   a kernelMN reported its firings
+ok   a detectorMN reported its firings
+ok   every firing carries a fully qualified kind
+ok   every firing names the process instance
+ok   every firing carries a scenario and its rates
+ok   firings arrive in non-decreasing simulated time
+ok   short_kind strips the MoC, as the report line wants
+ok   as_report_line renders the format the pipe has always carried
+-- first three firings --
+  detectorMN  det  S2  [1]
+  detectorMN  det  S1  [1]
+  detectorMN  det  S2  [1]
+ok   forget_observers leaves nobody listening
+all reflection checks hold

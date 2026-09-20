@@ -23,11 +23,6 @@ FORSYDE_COMPOSITE(top)
 {
     SADF::signal<int> from_source;
     SADF::signal<int> to_kernel1, from_kernel1, to_kernel2, from_kernel2;
-#ifdef FORSYDE_SELF_REPORTING
-    // Communication pipes
-    FILE* report_pipe;      // Report pipe
-    int report_pipe_fd = 0;     // Report pipe file descriptor
-#endif
 
     SC_CTOR(top)
     {
@@ -37,21 +32,6 @@ FORSYDE_COMPOSITE(top)
 
         //! < -------------------------------- Using Helper--------------------------------> //!
 
-        #ifdef FORSYDE_SELF_REPORTING
-        add_detectorMN(*this, "detector1",
-            detector1_cds_func,
-            detector1_kss_func,
-            {
-                {S1,{1,1}},
-                {S2,{1,1}},
-                {S3,{1,1}},
-                {S4,{1,1}}
-            }, // detector1_table
-            S1,
-            {1},
-            &report_pipe,
-            outs(*from_detector1, *from_detector2), ins(from_source));
-        #else
         add_detectorMN(*this, "detector1",
             detector1_cds_func,
             detector1_kss_func,
@@ -64,18 +44,7 @@ FORSYDE_COMPOSITE(top)
             S1,
             {1},
             outs(*from_detector1, *from_detector2), ins(from_source));
-        #endif
 
-        #ifdef FORSYDE_SELF_REPORTING
-        add_kernelMN(*this, "kernel1",
-            kernel1_func,
-            {
-                {ADD,  {{3},{1}}},
-                {MINUS,{{2},{1}}}
-            }, // kernel1_table
-            &report_pipe,
-            outs(from_kernel1), *from_detector1, ins(to_kernel1));
-        #else
         add_kernelMN(*this, "kernel1",
             kernel1_func,
             {
@@ -83,18 +52,7 @@ FORSYDE_COMPOSITE(top)
                 {MINUS,{{2},{1}}}
             }, // kernel1_table
             outs(from_kernel1), *from_detector1, ins(to_kernel1));
-        #endif
 
-        #ifdef FORSYDE_SELF_REPORTING
-        add_kernelMN(*this, "kernel2",
-            kernel2_func,
-            {
-                {MUL,{{2},{1}}},
-                {DIV,{{2},{1}}}
-            }, // kernel2_table
-            &report_pipe,
-            outs(from_kernel2), *from_detector2, ins(to_kernel2));
-        #else
         add_kernelMN(*this, "kernel2",
             kernel2_func,
             {
@@ -102,7 +60,6 @@ FORSYDE_COMPOSITE(top)
                 {DIV,{{2},{1}}}
             }, // kernel2_table
             outs(from_kernel2), *from_detector2, ins(to_kernel2));
-        #endif
 
         add(new SDF::source("source1", [] (int& out1, const int& inp1) {out1 = inp1 + 1;}, 1, 0))(to_kernel1);
 
@@ -128,9 +85,6 @@ FORSYDE_COMPOSITE(top)
         //                         detector1_table,
         //                         S1,
         //                         {1}
-        //                         #ifdef FORSYDE_SELF_REPORTING
-        //                         ,&report_pipe
-        //                         #endif
         //                     );
         // get<0>(detector1->iport)(from_source);
         // get<0>(detector1->oport)(*from_detector1);
@@ -140,9 +94,6 @@ FORSYDE_COMPOSITE(top)
         //                     "kernel1",
         //                     kernel1_func,
         //                     kernel1_table
-        //                     #ifdef FORSYDE_SELF_REPORTING
-        //                     ,&report_pipe
-        //                     #endif
         //                 );
         // kernel1->cport1(*from_detector1);
         // get<0>(kernel1->iport)(to_kernel1);
@@ -153,9 +104,6 @@ FORSYDE_COMPOSITE(top)
         //                     "kernel2",
         //                     kernel2_func,
         //                     kernel2_table
-        //                     #ifdef FORSYDE_SELF_REPORTING
-        //                     ,&report_pipe
-        //                     #endif
         //                 );
         // kernel2->cport1(*from_detector2);
         // get<0>(kernel2->iport)(to_kernel2);
@@ -182,20 +130,6 @@ FORSYDE_COMPOSITE(top)
     {
         ForSyDe::XMLExport dumper("gen/");
         dumper.traverse(this);
-#ifdef FORSYDE_SELF_REPORTING
-        while (report_pipe_fd<=0) // pipe is not open
-        {
-            report_pipe_fd = open("gen/self_report", O_WRONLY|O_NONBLOCK);
-            if (report_pipe_fd > 0)
-                report_pipe = fdopen(report_pipe_fd, "w");
-        }
-#endif
-    }
-#endif
-#ifdef FORSYDE_SELF_REPORTING
-    void end_of_simulation()
-    {
-        fclose(report_pipe);
     }
 #endif
 
