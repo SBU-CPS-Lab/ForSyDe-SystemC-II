@@ -405,6 +405,12 @@ run_dir() {
                         echo "KNOWN" >> "$tally"
                     else
                         echo "FAIL  $ir_key (IR differs from golden) -- NEW"
+                        for f in "${ir_files[@]}"; do
+                            base="$(basename "$f" .xml)"
+                            g="$GOLDEN_IR_DIR/${escaped_name}__${base}.ir"
+                            [ -f "$g" ] || continue
+                            diff -u "$g" "$f" | sed -n "3,20p" | sed "s|^|      $base: |"
+                        done
                         echo "NEWFAIL $ir_key (IR mismatch)" >> "$tally"
                     fi
                 else
@@ -454,6 +460,13 @@ run_dir() {
                 echo "KNOWN" >> "$tally"
             else
                 echo "FAIL  $key (output differs from golden) -- NEW"
+                # Show what actually differs. Without this a mismatch on
+                # a machine you cannot reach -- a CI runner, most of the
+                # time -- tells you only that two files are not equal,
+                # which is the one thing you already knew. Capped so a
+                # wholesale divergence cannot bury the rest of the run.
+                diff -u "$golden" <(printf '%s' "$run_out") \
+                    | sed -n '3,40p' | sed 's/^/      /'
                 echo "NEWFAIL $key (golden mismatch)" >> "$tally"
             fi
         fi
