@@ -38,9 +38,20 @@ FORSYDE_COMPOSITE(splitter)
     static void split_ns_func(char& nst, const char& st, 
         const ttn_event<char>& inp1, const ttn_event<int>& inp2)
     {
-        nst = st == 'F' || unsafe_from_abst_ext(get_value(inp1)) == 'F'?
-            'F':
-            'V';
+        // is_present first: an absent event carries no value, and
+        // unsafe_from_abst_ext does exactly what it says -- it hands
+        // back the stored value without checking. Reading it unguarded
+        // was undefined behaviour, and it behaved like it: this example
+        // produced its golden output on one machine and a different
+        // verdict ('F' where the model means 'V') on a CI runner, from
+        // the same source, because what came back was whatever happened
+        // to be in that field. An absent event is not a failure marker,
+        // so it must leave the verdict alone.
+        nst = (st == 'F' ||
+               (is_present(get_value(inp1)) &&
+                unsafe_from_abst_ext(get_value(inp1)) == 'F'))
+            ? 'F'
+            : 'V';
     }
     
     static void split_od_func(abst_ext<std::tuple<abst_ext<int>,abst_ext<int>>>& out, const char& st, 

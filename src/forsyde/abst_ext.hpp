@@ -70,7 +70,16 @@ public:
     abst_ext(const T& val) : present(true), value(val) {}
     
     //! The constructor with an absent value
-    abst_ext() : present(false) {}
+    //! value() as well as present(false): an absent extended value used
+    /*! to leave its payload uninitialised, so unsafe_from_abst_ext on
+     * an absent value read indeterminate memory. That is a modelling
+     * error either way -- the accessor says "unsafe" -- but undefined
+     * behaviour is the worst way for it to fail: examples/dde/packver
+     * did it, matched its golden on the machine that seeded it, and
+     * returned a different verdict on a CI runner. Value-initialising
+     * makes the mistake deterministic and cheap to find instead.
+     */
+    abst_ext() : present(false), value() {}
     
     //! Converts a value from an extended value, returning a default value if absent
     T from_abst_ext (const T& defval) const
