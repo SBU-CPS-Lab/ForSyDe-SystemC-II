@@ -141,7 +141,13 @@ jobs:
       - name: Install xterm, Xvfb, libmigdb
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends xterm xvfb gdb
+          # xfonts-base: libmigdb spawns the xterm itself (SelectTargetX11),
+          # so there is no chance to pass it a font. Without the classic
+          # misc-fixed bitmap fonts it fails with "cannot load font
+          # -misc-fixed-medium-r-semicondensed--13-...", never comes up,
+          # and gdbwrap then waits for a debugger that will never attach
+          # until the job's timeout kills it.
+          sudo apt-get install -y --no-install-recommends xterm xvfb gdb xfonts-base
           curl -sSL -o /tmp/libmigdb.tar.bz2 \
             "https://sourceforge.net/projects/libmigdb/files/libmigdb/0.8.13/libmigdb-0.8.13.tar.bz2/download"
           mkdir -p /tmp/libmigdb-src
