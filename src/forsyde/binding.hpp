@@ -189,6 +189,33 @@ template <typename P, typename = void> struct has_control_ports : std::false_typ
 template <typename P> struct has_control_ports<P,
     std::void_t<decltype(std::declval<P&>().control_ports())>> : std::true_type {};
 
+//! An SDF-family process's static production/consumption rates
+/*! One entry per port, in the same order as out_ports()/in_ports(), for
+ * whichever of the two a process actually has rates on -- empty for
+ * out_rates on a process with no outputs, empty for in_rates on one
+ * with no inputs, and both empty for the great majority of processes,
+ * which have no static rate at all.
+ *
+ * This is what an SDF3 export (sdf3.hpp) needs and nothing already on a
+ * process gives it: boundInChans/boundOutChans (process::bindInfo(),
+ * abssemantics.hpp) say *what* is bound, not how many tokens a firing
+ * takes or produces. Returned by process::rates() -- a virtual hook
+ * with a does-nothing default, overridden only by the SDF comb/zip/
+ * unzip families (sdf_process_constructors.hpp) that actually declare
+ * theirs -- rather than detected through a has_rates<P> trait the way
+ * has_in_ports/has_out_ports are: ir::build reaches every process
+ * through the one polymorphic ForSyDe::process*, the same way it
+ * already reaches forsyde_kind() and the bound-channel vectors, so the
+ * hook needs to be virtual to be reachable there at all. A
+ * compile-time trait cannot answer a question asked through a base
+ * pointer.
+ */
+struct port_rates
+{
+    std::vector<std::size_t> out_rates;
+    std::vector<std::size_t> in_rates;
+};
+
 template <typename Derived>
 class bindable
 {

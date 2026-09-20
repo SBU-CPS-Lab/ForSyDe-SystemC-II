@@ -34,6 +34,7 @@
 #include "config.hpp"
 
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -98,6 +99,13 @@ struct port
     direction dir;
     std::string bound_process;
     std::string bound_port;
+    //! Static production/consumption rate, if this port's process has
+    //! one (ForSyDe::process::rates()) -- unset for the great majority
+    //! of ports, which carry no such notion at all. A network's own
+    //! boundary ports never carry one: a rate belongs to the leaf on
+    //! one side of a channel, not to the channel or the boundary it
+    //! crosses.
+    std::optional<std::size_t> rate;
 };
 
 //! A signal, with both ends resolved to (process, port) pairs
@@ -136,6 +144,13 @@ struct node
     std::vector<param> params;
     std::vector<port> ports;
     std::size_t sub = npos;
+    //! ForSyDe::process::initial_tokens(), for a leaf; always 0 for a
+    //! composite instance, which has no such notion of its own -- see
+    //! that hook's comment. Kept on the node rather than only on the
+    //! one direct channel it happens to feed, because a flattening
+    //! consumer (sdf3.hpp) needs it to survive however many composite
+    //! boundaries the leaf's output port is nested behind.
+    std::size_t initial_tokens = 0;
 
     static constexpr std::size_t npos = static_cast<std::size_t>(-1);
 };
@@ -276,6 +291,7 @@ inline std::size_t build_into(model& m, sc_core::sc_module* mod)
                 n.kind = node_kind::leaf;
 
                 get_moc_and_pc(p->forsyde_kind(), n.pc_moc, n.pc_name);
+                n.initial_tokens = p->initial_tokens();
 
                 for (const auto& arg : p->arg_vec)
                     n.params.push_back({std::get<0>(arg), std::get<1>(arg)});
@@ -286,6 +302,21 @@ inline std::size_t build_into(model& m, sc_core::sc_module* mod)
                 for (const auto& bound : p->boundOutChans)
                     n.ports.push_back(detail::port_from(
                         dynamic_cast<ForSyDe::introspective_port*>(bound.port), direction::out));
+
+                // rates() is a does-nothing default on most processes
+                // (empty both ways), so this only ever fills in ports
+                // for the SDF comb/zip/unzip families that override it
+                // -- everything else's n.ports keeps rate unset. Input
+                // ports were pushed first above, so in_rates lines up
+                // against the front of n.ports and out_rates against
+                // the back, the same split boundInChans/boundOutChans
+                // already made.
+                const auto pr = p->rates();
+                std::size_t idx = 0;
+                for (std::size_t i = 0; i < pr.in_rates.size() && idx < n.ports.size(); i++, idx++)
+                    n.ports[idx].rate = pr.in_rates[i];
+                for (std::size_t i = 0; i < pr.out_rates.size() && idx < n.ports.size(); i++, idx++)
+                    n.ports[idx].rate = pr.out_rates[i];
             }
             else
             {

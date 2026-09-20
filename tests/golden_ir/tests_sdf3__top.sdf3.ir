@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sdf3 type="sdf" version="1.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="http://www.es.ele.tue.nl/sdf3/xsd/sdf3-sdf.xsd">
+  <applicationGraph name="top">
+    <sdf name="top" type="top">
+      <actor name="src" type="source">
+        <port name="oport1" type="out" rate="1"/>
+      </actor>
+      <actor name="upsample" type="comb">
+        <port name="iport1" type="in" rate="1"/>
+        <port name="oport1" type="out" rate="2"/>
+      </actor>
+      <actor name="lp1__averager1" type="combMN">
+        <port name="port_1" type="in" rate="1"/>
+        <port name="port_0" type="in" rate="1"/>
+        <port name="port_2" type="out" rate="1"/>
+      </actor>
+      <actor name="lp1__state" type="delayn">
+        <port name="iport1" type="in" rate="1"/>
+        <port name="oport1" type="out" rate="1"/>
+      </actor>
+      <actor name="snk" type="sink">
+        <port name="iport1" type="in" rate="1"/>
+      </actor>
+      <actor name="lp1__averager1__port_2__fanout" type="fanout">
+        <port name="in" type="in" rate="1"/>
+        <port name="out0" type="out" rate="1"/>
+        <port name="out1" type="out" rate="1"/>
+      </actor>
+      <channel name="ch0" srcActor="lp1__averager1" srcPort="port_2" dstActor="lp1__averager1__port_2__fanout" dstPort="in"/>
+      <channel name="ch1" srcActor="lp1__averager1__port_2__fanout" srcPort="out0" dstActor="lp1__state" dstPort="iport1"/>
+      <channel name="ch2" srcActor="lp1__averager1__port_2__fanout" srcPort="out1" dstActor="snk" dstPort="iport1"/>
+      <channel name="ch3" srcActor="lp1__state" srcPort="oport1" dstActor="lp1__averager1" dstPort="port_0" initialTokens="2"/>
+      <channel name="ch4" srcActor="src" srcPort="oport1" dstActor="upsample" dstPort="iport1"/>
+      <channel name="ch5" srcActor="upsample" srcPort="oport1" dstActor="lp1__averager1" dstPort="port_1"/>
+    </sdf>
+  </applicationGraph>
+</sdf3>

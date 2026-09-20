@@ -170,6 +170,12 @@ DIRS+=("tests/ir")
 # subscribes. See tests/reflection/README.md.
 DIRS+=("tests/reflection")
 
+# tests/sdf3 flattens a real, hierarchical model with a readers(...)
+# fan-out into an SDF3 application graph and checks it against the real
+# sdf3analysis-sdf tool's own reading of it (consistent, deadlock-free,
+# a sane repetition vector) -- see tests/sdf3/README.md for exactly how.
+DIRS+=("tests/sdf3")
+
 # tests/no_reflection is the only thing in the tree that compiles the
 # FORSYDE_NO_REFLECTION opt-out, so that a whole build configuration
 # does not become the next thing nothing ever instantiated. Its "on" row

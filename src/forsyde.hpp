@@ -125,6 +125,7 @@
 
 #ifdef FORSYDE_REFLECTION
 #include "forsyde/ir.hpp"
+#include "forsyde/sdf3.hpp"
 #endif
 
 // The XML export is one backend over that IR, and optional.
