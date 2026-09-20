@@ -255,6 +255,17 @@ int sc_main(int, char*[])
 {
     top t("top1");
     plain_container pc("plain1");
+
+    // A signal nothing binds to used to be a segmentation fault with
+    // nothing said, because introspective_channel's two endpoint
+    // pointers were left uninitialised and every reader dereferences
+    // both. Leaving an unused signal behind while editing a model is an
+    // ordinary thing to do, so ir::build names it instead. Built here,
+    // outside any module, so that it belongs to no composite's contents
+    // and before sc_start, because SystemC rejects a channel created
+    // once elaboration is over.
+    SY::signal<int> orphan;
+
     sc_core::sc_start();
 
 #ifdef FORSYDE_REFLECTION
@@ -265,6 +276,9 @@ int sc_main(int, char*[])
           "the walk fallback finds every process in a non-composite container");
     check(pm.top().channels.size() == 2,
           "the walk fallback finds every signal in a non-composite container");
+
+    check(orphan.iport == nullptr && orphan.oport == nullptr,
+          "an unbound signal's endpoints are null rather than uninitialised");
 #endif
 
 #ifdef FORSYDE_REFLECTION

@@ -34,6 +34,7 @@
 #include "config.hpp"
 
 #include <cstddef>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -370,6 +371,29 @@ inline std::size_t build_into(model& m, sc_core::sc_module* mod)
         {
             auto* ic = dynamic_cast<ForSyDe::introspective_channel*>(child);
             channel ch;
+
+            // A signal records the ports at its two ends when they bind
+            // to it, so one that was never bound still holds nulls --
+            // and dereferencing them here is a segmentation fault with
+            // nothing said, in the middle of writing an XML file. An
+            // unused signal left behind while editing a model is an
+            // ordinary thing to do and used to end the run exactly that
+            // way, so it is named instead.
+            if (ic->oport == nullptr || ic->iport == nullptr)
+            {
+                std::ostringstream msg;
+                msg << "signal '" << child->basename() << "' in '"
+                    << mod->basename() << "' has no "
+                    << (ic->oport == nullptr && ic->iport == nullptr
+                            ? "process bound to either end"
+                        : ic->oport == nullptr ? "process writing it"
+                                               : "process reading it")
+                    << ", so the model graph cannot be built. Bind it, or "
+                       "remove it.";
+                SC_REPORT_ERROR("ForSyDe::ir::build", msg.str().c_str());
+                continue;
+            }
+
             ch.name = child->basename();
             ch.moc = ic->moc();
             ch.type = ic->token_type();

@@ -178,6 +178,13 @@ DIRS+=("tests/reflection")
 # tests/no_reflection/README.md.
 DIRS+=("tests/no_reflection")
 
+# tests/functional builds the same network through both surfaces -- the
+# explicit declare-then-bind one and the applicative one (fn::) -- and
+# diffs the two IRs. "A thin front end over the explicit surface" is a
+# claim about the code, and that diff is what keeps it true rather than
+# merely intended. See tests/functional/README.md.
+DIRS+=("tests/functional")
+
 echo "CXXSTD=$CXXSTD $( [ $SEED = 1 ] && echo '(seed mode)' || echo '(check mode)' )"
 
 # One job per directory. Everything this prints goes to the job's own

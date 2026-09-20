@@ -130,6 +130,9 @@
 // is compiled on every build -- a reporting path nothing compiles is
 // how the previous one rotted.
 #include "forsyde/reflection_tcp.hpp"
+// The applicative surface, which is a front end over the explicit one
+// and therefore comes after everything it calls.
+#include "forsyde/functional.hpp"
 #endif
 
 // The XML export is one backend over that IR, and optional.

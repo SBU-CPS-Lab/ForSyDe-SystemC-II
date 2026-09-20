@@ -45,4 +45,5 @@ out 7
 ok   a plain SC_MODULE yields one network
 ok   the walk fallback finds every process in a non-composite container
 ok   the walk fallback finds every signal in a non-composite container
+ok   an unbound signal's endpoints are null rather than uninitialised
 all invariants hold

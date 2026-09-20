@@ -182,11 +182,17 @@ public:
     //! To which MoC does the signal belong
     virtual std::string moc() const = 0;
     
+    // Both start null rather than uninitialized. They are filled when a
+    // port binds to the channel, so a signal that nothing binds to keeps
+    // whatever the stack held -- and every reader of these (ir::build,
+    // and the XML backend before it) dereferences both. An unused signal
+    // left in a model while editing it is an ordinary thing to do, and
+    // used to be a segmentation fault with nothing said.
     //! Input port to which a channel is bound
-    sc_object* iport;
-    
+    sc_object* iport = nullptr;
+
     //! Output port to which a channel is bound
-    sc_object* oport;
+    sc_object* oport = nullptr;
 };
 
 //! A ForSyDe signal is used to inter-connect processes
@@ -240,7 +246,10 @@ class introspective_port
 {
 public:
     //! To which port it is bound (used for binding ports of composite processes in the hierarchy)
-    sc_object* bound_port;
+    /*! Null until something binds to it, for the same reason
+     * introspective_channel's two are.
+     */
+    sc_object* bound_port = nullptr;
     
     //! Name of the tokens of the port
     virtual const char* token_type() const = 0;
@@ -267,6 +276,9 @@ public:
 #endif
 #ifdef FORSYDE_REFLECTION
     typedef T type;
+    //! The signal type this port binds to, which the functional surface
+    //! (functional.hpp) uses to allocate one without naming the MoC.
+    typedef ChanType chan_type;
     
     // NOTE: The following member functions could be overriden easier if
     //       bind() was declared virtual in the sc_port base classes.
@@ -313,6 +325,9 @@ public:
 #endif
 #ifdef FORSYDE_REFLECTION
     typedef T type;
+    //! The signal type this port binds to, which the functional surface
+    //! (functional.hpp) uses to allocate one without naming the MoC.
+    typedef ChanType chan_type;
     
     // NOTE: The following member functions could be overriden easier if
     //       bind() was declared virtual in the sc_port base classes.
@@ -559,6 +574,19 @@ public:
     {
         contents_.push_back({what, obj});
     }
+
+    //! Take ownership of something that is not a module
+    /*! add() covers processes and sub-composites, which are modules.
+     * The functional surface (functional.hpp) also allocates *signals*
+     * as it goes, and a signal is an sc_object but not an sc_module, so
+     * it needs somewhere to live for as long as the composite does --
+     * the same ownership question add() was introduced to answer, for
+     * the one kind of object it cannot take.
+     */
+    void own_object(sc_core::sc_object* obj)
+    {
+        owned_objects.emplace_back(obj);
+    }
 #endif
 
     //! SystemC's positional binding, hidden on purpose
@@ -588,6 +616,7 @@ private:
     std::vector<std::unique_ptr<sc_module>> owned;
 #ifdef FORSYDE_REFLECTION
     std::vector<content_entry> contents_;
+    std::vector<std::unique_ptr<sc_core::sc_object>> owned_objects;
 #endif
 };
 
