@@ -130,6 +130,45 @@ inline void wait_until(const sc_time& t,        ///< the local time to advance t
 enum bound_type {PORT, CHANNEL};
 
 //! A helper class used to provide introspective channels
+class composite;
+
+//! What a composite recorded, in the order it was described
+/*! A composite accumulates one of these per thing built inside it, at
+ * the moment it is built, which is what lets the IR be a product of
+ * describing a model rather than something recovered afterwards by
+ * walking SystemC's object tree (3e).
+ *
+ * The order is construction order, and that is not an approximation of
+ * what the tree walk used to report -- it is the same thing. SystemC
+ * registers a child with its parent when the child is constructed, so
+ * get_child_objects() was always returning construction order; members
+ * first, because they are constructed before the constructor body runs,
+ * and anything built in the body interleaved exactly where it was
+ * built. Recording at construction reproduces that by definition.
+ */
+enum class content_kind {node, port, channel};
+
+struct content_entry
+{
+    content_kind what;
+    sc_core::sc_object* obj;
+};
+
+namespace detail
+{
+//! Record this object with the composite it is being built inside
+/*! A no-op when there is no enclosing composite -- a process's own
+ * ports have the process as their parent, not a composite, and are
+ * reached through the process's bound-channel vectors instead; and a
+ * model may nest a composite inside a plain SC_MODULE, which records
+ * nothing and falls back to the tree walk.
+ *
+ * Defined below, after composite is a complete type. Both callers are
+ * templates, so they are not instantiated until long after that.
+ */
+inline void record_with_parent(sc_core::sc_object* self, content_kind what);
+} // namespace detail
+
 class introspective_channel
 {
 public:
@@ -158,8 +197,14 @@ class signal: public sc_fifo<TokenType>
 #endif
 {
 public:
+#ifdef FORSYDE_REFLECTION
+    signal() : sc_fifo<TokenType>() {detail::record_with_parent(this, content_kind::channel);}
+    signal(sc_module_name name, unsigned size) : sc_fifo<TokenType>(name, size)
+        {detail::record_with_parent(this, content_kind::channel);}
+#else
     signal() : sc_fifo<TokenType>() {}
     signal(sc_module_name name, unsigned size) : sc_fifo<TokenType>(name, size) {}
+#endif
 #ifdef FORSYDE_REFLECTION
     typedef T type;
     
@@ -212,8 +257,14 @@ class in_port: public sc_fifo_in<TokenType>
 #endif
 {
 public:
+#ifdef FORSYDE_REFLECTION
+    in_port() : sc_fifo_in<TokenType>(){detail::record_with_parent(this, content_kind::port);}
+    in_port(const char* name) : sc_fifo_in<TokenType>(name)
+        {detail::record_with_parent(this, content_kind::port);}
+#else
     in_port() : sc_fifo_in<TokenType>(){}
     in_port(const char* name) : sc_fifo_in<TokenType>(name){}
+#endif
 #ifdef FORSYDE_REFLECTION
     typedef T type;
     
@@ -252,8 +303,14 @@ class out_port: public sc_fifo_out<TokenType>
 #endif
 {
 public:
+#ifdef FORSYDE_REFLECTION
+    out_port() : sc_fifo_out<TokenType>(){detail::record_with_parent(this, content_kind::port);}
+    out_port(const char* name) : sc_fifo_out<TokenType>(name)
+        {detail::record_with_parent(this, content_kind::port);}
+#else
     out_port() : sc_fifo_out<TokenType>(){}
     out_port(const char* name) : sc_fifo_out<TokenType>(name){}
+#endif
 #ifdef FORSYDE_REFLECTION
     typedef T type;
     
@@ -399,6 +456,17 @@ public:
             ): sc_module(_name)
     {
         SC_THREAD(worker);
+#ifdef FORSYDE_REFLECTION
+        // A process records itself with the composite it is built
+        // inside, rather than being recorded by composite::add(). Both
+        // would be the same thing for add(new X(...)), but a process
+        // may equally be declared as a *member* of a composite and
+        // constructed in its initializer list -- CT::filterf and
+        // CT::pif in ct_lib.hpp both do -- and those never pass through
+        // add() at all. Registering here is the one place every
+        // process goes through however it was built.
+        detail::record_with_parent(this, content_kind::node);
+#endif
     }
     
     //! The ForSyDe process type represented by the current module
@@ -448,8 +516,17 @@ public:
      * temporary pushed it onto. A composite that did not have it could
      * only be written with the base spelled out by hand.
      */
+#ifdef FORSYDE_REFLECTION
+    // A composite records itself with its own parent for the same
+    // reason a process does: it is a node in the network above it,
+    // whether it was reached through add() or declared as a member.
+    composite() : sc_module() {detail::record_with_parent(this, content_kind::node);}
+    composite(sc_module_name _name) : sc_module(_name)
+        {detail::record_with_parent(this, content_kind::node);}
+#else
     composite() : sc_module() {}
     composite(sc_module_name _name) : sc_module(_name) {}
+#endif
 
     //! Take ownership of a freshly constructed process or sub-module
     /*! Returns it by reference, so that the call reads as one statement
@@ -458,9 +535,31 @@ public:
     template <typename P>
     P& add(P* p)
     {
+        // Ownership only. The node was already recorded by the process
+        // or composite itself as it was constructed, which is a moment
+        // earlier than this and happens whether or not add() is
+        // involved.
         owned.emplace_back(p);
         return *p;
     }
+
+#ifdef FORSYDE_REFLECTION
+    //! What was built inside this composite, in the order it was built
+    /*! This is the record 3e made the IR out of. ir::build reads it
+     * instead of walking get_child_objects() and sorting the results
+     * back out with dynamic_cast, which means the structure comes from
+     * what the model said rather than from what SystemC happened to
+     * keep. A composite knows its own contents; it no longer has to be
+     * asked about them from outside.
+     */
+    const std::vector<content_entry>& contents() const {return contents_;}
+
+    //! Called by a port or signal as it is constructed inside this composite
+    void record_content(content_kind what, sc_core::sc_object* obj)
+    {
+        contents_.push_back({what, obj});
+    }
+#endif
 
     //! SystemC's positional binding, hidden on purpose
     /*! sc_module::operator() binds a module's ports in declaration order
@@ -487,7 +586,22 @@ public:
 
 private:
     std::vector<std::unique_ptr<sc_module>> owned;
+#ifdef FORSYDE_REFLECTION
+    std::vector<content_entry> contents_;
+#endif
 };
+
+#ifdef FORSYDE_REFLECTION
+inline void detail::record_with_parent(sc_core::sc_object* self, content_kind what)
+{
+    // dynamic_cast rather than a static one because the parent may be
+    // any sc_object: a plain SC_MODULE, a process (for its own ports),
+    // or nothing at all for something built outside a module. Only a
+    // composite records.
+    if (auto* c = dynamic_cast<composite*>(self->get_parent_object()))
+        c->record_content(what, self);
+}
+#endif
 
 //! Declares a composite process the way SC_MODULE declares a plain one
 /*! Expands to `struct name : public ForSyDe::composite` -- the

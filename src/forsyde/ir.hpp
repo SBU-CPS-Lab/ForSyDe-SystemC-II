@@ -263,9 +263,42 @@ inline std::size_t build_into(model& m, sc_core::sc_module* mod)
     m.networks[self].instance = mod->basename();
     m.networks[self].name = detail::component_of(m.networks[self].instance);
 
-    for (sc_core::sc_object* child : mod->get_child_objects())
+    // What this composite recorded as it was described (3e).
+    //
+    // The IR used to be recovered from here by walking
+    // get_child_objects() and sorting what came back into processes,
+    // ports and signals with a dynamic_cast apiece. A composite now
+    // knows its own contents, because everything built inside one
+    // registers itself as it is constructed, so this reads a record
+    // rather than reconstructing one.
+    //
+    // The order is the same order, not merely a similar one: SystemC
+    // registers a child with its parent at construction, so the walk
+    // was always reporting construction order, and recording at
+    // construction reproduces it by definition. That is what let this
+    // change land with all 50 files under tests/golden_ir unmoved.
+    //
+    // The fallback is for a hierarchy built out of plain SC_MODULEs
+    // rather than ForSyDe::composite -- nothing in this repository does
+    // that, but a model outside it may, and it worked before. It is not
+    // left unexercised on that argument: tests/ir builds one on purpose,
+    // because "no example does this" is how the last four defects in
+    // this library survived as long as they did.
+    std::vector<ForSyDe::content_entry> recorded;
+    if (auto* comp = dynamic_cast<ForSyDe::composite*>(mod))
+        recorded = comp->contents();
+    else
+        for (sc_core::sc_object* child : mod->get_child_objects())
+        {
+            if (detail::is_module(child))       recorded.push_back({ForSyDe::content_kind::node, child});
+            else if (detail::is_port(child))    recorded.push_back({ForSyDe::content_kind::port, child});
+            else if (detail::is_signal(child))  recorded.push_back({ForSyDe::content_kind::channel, child});
+        }
+
+    for (const auto& entry : recorded)
     {
-        if (detail::is_module(child))
+        sc_core::sc_object* child = entry.obj;
+        if (entry.what == ForSyDe::content_kind::node)
         {
             node n;
             n.name = child->basename();
@@ -292,11 +325,24 @@ inline std::size_t build_into(model& m, sc_core::sc_module* mod)
                 n.kind = node_kind::composite;
                 n.component = detail::component_of(n.name);
 
-                for (sc_core::sc_object* sub_child : static_cast<sc_core::sc_module*>(child)->get_child_objects())
-                    if (detail::is_port(sub_child))
-                        n.ports.push_back(detail::port_from(
-                            dynamic_cast<ForSyDe::introspective_port*>(sub_child),
-                            detail::direction_of(sub_child)));
+                // A sub-composite's own boundary ports come out of its
+                // own record, for the same reason this network's do.
+                if (auto* sub = dynamic_cast<ForSyDe::composite*>(child))
+                {
+                    for (const auto& e : sub->contents())
+                        if (e.what == ForSyDe::content_kind::port)
+                            n.ports.push_back(detail::port_from(
+                                dynamic_cast<ForSyDe::introspective_port*>(e.obj),
+                                detail::direction_of(e.obj)));
+                }
+                else
+                {
+                    for (sc_core::sc_object* sub_child : static_cast<sc_core::sc_module*>(child)->get_child_objects())
+                        if (detail::is_port(sub_child))
+                            n.ports.push_back(detail::port_from(
+                                dynamic_cast<ForSyDe::introspective_port*>(sub_child),
+                                detail::direction_of(sub_child)));
+                }
 
                 // Recurse first, then store the index: build_into may
                 // reallocate m.networks, but the index it returns stays
@@ -307,7 +353,7 @@ inline std::size_t build_into(model& m, sc_core::sc_module* mod)
             m.networks[self].order.push_back({child_kind::node, m.networks[self].nodes.size()});
             m.networks[self].nodes.push_back(std::move(n));
         }
-        else if (detail::is_port(child))
+        else if (entry.what == ForSyDe::content_kind::port)
         {
             auto* ip = dynamic_cast<ForSyDe::introspective_port*>(child);
             port pt = detail::port_from(ip, detail::direction_of(child));
@@ -320,7 +366,7 @@ inline std::size_t build_into(model& m, sc_core::sc_module* mod)
             m.networks[self].order.push_back({child_kind::port, m.networks[self].ports.size()});
             m.networks[self].ports.push_back(std::move(pt));
         }
-        else if (detail::is_signal(child))
+        else if (entry.what == ForSyDe::content_kind::channel)
         {
             auto* ic = dynamic_cast<ForSyDe::introspective_channel*>(child);
             channel ch;

@@ -227,10 +227,45 @@ FORSYDE_COMPOSITE(top)
     }
 };
 
+//! A container that is a plain SC_MODULE rather than a ForSyDe::composite
+/*! 3e made ir::build read a composite's own record of what was built
+ * inside it, instead of walking SystemC's child objects and classifying
+ * what came back. A plain SC_MODULE keeps no such record, so build()
+ * falls back to the walk for one -- and nothing in this repository is
+ * written this way, which is exactly the condition under which a path
+ * rots. A model outside this repository may well be, so the fallback is
+ * exercised here on purpose rather than assumed to work.
+ */
+SC_MODULE(plain_container)
+{
+    SY::signal<int> a, b;
+
+    SC_CTOR(plain_container)
+    {
+        auto* s = new SY::sconstant("psrc", 5, 3); (*s)(a);
+        auto* c = new SY::comb<int,int>("pcomb",
+            [](abst_ext<int>& o, const abst_ext<int>& i)
+            {o = abst_ext<int>(unsafe_from_abst_ext(i) + 1);});
+        (*c)(b, a);
+        auto* k = new SY::ssink("psnk", [](const abst_ext<int>&){}); (*k)(b);
+    }
+};
+
 int sc_main(int, char*[])
 {
     top t("top1");
+    plain_container pc("plain1");
     sc_core::sc_start();
+
+#ifdef FORSYDE_REFLECTION
+    // The fallback path: same graph, recovered the old way.
+    const ir::model pm = ir::build(&pc);
+    check(pm.networks.size() == 1, "a plain SC_MODULE yields one network");
+    check(pm.top().nodes.size() == 3,
+          "the walk fallback finds every process in a non-composite container");
+    check(pm.top().channels.size() == 2,
+          "the walk fallback finds every signal in a non-composite container");
+#endif
 
 #ifdef FORSYDE_REFLECTION
     std::cout << (failures == 0 ? "all invariants hold\n" : "INVARIANTS BROKEN\n");
