@@ -179,7 +179,14 @@ jobs:
       - name: Build and run mi/cruisecontrol under Xvfb
         run: |
           make -C examples/mi/cruisecontrol/software
-          xvfb-run -a bash -c 'cd examples/mi/cruisecontrol && make clean && make && timeout 30 ./run.x'
+          # 30s was not enough to distinguish "slow" from "hung", and
+          # gdbwrap is inherently slow: every simulation step is a
+          # round trip to a real GDB (step-over, modify expression,
+          # continue, poll). If this still times out at 300s the model
+          # is genuinely stuck rather than crawling, which is the thing
+          # worth knowing -- a debugger that cannot get a controlling
+          # terminal is the failure mode this job has always had.
+          xvfb-run -a bash -c 'cd examples/mi/cruisecontrol && make clean && make && timeout 300 ./run.x'
 
   optional-fmi:
     name: optional (FMI co-simulation)
