@@ -145,6 +145,14 @@ DIRS+=("tests/fsm_semantics")
 # tests/moc_binding/README.md.
 DIRS+=("tests/moc_binding")
 
+# tests/ir pins the model graph as a graph, rather than through the XML
+# a backend renders from it: that every edge resolves, that a network's
+# ordered child list and its three typed lists describe the same thing,
+# and that the composite-to-network links form a tree. The golden IR
+# corpus checks the view; this checks what the view is a view of. See
+# tests/ir/README.md.
+DIRS+=("tests/ir")
+
 echo "CXXSTD=$CXXSTD $( [ $SEED = 1 ] && echo '(seed mode)' || echo '(check mode)' )"
 
 # One job per directory. Everything this prints goes to the job's own

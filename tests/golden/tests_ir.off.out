@@ -1,0 +1,10 @@
+
+        SystemC 3.0.2-Accellera --- <build-date-elided>
+        Copyright (c) 1996-2025 by all Contributors,
+        ALL RIGHTS RESERVED
+IR unavailable: this build has no FORSYDE_INTROSPECTION,
+so the members ir::build reads are not compiled in (3b).
+out 7
+out 7
+out 7
+out 7

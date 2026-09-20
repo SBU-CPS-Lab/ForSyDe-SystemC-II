@@ -1,5 +1,5 @@
 /**********************************************************************
-    * xml.hpp -- Dumps the system model as the abstract XML+C format  * 
+    * xml.hpp -- Dumps the system model as the abstract XML+C format  *
     *                                                                 *
     * Authors: Hosein Attarzadeh (h_attarzadeh@sbu.ac.ir)             *
     *                                                                 *
@@ -15,19 +15,30 @@
 
 /*! \file xml.hpp
  * \brief Dumps the system model as the XML+C abstract format.
- * 
+ *
  *  This file includes functions which can be used in order to export
  * the structure and behavior of a specified system in an abstract
  * format represented as an XML file plus a set of CPP fiels.
  * This format can be used by other tools for further manipulation.
+ *
+ * This backend is a *view* over ForSyDe::ir::model (ir.hpp) rather than
+ * a traversal of SystemC's object tree. It used to be both at once: the
+ * walk that discovered the structure and the code that wrote it out
+ * were the same loop, so the structure existed only for as long as the
+ * walk did and only one thing could ever be done with it. Splitting
+ * them changes nothing about the output -- the golden corpus under
+ * tests/golden_ir pins that, file for file -- and it is what lets a
+ * second backend, or a self-model, read the same graph.
  */
 
 #include <systemc>
 #include <algorithm>
 #include <filesystem>
+#include <fstream>
 #include "rapidxml_print.hpp"
 
 #include "abssemantics.hpp"
+#include "ir.hpp"
 
 // D6: this file used to also carry an unconditional
 // "using namespace rapidxml;" here, alongside every rapidxml type it
@@ -50,21 +61,13 @@
 // elsewhere turns up nothing in this file) and removed outright rather
 // than given its own include, rather than keep a namespace-polluting
 // using-directive (D6) alive to serve a dependency that doesn't exist.
+//
+// get_moc_and_pc lived here too, and moved to ir.hpp when splitting a
+// forsyde_kind() stopped being something only this backend did.
 
 namespace ForSyDe
 {
 using namespace sc_core;
-
-// Some Helper Fuctions
-//! Extracts the MoC and the process constructor name from a ForSyDe kind.
-//! `inline`: this is a non-template free function defined in a header, so
-//! without it each including translation unit emits a strong definition
-//! and linking two of them fails (see the note in types.hpp).
-inline void get_moc_and_pc(const std::string& kind, std::string& moc, std::string& pc)
-{
-    moc = kind.substr(0, kind.find(':'));
-    pc = kind.substr(kind.rfind(':')+1, kind.length());
-}
 
 //! Abstract class used to Export a system as an XML file
 /*! This class provides basic facilities to export a ForSyDe-SystemC
@@ -115,88 +118,72 @@ public:
         const_bound_process = (char*)"bound_process";
         const_bound_port = (char*)"bound_port";
     }
-    
+
     //! The destructor makes sure all XML nodes are deallocated.
     ~XMLExport()
     {
         xml_doc.clear();
     }
-    
+
     //! The traverse function requires the top ForSyDe process name
-    /*! It initiates the translation job which is a recursive traversal
-     * of the process network.
+    /*! It builds the IR of the elaborated model and writes one XML
+     * document per level of hierarchy, which is the form this format
+     * has always taken: a composite process appears in its parent's
+     * document as an instance, and its contents are a document of their
+     * own, named after the component rather than the instance.
      */
     void traverse(sc_module* top)
     {
-        // Initiate the XML file for this level of hierarchy
-        rapidxml::xml_node<>* pn_node = init(top);
-        
-        // Get the list of module children (ports and other processes)
-        std::vector<sc_object*> children = top->get_child_objects();
-        
-        // Take care of children objects
-        for (auto it=children.begin();it!=children.end();it++)
+        write(ForSyDe::ir::build(top));
+    }
+
+    //! Write an already-built model out, one document per network
+    void write(const ForSyDe::ir::model& m)
+    {
+        for (const auto& net : m.networks)
         {
-            // Check if it is a module, a port, or something else
-            if (is_module(*it))
+            // One document per network, and this object holds exactly
+            // one, so each level gets its own exporter. The documents
+            // are independent -- a composite's contents do not nest
+            // inside its parent's document -- so there is nothing to
+            // carry between them.
+            XMLExport dumper(path);
+            dumper.write_network(net);
+        }
+    }
+
+private:
+    //! Write one network as a complete XML document
+    void write_network(const ForSyDe::ir::network& net)
+    {
+        rapidxml::xml_node<>* pn_node = allocate_append_node(&xml_doc, const_process_network);
+        allocate_append_attribute(pn_node, const_name, net.name.c_str());
+
+        for (const auto& slot : net.order)
+        {
+            switch (slot.kind)
             {
-                // Is it a leaf or a composite process?
-                if (is_leaf(*it))      // Leaf process
+                case ForSyDe::ir::child_kind::node:
                 {
-                    // Add it to the XML document
-                    add_leaf_process(static_cast<ForSyDe::process*>(*it), pn_node);
+                    const auto& n = net.nodes[slot.index];
+                    if (n.kind == ForSyDe::ir::node_kind::leaf)
+                        add_leaf_process(n, pn_node);
+                    else
+                        add_composite_process(n, pn_node);
+                    break;
                 }
-                else
-                {                       // Composite process
-                    add_composite_process(static_cast<sc_module*>(*it), pn_node);
-                    // Recursion step
-                    XMLExport dumper(path);
-                    dumper.traverse(static_cast<ForSyDe::process*>(*it));
-                }
-            }
-            else if (is_port(*it))
-            {
-                // TODO: determining port direction can be done in a better way
-                char* dir = (*it)->kind()==std::string("sc_fifo_in") ? const_in : const_out;
-                const char* bound_process = dynamic_cast<ForSyDe::introspective_port*>(*it)
-                    -> bound_port -> get_parent_object() -> basename();
-                const char* bound_port = dynamic_cast<ForSyDe::introspective_port*>(*it)
-                    -> bound_port -> basename();
-                add_port(dynamic_cast<ForSyDe::introspective_port*>(*it), dir, pn_node, bound_process, bound_port);
-            }
-            else if (is_signal(*it))
-            {
-                add_signal(dynamic_cast<ForSyDe::introspective_channel*>(*it), pn_node);
+                case ForSyDe::ir::child_kind::port:
+                    add_port(net.ports[slot.index], pn_node);
+                    break;
+                case ForSyDe::ir::child_kind::channel:
+                    add_signal(net.channels[slot.index], pn_node);
+                    break;
             }
         }
-        // Last, print the XML structure
-        // NOTE: Extract the composite process name based on the
-        // convention: "nameX" or "nameXX", where Xs are 0-9
-        std::string name_str(top->basename());
-        name_str = name_str.substr(0, name_str.find_last_not_of("0123456789")+1).c_str();
-        printXML(path + name_str + std::string(".xml"));
-        
+
+        printXML(path + net.name + std::string(".xml"));
     }
-    
-    //! The init member initiates the XML DOM and performs initial settings.
-    /*! 
-     */
-    rapidxml::xml_node<>* init(const sc_module* p)
-    {
-        // The top most node
-        rapidxml::xml_node<> *pn_node = xml_doc.allocate_node(rapidxml::node_element, const_process_network);
-        xml_doc.append_node(pn_node);
-        // NOTE: Extract the composite process name based on the
-        // convention: "nameX" or "nameXX", where Xs are 0-9
-        std::string name_str(p->basename());
-        char* xml_composite_name = xml_doc.allocate_string(
-            name_str.substr(0, name_str.find_last_not_of("0123456789")+1).c_str()
-        );
-        allocate_append_attribute(pn_node, const_name, xml_composite_name);
-        
-        return pn_node;
-    }
-    
+
     //! The print method writes the XML file to the output.
     /*! The XML structure is already generated, so this command only
      * checks for the availability of the output file and dumps the XML
@@ -212,177 +199,100 @@ public:
         outFile << "<!DOCTYPE process_network SYSTEM \"forsyde.dtd\" >"  << std::endl;
         outFile << xml_doc;
     }
-    
+
     //! Add a leaf process
-    void add_leaf_process(const ForSyDe::process* p, rapidxml::xml_node<>* pn_node)
+    void add_leaf_process(const ForSyDe::ir::node& n, rapidxml::xml_node<>* pn_node)
     {
-        // Determine the process consructor and the belonging MoC
-        std::string moc, pc;
-        get_moc_and_pc(p->forsyde_kind(), moc, pc);
-        char* xml_pc = xml_doc.allocate_string(pc.c_str());
-        char* moc_name;
-        if (moc=="SDF") moc_name = const_sdf;
-        else if (moc=="SADF") moc_name = const_sadf;
-        else if (moc=="UT") moc_name = const_ut;
-        else if (moc=="SY") moc_name = const_sy;
-        else if (moc=="DDE") moc_name = const_dde;
-        else if (moc=="DT") moc_name = const_dt;
-        else if (moc=="CT") moc_name = const_ct;
-        else if (moc=="MI") moc_name = const_mi;
-        else
-        {
-            SC_REPORT_ERROR("XML Backend", "MoC could not be deduced from kind.");
-            return;
-        }
-        
-        // Add the process node
         rapidxml::xml_node<> *p_node = allocate_append_node(pn_node, const_leaf_process);
-        allocate_append_attribute(p_node, const_name, p->basename());
-        
+        allocate_append_attribute(p_node, const_name, n.name.c_str());
+
             // Add the leaf process ports
-            add_leaf_process_ports(p, p_node);
-        
+            for (const auto& pt : n.ports)
+                add_port(pt, p_node);
+
             // Add the process constructor node
             rapidxml::xml_node<> *pc_node = allocate_append_node(p_node, const_process_constructor);
-            allocate_append_attribute(pc_node, const_name, xml_pc);
-            allocate_append_attribute(pc_node, const_moc, moc_name);
-            
+            allocate_append_attribute(pc_node, const_name, n.pc_name.c_str());
+            allocate_append_attribute(pc_node, const_moc, moc_attribute(n.pc_moc));
+
             // Add arguments
-            for (auto it=p->arg_vec.begin();it!=p->arg_vec.end();it++)
+            for (const auto& arg : n.params)
             {
                 rapidxml::xml_node<> *arg_node = allocate_append_node(pc_node, const_argument);
-                char* arg_name = xml_doc.allocate_string(std::get<0>(*it).c_str());
-                char* arg_val = xml_doc.allocate_string(std::get<1>(*it).c_str());
-                allocate_append_attribute(arg_node, const_name, arg_name);
-                allocate_append_attribute(arg_node, const_value, arg_val);
+                allocate_append_attribute(arg_node, const_name, arg.name.c_str());
+                allocate_append_attribute(arg_node, const_value, arg.value.c_str());
             }
     }
-    
-    //! Add the ports for a leaf process
-    void add_leaf_process_ports(const ForSyDe::process* p, rapidxml::xml_node<>* pn_node)
-    {
-        for (auto it=p->boundInChans.begin();it!=p->boundInChans.end();it++)
-            add_port(dynamic_cast<ForSyDe::introspective_port*>((*it).port), const_in, pn_node);
-        for (auto it=p->boundOutChans.begin();it!=p->boundOutChans.end();it++)
-            add_port(dynamic_cast<ForSyDe::introspective_port*>((*it).port), const_out, pn_node);
-    }
-    
+
     //! Add a composite process
-    void add_composite_process(const sc_module* p, rapidxml::xml_node<>* pn_node)
+    void add_composite_process(const ForSyDe::ir::node& n, rapidxml::xml_node<>* pn_node)
     {
         rapidxml::xml_node<> *p_node = allocate_append_node(pn_node, const_composite_process);
-        allocate_append_attribute(p_node, const_name, p->basename());
-        // NOTE: Extract the composite process name based on the
-        // convention: "nameX" or "nameXX", where Xs are 0-9
-        std::string name_str(p->basename());
-        char* xml_composite_name = xml_doc.allocate_string(
-            name_str.substr(0, name_str.find_last_not_of("0123456789")+1).c_str()
-        );
-        allocate_append_attribute(p_node, const_component_name, xml_composite_name);
-        // Add port nodes
-        std::vector<sc_object*> children = p->get_child_objects();
-        std::for_each(children.begin(), children.end(), [&](sc_object* it)
-        {
-            if (is_port(it))
-            {
-                // TODO: determining port direction can be done in a better way
-                char* dir = it->kind()==std::string("sc_fifo_in") ? const_in : const_out;
-                add_port(dynamic_cast<ForSyDe::introspective_port*>(it), dir, p_node);
-            }
-        });
+        allocate_append_attribute(p_node, const_name, n.name.c_str());
+        allocate_append_attribute(p_node, const_component_name, n.component.c_str());
+        for (const auto& pt : n.ports)
+            add_port(pt, p_node);
     }
-    
+
     //! Add a port
-    void add_port(introspective_port* port, const char* dir, rapidxml::xml_node<>* pn_node, 
-                  const char* bound_process=NULL, const char* bound_port=NULL)
+    void add_port(const ForSyDe::ir::port& pt, rapidxml::xml_node<>* pn_node)
     {
         rapidxml::xml_node<> *p_node = allocate_append_node(pn_node, const_port);
-        if (port != NULL)
+        allocate_append_attribute(p_node, const_name, pt.name.c_str());
+        allocate_append_attribute(p_node, const_moc, moc_attribute(pt.moc));
+        allocate_append_attribute(p_node, const_type, pt.type.c_str());
+        allocate_append_attribute(p_node, const_direction,
+            pt.dir == ForSyDe::ir::direction::in ? const_in : const_out);
+        if (!pt.bound_process.empty() && !pt.bound_port.empty())
         {
-            allocate_append_attribute(p_node, const_name, dynamic_cast<sc_object*>(port)->basename());
-            char* moc_name;
-            if (port->moc()=="SDF") moc_name = const_sdf;
-            else if (port->moc()=="SADF") moc_name = const_sadf;
-            else if (port->moc()=="UT") moc_name = const_ut;
-            else if (port->moc()=="SY") moc_name = const_sy;
-            else if (port->moc()=="DDE") moc_name = const_dde;
-            else if (port->moc()=="DT") moc_name = const_dt;
-            else if (port->moc()=="CT") moc_name = const_ct;
-            else
-            {
-                SC_REPORT_ERROR("XML Backend", "MoC could not be deduced from kind.");
-                return;
-            }
-            allocate_append_attribute(p_node, const_moc, moc_name);
-            allocate_append_attribute(p_node, const_type, port->token_type());
-            allocate_append_attribute(p_node, const_direction, dir);
-        }
-        if (bound_process != NULL && bound_port != NULL)
-        {
-            allocate_append_attribute(p_node, const_bound_process, bound_process);
-            allocate_append_attribute(p_node, const_bound_port, bound_port);
+            allocate_append_attribute(p_node, const_bound_process, pt.bound_process.c_str());
+            allocate_append_attribute(p_node, const_bound_port, pt.bound_port.c_str());
         }
     }
-    
+
     //! Add a ForSyDe signal
-    void add_signal(introspective_channel* sig, rapidxml::xml_node<>* pn_node)
+    void add_signal(const ForSyDe::ir::channel& ch, rapidxml::xml_node<>* sig_parent)
     {
-        rapidxml::xml_node<> *sig_node = allocate_append_node(pn_node, const_signal);
-        allocate_append_attribute(sig_node, const_name, dynamic_cast<sc_object*>(sig)->basename());
-        char* moc_name;
-        if (sig->moc()=="SDF") moc_name = const_sdf;
-        else if (sig->moc()=="SADF") moc_name = const_sadf;
-        else if (sig->moc()=="UT") moc_name = const_ut;
-        else if (sig->moc()=="SY") moc_name = const_sy;
-        else if (sig->moc()=="DDE") moc_name = const_dde;
-        else if (sig->moc()=="DT") moc_name = const_dt;
-        else if (sig->moc()=="CT") moc_name = const_ct;
-        else
-        {
-            SC_REPORT_ERROR("XML Backend", "MoC could not be deduced from kind.");
-            return;
-        }
-        allocate_append_attribute(sig_node, const_moc, moc_name);
-        allocate_append_attribute(sig_node, const_type, sig->token_type());
-        allocate_append_attribute(sig_node, const_source, sig->oport->get_parent_object()->basename());
-        allocate_append_attribute(sig_node, const_source_port, sig->oport->basename());
-        allocate_append_attribute(sig_node, const_target, sig->iport->get_parent_object()->basename());
-        allocate_append_attribute(sig_node, const_target_port, sig->iport->basename());
+        rapidxml::xml_node<> *sig_node = allocate_append_node(sig_parent, const_signal);
+        allocate_append_attribute(sig_node, const_name, ch.name.c_str());
+        allocate_append_attribute(sig_node, const_moc, moc_attribute(ch.moc));
+        allocate_append_attribute(sig_node, const_type, ch.type.c_str());
+        allocate_append_attribute(sig_node, const_source, ch.source.c_str());
+        allocate_append_attribute(sig_node, const_source_port, ch.source_port.c_str());
+        allocate_append_attribute(sig_node, const_target, ch.target.c_str());
+        allocate_append_attribute(sig_node, const_target_port, ch.target_port.c_str());
     }
-    
-    //! Check if the systemC object is a leaf process
-    inline bool is_leaf(sc_object* module)
+
+    //! The lower-case spelling this format uses for a MoC
+    /*! The IR keeps a MoC as the process, port or channel reports it --
+     * "SY" -- and every backend spells it its own way; this one spells
+     * it in lower case. "MI" reaches here only from a process: an MI
+     * process's ports and signals are the MoC-specific ones of whichever
+     * two MoCs it sits between, never MI's own.
+     */
+    char* moc_attribute(const std::string& moc)
     {
-        return dynamic_cast<ForSyDe::process*>(module) != NULL;
-    }
-    
-    //! Check if the systemC object is module
-    inline bool is_module(const sc_object* module)
-    {
-        return module->kind() == std::string("sc_module");
-    }
-    
-    //! Check if the systemC object is port
-    inline bool is_port(sc_object* port)
-    {
-        return dynamic_cast<introspective_port*>(port) != NULL;
-    }
-    
-    //! Check if the systemC object is a ForSyDe signal
-    inline bool is_signal(const sc_object* sig)
-    {
-        return sig->kind() == std::string("sc_fifo");
+        if (moc=="SDF") return const_sdf;
+        else if (moc=="SADF") return const_sadf;
+        else if (moc=="UT") return const_ut;
+        else if (moc=="SY") return const_sy;
+        else if (moc=="DDE") return const_dde;
+        else if (moc=="DT") return const_dt;
+        else if (moc=="CT") return const_ct;
+        else if (moc=="MI") return const_mi;
+        SC_REPORT_ERROR("XML Backend", "MoC could not be deduced from kind.");
+        return const_sy;
     }
 
 private:
     //! The Path for generating the output
-    std::string path; 
-    
+    std::string path;
+
     //! The RapidXML DOM
     rapidxml::xml_document<> xml_doc;
-    
+
     //! Some global constant names
-    char *const_name, *const_leaf_process, *const_composite_process, 
+    char *const_name, *const_leaf_process, *const_composite_process,
          *const_process_network, *const_process_constructor, *const_moc,
          *const_type, *const_port,
          *const_sdf, *const_sadf, *const_ut, *const_sy, *const_dde, *const_dt, *const_ct, *const_mi,
@@ -390,20 +300,27 @@ private:
          *const_signal, *const_component_name, *const_argument, *const_value,
          *const_source, *const_source_port, *const_target, *const_target_port,
          *const_bound_process, *const_bound_port;
-    
+
     inline rapidxml::xml_node<>* allocate_append_node(rapidxml::xml_node<>* top, const char* name)
     {
         rapidxml::xml_node<>* node = xml_doc.allocate_node(rapidxml::node_element, name);
         top->append_node(node);
         return node;
     }
-    
+
+    //! Copy a value into the document's pool and attach it
+    /*! allocate_string rather than the pointer: rapidxml stores what it
+     * is given without copying, so an attribute pointing into an
+     * ir::model would outlive its source the moment a backend is handed
+     * a model it does not own.
+     */
     inline void allocate_append_attribute(rapidxml::xml_node<>* node, const char* attr_name, const char* attr_val)
     {
-        rapidxml::xml_attribute<>* attr = xml_doc.allocate_attribute(attr_name, attr_val);
+        rapidxml::xml_attribute<>* attr = xml_doc.allocate_attribute(
+            attr_name, xml_doc.allocate_string(attr_val));
         node->append_attribute(attr);
     }
-    
+
 };
 
 
