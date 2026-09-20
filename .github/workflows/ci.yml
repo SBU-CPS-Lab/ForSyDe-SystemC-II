@@ -146,8 +146,22 @@ jobs:
             "https://sourceforge.net/projects/libmigdb/files/libmigdb/0.8.13/libmigdb-0.8.13.tar.bz2/download"
           mkdir -p /tmp/libmigdb-src
           tar xjf /tmp/libmigdb.tar.bz2 -C /tmp/libmigdb-src --strip-components=1
-          make -C /tmp/libmigdb-src/libmigdb
-          sudo make -C /tmp/libmigdb-src/libmigdb install
+          # Both of the following were verified against the real 0.8.13
+          # tarball rather than guessed at.
+          #
+          # The tarball's root directory is "libmigdb/", so
+          # --strip-components=1 already puts its top-level Makefile
+          # directly in /tmp/libmigdb-src. "make -C
+          # /tmp/libmigdb-src/libmigdb" was one level too deep and had
+          # been failing with "No such file or directory" on every run
+          # since this job was written.
+          #
+          # src/Makefile then hardcodes -gstabs+3, a debug format GCC
+          # removed in 12, in CFLAGS *and* CXXFLAGS separately -- so both
+          # have to be overridden, or the C half builds and cpp_int.cc
+          # does not.
+          make -C /tmp/libmigdb-src CFLAGS="-O2 -Wall -g -I." CXXFLAGS="-O2 -Wall -g"
+          sudo make -C /tmp/libmigdb-src install
           sudo ldconfig
 
       - name: Point the build system at this SystemC
@@ -201,11 +215,13 @@ jobs:
       # No xterm/Xvfb here: FORSYDE_WITH_FMI is requested without
       # FORSYDE_WITH_GDB precisely so this job exercises the FMI parser
       # (D15) on its own, the same isolation that verified the fix.
-      # It is still expected to fail -- see known_failures.txt,
-      # "No ModelExchange element found" -- car.fmu is Co-Simulation-only
-      # and the wrapper's own loading logic currently requires
-      # ModelExchange. continue-on-error covers that expected failure;
-      # a build/link failure here would be the regression to watch for.
+      # This row used to be an expected failure: car.fmu is
+      # Co-Simulation-only and the wrapper rejected it for having no
+      # ModelExchange element. The cause turned out to be that the
+      # vendored sim_support.h picks its FMI interface on
+      # FMI_COSIMULATION and nothing defined it, so a co-simulation
+      # wrapper was compiled for model exchange. forsyde.hpp defines it
+      # now, and this row builds, loads car.so and runs to completion.
       - name: Build and run mi/cruisecontrol (FMI only)
         run: |
           cd examples/mi/cruisecontrol

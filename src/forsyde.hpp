@@ -150,6 +150,14 @@
 #endif
 
 #ifdef FORSYDE_WITH_MPI
+// This block was empty: the switch existed, the header it was meant to
+// guard existed, and nothing connected the two -- so asking for MPI got
+// you a translation unit with no <mpi.h> and no SY/SDF sender and
+// receiver in it, which is precisely what examples/par/mulacc failed
+// on. Nothing local caught it because the harness skips par/mulacc
+// wherever mpic++ is missing, and the CI row that does have MPI is
+// continue-on-error, so it failed quietly on every run instead.
+#include "forsyde/parallel_sim.hpp"
 #endif
 
 #ifdef FORSYDE_WITH_GDB
@@ -162,6 +170,17 @@
 // than pulling in that toolchain's own logging/globals headers.
 #ifndef STANDALONE_XML_PARSER
 #define STANDALONE_XML_PARSER
+#endif
+// The same vendored code compiles for one FMI interface or the other,
+// and ct_wrappers.hpp is unambiguously the co-simulation one: it asks
+// for getCoSimulation(md), instantiates with fmi2CoSimulation, and
+// drives the FMU through fmu.doStep(). Nothing defined this, so
+// sim_support.h was compiled for model exchange instead, which broke it
+// twice over -- it rejected the bundled co-simulation FMU for having no
+// ModelExchange element, and it never resolved the doStep symbol that
+// the wrapper goes on to call.
+#ifndef FMI_COSIMULATION
+#define FMI_COSIMULATION
 #endif
 #include "forsyde/ct_wrappers.hpp"
 #endif

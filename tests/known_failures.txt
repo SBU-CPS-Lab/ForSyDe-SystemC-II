@@ -46,14 +46,19 @@ ct/cttutorial off run
 mi/ir_uwb_radar on run
 mi/ir_uwb_radar off run
 
-# --- The FMU that mi/cruisecontrol loads (fmi2/car.fmu) is
+# --- FIXED. The FMU that mi/cruisecontrol loads (fmi2/car.fmu) is
 # Co-Simulation-only -- there is no ModelExchange element in its
-# modelDescription.xml -- but the code path ct_wrappers.hpp drives in
-# sim_support.h requires ModelExchange: "error: No ModelExchange element
-# found in model description. This FMU is not for Model Exchange." A
-# real defect in the wrapper's FMU-loading logic, not in the XML parser
-# (D15, fixed in step 0.6: the parser is confirmed working end to end,
-# unzipping car.fmu and reading fmiVersion=2.0, modelName=car out of it).
+# modelDescription.xml -- and the wrapper was rejecting it with "error:
+# No ModelExchange element found in model description." The cause was
+# not the wrapper's loading logic but the mode the *vendored* code was
+# compiled in: sim_support.h selects one FMI interface or the other on
+# FMI_COSIMULATION, and nothing in this tree defined it. ct_wrappers.hpp
+# is unambiguously the co-simulation wrapper -- getCoSimulation(md),
+# fmi2CoSimulation, fmu.doStep() -- so it was also calling a doStep
+# symbol that only gets resolved under that same macro. forsyde.hpp now
+# defines it beside STANDALONE_XML_PARSER, where the same vendored code
+# is already configured, and the FMI CI row builds, loads car.so and
+# runs to completion.
 #
 # Separately, on a host where GDB cannot get a controlling terminal
 # (this dev sandbox is one: gdbwrap's spawned xterm shows only "warning:
