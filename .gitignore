@@ -48,8 +48,13 @@ examples/sadf/mp4dec/mp4dec.py
 # Not yet integrated
 /examples/sadf/ForSyDe-systemC-SmartHome/
 
-# Stray runtime capture, not source
-examples/sy/mulaccwrap/socket
+# A scratch directory with no source in it -- a Makefile, a stale
+# main.o and a socket. The harness discovers examples by *tracked*
+# Makefile, so a broad `git add` that sweeps this one in makes CI try to
+# build a directory with nothing to compile (it did, twice). Ignored as
+# a whole rather than file by file, the same as the other discontinued
+# directories below.
+examples/sy/mulaccwrap/
 
 # Build/run output from the golden-file harness (tests/run_examples.sh)
 examples/mi/cruisecontrol/software/controller
